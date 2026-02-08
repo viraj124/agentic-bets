@@ -3193,6 +3193,7 @@ __metadata:
     eslint-config-prettier: ~10.1.1
     eslint-plugin-prettier: ~5.2.4
     kubo-rpc-client: ~5.0.2
+    lightweight-charts: ^5.1.0
     next: ~15.2.8
     next-nprogress-bar: ~2.3.13
     next-themes: ~0.3.0
@@ -8527,6 +8528,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"fancy-canvas@npm:2.1.0":
+  version: 2.1.0
+  resolution: "fancy-canvas@npm:2.1.0"
+  checksum: 2463ca8a9254fb4cc69bbe33a2996b2a0ba8f725721d51464d9e87b4f3c3e8759e2289b0d592f56265501d5cff0b363bb7c72bb9c38212c19114dbd006ec8959
+  languageName: node
+  linkType: hard
+
 "fast-deep-equal@npm:^3.1.1, fast-deep-equal@npm:^3.1.3":
   version: 3.1.3
   resolution: "fast-deep-equal@npm:3.1.3"
@@ -10889,6 +10897,15 @@ __metadata:
     lightningcss-win32-x64-msvc:
       optional: true
   checksum: 50ff82c0b49dbead844d9af2406974a66a8b40762dbada22bec6f6a516f15c58b63b6d42866cfc83877c58bc4fa0028ecf394553e793db9e8bda8f71f50c865f
+  languageName: node
+  linkType: hard
+
+"lightweight-charts@npm:^5.1.0":
+  version: 5.1.0
+  resolution: "lightweight-charts@npm:5.1.0"
+  dependencies:
+    fancy-canvas: 2.1.0
+  checksum: e13df4c3894dacecaaa8fa547f169ef22a2b759d175c75d2cceed1f5184c65d48240b4c1500b0ff0e90f80b72d64bd3cf637dd3c4c8fb0d22eb2479f718c3e2e
   languageName: node
   linkType: hard
 

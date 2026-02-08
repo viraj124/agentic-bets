@@ -6,8 +6,9 @@ import "~~/styles/globals.css";
 import { getMetadata } from "~~/utils/scaffold-eth/getMetadata";
 
 export const metadata = getMetadata({
-  title: "Scaffold-ETH 2 App",
-  description: "Built with 🏗 Scaffold-ETH 2",
+  title: "BankrBets - Predict Token Prices",
+  description:
+    "Binary prediction market for Bankr ecosystem tokens on Base. Bet UP or DOWN on Clanker tokens in 5-minute rounds.",
 });
 
 const ScaffoldEthApp = ({ children }: { children: React.ReactNode }) => {

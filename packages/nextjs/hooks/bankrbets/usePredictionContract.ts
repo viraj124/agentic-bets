@@ -1,0 +1,185 @@
+import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
+
+/**
+ * Hook to read the current round data for a token
+ */
+export function useCurrentRound(tokenAddress: string) {
+  const { data: currentEpoch } = useScaffoldReadContract({
+    contractName: "BankrBetsPrediction",
+    functionName: "getCurrentEpoch",
+    args: [tokenAddress],
+  });
+
+  const { data: round } = useScaffoldReadContract({
+    contractName: "BankrBetsPrediction",
+    functionName: "getRound",
+    args: [tokenAddress, currentEpoch ?? 0n],
+    query: {
+      enabled: currentEpoch !== undefined && currentEpoch > 0n,
+      refetchInterval: 3000,
+    },
+  });
+
+  return {
+    epoch: currentEpoch,
+    round,
+    isActive: currentEpoch !== undefined && currentEpoch > 0n,
+  };
+}
+
+/**
+ * Hook to read a user's bet for a specific round
+ */
+export function useUserBet(tokenAddress: string, epoch: bigint | undefined, userAddress: string | undefined) {
+  const { data: bet } = useScaffoldReadContract({
+    contractName: "BankrBetsPrediction",
+    functionName: "getUserBet",
+    args: [tokenAddress, epoch ?? 0n, userAddress ?? "0x0000000000000000000000000000000000000000"],
+    query: {
+      enabled: epoch !== undefined && epoch > 0n && !!userAddress,
+    },
+  });
+
+  return bet;
+}
+
+/**
+ * Hook to check if a user can claim
+ */
+export function useClaimable(tokenAddress: string, epoch: bigint | undefined, userAddress: string | undefined) {
+  const { data: canClaim } = useScaffoldReadContract({
+    contractName: "BankrBetsPrediction",
+    functionName: "claimable",
+    args: [tokenAddress, epoch ?? 0n, userAddress ?? "0x0000000000000000000000000000000000000000"],
+    query: {
+      enabled: epoch !== undefined && epoch > 0n && !!userAddress,
+    },
+  });
+
+  return canClaim;
+}
+
+/**
+ * Hook to place bets and claim
+ */
+export function usePredictionActions() {
+  const { writeContractAsync: writeBetBull, isPending: isBettingBull } =
+    useScaffoldWriteContract("BankrBetsPrediction");
+  const { writeContractAsync: writeBetBear, isPending: isBettingBear } =
+    useScaffoldWriteContract("BankrBetsPrediction");
+  const { writeContractAsync: writeClaim, isPending: isClaiming } = useScaffoldWriteContract("BankrBetsPrediction");
+
+  const betBull = async (token: string, amount: bigint) => {
+    return writeBetBull({
+      functionName: "betBull",
+      args: [token, amount],
+    });
+  };
+
+  const betBear = async (token: string, amount: bigint) => {
+    return writeBetBear({
+      functionName: "betBear",
+      args: [token, amount],
+    });
+  };
+
+  const claim = async (token: string, epochs: bigint[]) => {
+    return writeClaim({
+      functionName: "claim",
+      args: [token, epochs],
+    });
+  };
+
+  return {
+    betBull,
+    betBear,
+    claim,
+    isBettingBull,
+    isBettingBear,
+    isClaiming,
+  };
+}
+
+/**
+ * Hook to get user's round history
+ */
+export function useUserRounds(tokenAddress: string, userAddress: string | undefined) {
+  const { data: rounds } = useScaffoldReadContract({
+    contractName: "BankrBetsPrediction",
+    functionName: "getUserRounds",
+    args: [tokenAddress, userAddress ?? "0x0000000000000000000000000000000000000000"],
+    query: {
+      enabled: !!userAddress,
+    },
+  });
+
+  return rounds;
+}
+
+/**
+ * Hook for settlement actions — callable by anyone to earn 0.1% reward
+ */
+export function useSettlementActions() {
+  const { writeContractAsync: writeLock, isPending: isLocking } = useScaffoldWriteContract("BankrBetsPrediction");
+  const { writeContractAsync: writeClose, isPending: isClosing } = useScaffoldWriteContract("BankrBetsPrediction");
+  const { writeContractAsync: writeStart, isPending: isStarting } = useScaffoldWriteContract("BankrBetsPrediction");
+
+  const lockRound = async (token: string) => {
+    return writeLock({ functionName: "lockRound", args: [token] });
+  };
+
+  const closeRound = async (token: string) => {
+    return writeClose({ functionName: "closeRound", args: [token] });
+  };
+
+  const startRound = async (token: string) => {
+    return writeStart({ functionName: "startRound", args: [token] });
+  };
+
+  return {
+    lockRound,
+    closeRound,
+    startRound,
+    isLocking,
+    isClosing,
+    isStarting,
+  };
+}
+
+/**
+ * Hook to read settlement eligibility for frontend "Settle" button
+ */
+export function useSettlementStatus(tokenAddress: string) {
+  const { data: lockable } = useScaffoldReadContract({
+    contractName: "BankrBetsPrediction",
+    functionName: "isLockable",
+    args: [tokenAddress],
+    query: {
+      refetchInterval: 3000,
+    },
+  });
+
+  const { data: closable } = useScaffoldReadContract({
+    contractName: "BankrBetsPrediction",
+    functionName: "isClosable",
+    args: [tokenAddress],
+    query: {
+      refetchInterval: 3000,
+    },
+  });
+
+  const { data: settlerReward } = useScaffoldReadContract({
+    contractName: "BankrBetsPrediction",
+    functionName: "getSettlerReward",
+    args: [tokenAddress],
+    query: {
+      refetchInterval: 5000,
+    },
+  });
+
+  return {
+    isLockable: !!lockable,
+    isClosable: !!closable,
+    settlerReward: settlerReward ? Number(settlerReward) / 1e6 : 0,
+  };
+}
