@@ -1,90 +1,225 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, lazy, memo, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { CreateMarketModal } from "./CreateMarketModal";
-import { ClankerToken } from "~~/hooks/bankrbets/useClankerTokens";
-import { PoolData } from "~~/hooks/bankrbets/useGeckoTerminal";
+import { useAccount } from "wagmi";
+import { BankrToken } from "~~/hooks/bankrbets/useBankrTokens";
+
+const PriceChart = lazy(() => import("./PriceChart").then(m => ({ default: m.PriceChart })));
+const CreateMarketModal = lazy(() => import("./CreateMarketModal").then(m => ({ default: m.CreateMarketModal })));
 
 interface TokenCardProps {
-  token: ClankerToken;
-  poolData?: PoolData;
-  isEligible?: boolean;
+  token: BankrToken;
+  isExpanded: boolean;
+  onToggle: () => void;
+  hasMarket?: boolean;
 }
 
-export function TokenCard({ token, poolData, isEligible }: TokenCardProps) {
+/** Rotating accent colors for token avatars without images */
+const AVATAR_COLORS = [
+  { bg: "bg-pg-violet/15", text: "text-pg-violet", border: "border-pg-violet/30" },
+  { bg: "bg-pg-pink/15", text: "text-pg-pink", border: "border-pg-pink/30" },
+  { bg: "bg-pg-amber/15", text: "text-pg-amber", border: "border-pg-amber/30" },
+  { bg: "bg-pg-mint/15", text: "text-pg-mint", border: "border-pg-mint/30" },
+];
+
+function getAvatarColor(symbol: string) {
+  const hash = symbol.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+}
+
+export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, hasMarket }: TokenCardProps) {
+  const { isConnected } = useAccount();
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const isPositive = poolData && poolData.change1h >= 0;
-  const changeColor = isPositive ? "text-emerald-600" : "text-red-500";
-  const changeBg = isPositive ? "bg-emerald-50" : "bg-red-50";
-  const changeSign = isPositive ? "+" : "";
+
+  const isPositive = token.change24h >= 0;
+  const changeColor = isPositive ? "text-pg-mint" : "text-pg-pink";
+  const changeBg = isPositive ? "bg-pg-mint/10" : "bg-pg-pink/10";
+  const marketLink = `/market#${token.contractAddress},${token.topPoolAddress}`;
+  const avatarColor = useMemo(() => getAvatarColor(token.symbol), [token.symbol]);
+
+  const openModal = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowCreateModal(true);
+  }, []);
+
+  const closeModal = useCallback(() => setShowCreateModal(false), []);
+
+  const stats = useMemo(
+    () => [
+      { label: "Price", value: token.priceFormatted, mono: true },
+      { label: "Mkt Cap", value: token.marketCapFormatted },
+      { label: "24h Vol", value: token.volumeFormatted },
+      {
+        label: "24h Change",
+        value: `${isPositive ? "+" : ""}${token.change24h.toFixed(2)}%`,
+        color: changeColor,
+      },
+    ],
+    [token.priceFormatted, token.marketCapFormatted, token.volumeFormatted, token.change24h, isPositive, changeColor],
+  );
 
   return (
     <>
-      <Link
-        href={`/market#${token.contractAddress},${token.poolAddress}`}
-        className="group block bg-base-100 rounded-xl p-4 border border-base-300/60 hover:border-primary/40 hover:shadow-md transition-all duration-200"
-      >
-        <div className="flex items-center gap-3 mb-3">
+      <div className={`token-row ${isExpanded ? "expanded" : ""}`}>
+        {/* ── Main clickable row ──────────────────────────────── */}
+        <button onClick={onToggle} className="w-full flex items-center gap-3 px-4 py-3.5 text-left cursor-pointer">
+          {/* Token image */}
           {token.imgUrl ? (
-            <img src={token.imgUrl} alt={token.symbol} className="w-9 h-9 rounded-full ring-1 ring-base-300" />
-          ) : (
-            <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-bold">
-              {token.symbol.slice(0, 2)}
-            </div>
-          )}
+            <img
+              src={token.imgUrl}
+              alt={token.symbol}
+              loading="lazy"
+              className="w-10 h-10 rounded-xl flex-shrink-0 object-cover border-2 border-pg-border bg-base-200"
+              onError={e => {
+                (e.target as HTMLImageElement).style.display = "none";
+                (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden");
+              }}
+            />
+          ) : null}
+          <div
+            className={`w-10 h-10 rounded-xl ${avatarColor.bg} ${avatarColor.border} border-2 flex items-center justify-center ${avatarColor.text} font-extrabold text-xs flex-shrink-0 ${token.imgUrl ? "hidden" : ""}`}
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            {token.symbol.slice(0, 2).toUpperCase()}
+          </div>
+
+          {/* Name + Symbol */}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <h3 className="font-semibold text-sm">{token.symbol}</h3>
-              {isEligible ? (
-                <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                  Live
+              <span
+                className="font-bold text-sm truncate text-base-content"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                {token.symbol}
+              </span>
+              {hasMarket && (
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-pg-mint/15 text-pg-mint px-2 py-0.5 rounded-full border border-pg-mint/30">
+                  <span className="w-1 h-1 rounded-full bg-pg-mint animate-pulse" />
+                  LIVE
                 </span>
-              ) : (
-                <button
-                  onClick={e => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setShowCreateModal(true);
-                  }}
-                  className="text-[10px] font-medium bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-full hover:bg-amber-100 transition-colors"
-                >
-                  + Create Market
-                </button>
               )}
             </div>
-            <p className="text-xs text-base-content/40 truncate">{token.name}</p>
+            <p className="text-[11px] text-pg-muted truncate">{token.name}</p>
           </div>
-          {poolData && (
-            <span className={`text-xs font-medium px-2 py-1 rounded-md ${changeBg} ${changeColor}`}>
-              {changeSign}
-              {poolData.change1h.toFixed(1)}%
-            </span>
-          )}
-        </div>
 
-        {poolData ? (
-          <div className="flex items-end justify-between">
-            <span className="text-lg font-mono font-semibold tracking-tight">{poolData.priceFormatted}</span>
-            <span className="text-[11px] text-base-content/40">{poolData.marketCapFormatted}</span>
+          {/* Price */}
+          <div className="text-right flex-shrink-0 w-24">
+            <p className="font-mono text-sm font-bold tracking-tight text-base-content">{token.priceFormatted}</p>
           </div>
-        ) : (
-          <div className="flex items-end justify-between">
-            <div className="animate-pulse h-6 w-24 bg-base-300/50 rounded" />
-            <div className="animate-pulse h-4 w-16 bg-base-300/50 rounded" />
+
+          {/* 24h Change */}
+          <div className="text-right flex-shrink-0 w-20">
+            <span
+              className={`inline-flex items-center text-xs font-bold ${changeColor} ${changeBg} px-2 py-0.5 rounded-full`}
+            >
+              {isPositive ? "+" : ""}
+              {token.change24h.toFixed(1)}%
+            </span>
+          </div>
+
+          {/* Market Cap */}
+          <div className="text-right flex-shrink-0 w-20 hidden sm:block">
+            <p className="text-xs text-pg-muted font-medium">{token.marketCapFormatted}</p>
+          </div>
+
+          {/* Volume */}
+          <div className="text-right flex-shrink-0 w-20 hidden md:block">
+            <p className="text-xs text-pg-muted font-medium">{token.volumeFormatted}</p>
+          </div>
+
+          {/* Arrow */}
+          <svg
+            className={`w-4 h-4 text-pg-muted/40 group-hover:text-pg-violet transition-all duration-300 flex-shrink-0 ${
+              isExpanded ? "rotate-90 text-pg-violet" : ""
+            }`}
+            style={{ transitionTimingFunction: "var(--ease-bounce)" }}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+          </svg>
+        </button>
+
+        {/* ── Expanded section ────────────────────────────────── */}
+        {isExpanded && (
+          <div className="card-expand-enter overflow-hidden">
+            <div className="border-t-2 border-pg-border/60 px-4 pb-5">
+              {/* Chart (lazy loaded) */}
+              {token.topPoolAddress && (
+                <div className="mt-4 rounded-xl overflow-hidden border-2 border-pg-border bg-base-200/30">
+                  <Suspense
+                    fallback={
+                      <div className="h-[200px] flex items-center justify-center">
+                        <span className="loading loading-spinner loading-sm text-pg-violet" />
+                      </div>
+                    }
+                  >
+                    <PriceChart poolAddress={token.topPoolAddress} height={200} />
+                  </Suspense>
+                </div>
+              )}
+
+              {/* Stats row */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                {stats.map(stat => (
+                  <div key={stat.label} className="bg-base-200/50 rounded-lg px-3 py-2.5 border border-pg-border/50">
+                    <p
+                      className="text-[10px] text-pg-muted uppercase tracking-wider font-bold"
+                      style={{ fontFamily: "var(--font-heading)" }}
+                    >
+                      {stat.label}
+                    </p>
+                    <p
+                      className={`text-sm font-bold mt-0.5 ${stat.color || "text-base-content"} ${stat.mono ? "font-mono" : ""}`}
+                    >
+                      {stat.value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-3 mt-4">
+                <button
+                  onClick={openModal}
+                  disabled={!isConnected}
+                  className="btn-candy flex-1 text-sm text-center disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isConnected ? "Create Market" : "Connect Wallet"}
+                </button>
+                <Link href={marketLink} className="btn-outline-geo flex-1 text-sm text-center">
+                  View Details
+                </Link>
+              </div>
+
+              {/* Token address */}
+              <div className="flex items-center justify-between mt-3">
+                <p className="text-[10px] text-pg-muted/60 font-mono">
+                  {token.contractAddress.slice(0, 6)}...{token.contractAddress.slice(-4)}
+                </p>
+                {token.deployedAt && (
+                  <p className="text-[10px] text-pg-muted/60">{new Date(token.deployedAt).toLocaleDateString()}</p>
+                )}
+              </div>
+            </div>
           </div>
         )}
-      </Link>
+      </div>
 
-      {showCreateModal && (
-        <CreateMarketModal
-          tokenAddress={token.contractAddress}
-          poolAddress={token.poolAddress}
-          tokenSymbol={token.symbol}
-          onClose={() => setShowCreateModal(false)}
-        />
+      {/* Create Market Modal (lazy loaded) */}
+      {showCreateModal && token.topPoolAddress && (
+        <Suspense fallback={null}>
+          <CreateMarketModal
+            tokenAddress={token.contractAddress}
+            poolAddress={token.topPoolAddress}
+            tokenSymbol={token.symbol}
+            onClose={closeModal}
+          />
+        </Suspense>
       )}
     </>
   );
-}
+});

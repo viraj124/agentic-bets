@@ -1,84 +1,116 @@
 "use client";
 
-import Link from "next/link";
 import type { NextPage } from "next";
 import { TrendingTokens } from "~~/components/bankrbets/TrendingTokens";
-import { useEligibleTokens } from "~~/hooks/bankrbets/useEligibleTokens";
+
+const STEPS = [
+  {
+    n: "01",
+    t: "Pick a token",
+    d: "Browse Bankr ecosystem tokens and create prediction markets",
+    color: "bg-pg-violet",
+    shadow: "shadow-pop-violet",
+  },
+  {
+    n: "02",
+    t: "Bet UP or DOWN",
+    d: "Predict price direction in 5-minute rounds",
+    color: "bg-pg-pink",
+    shadow: "shadow-pop-pink",
+  },
+  {
+    n: "03",
+    t: "Anyone settles",
+    d: "Settle rounds on-chain and earn 0.1% reward",
+    color: "bg-pg-amber",
+    shadow: "shadow-pop",
+  },
+  {
+    n: "04",
+    t: "Collect winnings",
+    d: "Winners split the pool. Creators earn 0.5% forever",
+    color: "bg-pg-mint",
+    shadow: "shadow-pop-soft",
+  },
+];
 
 const Home: NextPage = () => {
-  const { tokenCount } = useEligibleTokens();
-
   return (
     <div className="flex flex-col grow">
-      {/* Hero */}
-      <div className="px-6 pt-10 pb-6">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-2">Predict token prices</h1>
-          <p className="text-base text-base-content/50 max-w-lg mb-4">
-            Permissionless prediction markets for any token on Base. Create a market, earn 0.5% forever. Pick UP or
-            DOWN, win USDC in 5-minute rounds.
-          </p>
-          <Link
-            href="/market"
-            className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
-          >
-            Create a market
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-            </svg>
-          </Link>
-        </div>
-      </div>
+      {/* ── Hero ──────────────────────────────────────────────────── */}
+      <div className="relative px-6 pt-12 pb-8 overflow-hidden">
+        {/* Floating geometric decorations */}
+        <div className="absolute top-6 right-[15%] w-16 h-16 rounded-full bg-pg-amber/20 border-2 border-pg-amber/30 animate-float hidden md:block" />
+        <div className="absolute top-20 right-[8%] w-8 h-8 rounded-lg bg-pg-pink/20 border-2 border-pg-pink/30 rotate-12 animate-float-slow hidden md:block" />
+        <div className="absolute bottom-4 left-[10%] w-10 h-10 rounded-full bg-pg-mint/20 border-2 border-pg-mint/30 animate-float-slow hidden lg:block" />
 
-      {/* Stats bar */}
-      <div className="max-w-7xl mx-auto w-full px-6 pb-6">
-        <div className="flex flex-wrap gap-6 text-sm">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-            <span className="text-base-content/50">Live on Base</span>
-          </div>
-          <div className="text-base-content/50">5-min rounds</div>
-          <div className="text-base-content/50">2.1% fee (1.5% treasury + 0.5% creator + 0.1% settler)</div>
-          {tokenCount > 0 && (
-            <div className="text-primary font-medium">
-              {tokenCount} live market{tokenCount !== 1 ? "s" : ""}
+        <div className="max-w-5xl mx-auto relative">
+          <div className="flex items-start gap-4 mb-4">
+            {/* Logo mark */}
+            <div className="w-12 h-12 rounded-2xl bg-pg-violet border-2 border-pg-slate flex items-center justify-center shadow-pop flex-shrink-0">
+              <span className="text-white text-xl font-extrabold" style={{ fontFamily: "var(--font-heading)" }}>
+                B
+              </span>
             </div>
-          )}
+            <div>
+              <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-base-content">
+                Bankr <span className="text-pg-violet">Bets</span>
+              </h1>
+              <div className="flex items-center gap-2 mt-1.5">
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-pg-mint/15 text-pg-mint rounded-full px-3 py-1 border border-pg-mint/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-pg-mint animate-pulse" />
+                  Live on Base
+                </span>
+                <span className="inline-flex items-center text-[11px] font-bold bg-pg-amber/15 text-pg-amber rounded-full px-3 py-1 border border-pg-amber/30">
+                  5-min rounds
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-base text-pg-muted max-w-lg leading-relaxed ml-16">
+            Prediction markets for Bankr ecosystem tokens. Pick a token, create a market, bet on the next 5 minutes.
+          </p>
         </div>
       </div>
 
-      {/* Token grid */}
-      <div className="max-w-7xl mx-auto w-full px-6 pb-8">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-xl font-semibold">Trending tokens</h2>
-          <span className="text-xs text-base-content/40">Clanker + GeckoTerminal</span>
-        </div>
+      {/* ── Token List ────────────────────────────────────────────── */}
+      <div className="max-w-5xl mx-auto w-full px-6 pb-10 flex-1">
         <TrendingTokens />
       </div>
 
-      {/* How it works */}
-      <div className="border-t border-base-300 px-6 py-12">
+      {/* ── How it works ──────────────────────────────────────────── */}
+      <div className="relative px-6 py-14 bg-dots">
+        {/* Decorative squiggle divider */}
+        <div className="absolute top-0 left-0 right-0 h-px bg-pg-border" />
+
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-xl font-semibold mb-8 text-center">How it works</h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            {[
-              {
-                step: "01",
-                title: "Pick a token",
-                desc: "Browse trending tokens or create a new market for any token",
-              },
-              { step: "02", title: "Bet UP or DOWN", desc: "Predict where the price goes in 5 minutes using USDC" },
-              { step: "03", title: "Anyone settles", desc: "Lock & close rounds on-chain. Settlers earn 0.1% reward" },
-              {
-                step: "04",
-                title: "Collect winnings",
-                desc: "Winners split the losing side's pool. Creators earn 0.5%",
-              },
-            ].map(item => (
-              <div key={item.step} className="text-center">
-                <div className="text-3xl font-bold text-primary/20 mb-2">{item.step}</div>
-                <h3 className="font-semibold mb-1 text-sm">{item.title}</h3>
-                <p className="text-xs text-base-content/50 leading-relaxed">{item.desc}</p>
+          <div className="flex items-center gap-3 mb-8">
+            <h2
+              className="text-xl font-extrabold text-base-content uppercase tracking-wide"
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
+              How it works
+            </h2>
+            <div className="h-1 w-12 rounded-full bg-pg-violet" />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {STEPS.map((item, i) => (
+              <div key={item.n} className={`animate-pop-in stagger-${i + 1} group card-sticker p-5 cursor-default`}>
+                {/* Step number badge */}
+                <div
+                  className={`inline-flex items-center justify-center w-9 h-9 rounded-full ${item.color} border-2 border-pg-slate mb-3`}
+                >
+                  <span className="text-white text-xs font-extrabold" style={{ fontFamily: "var(--font-heading)" }}>
+                    {item.n}
+                  </span>
+                </div>
+
+                <h3 className="font-bold text-sm text-base-content mb-1" style={{ fontFamily: "var(--font-heading)" }}>
+                  {item.t}
+                </h3>
+                <p className="text-xs text-pg-muted leading-relaxed">{item.d}</p>
               </div>
             ))}
           </div>

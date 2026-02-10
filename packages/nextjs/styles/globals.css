@@ -2,38 +2,67 @@
 
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
+/* ── Design Tokens ───────────────────────────────────────────────── */
+
 @theme {
   --shadow-center: 0 0 12px -2px rgb(0 0 0 / 0.05);
   --animate-pulse-fast: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
+  /* Hard shadows — Playful Geometric */
+  --shadow-pop: 4px 4px 0px 0px #1E293B;
+  --shadow-pop-hover: 6px 6px 0px 0px #1E293B;
+  --shadow-pop-active: 2px 2px 0px 0px #1E293B;
+  --shadow-pop-soft: 6px 6px 0px 0px #E2E8F0;
+  --shadow-pop-pink: 6px 6px 0px 0px #F472B6;
+  --shadow-pop-violet: 6px 6px 0px 0px #8B5CF6;
+
+  /* Playful palette as Tailwind colors */
+  --color-pg-cream: #FFFDF5;
+  --color-pg-violet: #8B5CF6;
+  --color-pg-pink: #F472B6;
+  --color-pg-amber: #FBBF24;
+  --color-pg-mint: #34D399;
+  --color-pg-slate: #1E293B;
+  --color-pg-muted: #64748B;
+  --color-pg-border: #E2E8F0;
+
+  /* Bouncy easing */
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Font families */
+  --font-heading: var(--font-outfit), system-ui, sans-serif;
+  --font-body: var(--font-jakarta), system-ui, sans-serif;
 }
+
+/* ── DaisyUI Themes (Playful Geometric palette) ──────────────────── */
 
 @plugin "daisyui" {
   themes:
     light,
-    dark --prefersdark;
+    dark;
 }
 
 @plugin "daisyui/theme" {
   name: "light";
 
-  --color-primary: #0d9488;
+  --color-primary: #8B5CF6;
   --color-primary-content: #ffffff;
-  --color-secondary: #f0fdfa;
-  --color-secondary-content: #134e4a;
-  --color-accent: #14b8a6;
-  --color-accent-content: #ffffff;
-  --color-neutral: #1e293b;
-  --color-neutral-content: #f8fafc;
-  --color-base-100: #ffffff;
-  --color-base-200: #f8fafc;
-  --color-base-300: #e2e8f0;
-  --color-base-content: #0f172a;
-  --color-info: #3b82f6;
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
+  --color-secondary: #F472B6;
+  --color-secondary-content: #ffffff;
+  --color-accent: #FBBF24;
+  --color-accent-content: #1E293B;
+  --color-neutral: #1E293B;
+  --color-neutral-content: #FFFDF5;
+  --color-base-100: #FFFFFF;
+  --color-base-200: #FFFDF5;
+  --color-base-300: #E2E8F0;
+  --color-base-content: #1E293B;
+  --color-info: #8B5CF6;
+  --color-success: #34D399;
+  --color-warning: #FBBF24;
+  --color-error: #F472B6;
 
-  --radius-field: 0.75rem;
+  --radius-field: 0.5rem;
   --radius-box: 1rem;
   --tt-tailw: 6px;
 }
@@ -41,29 +70,30 @@
 @plugin "daisyui/theme" {
   name: "dark";
 
-  --color-primary: #14b8a6;
-  --color-primary-content: #042f2e;
-  --color-secondary: #1e293b;
-  --color-secondary-content: #e2e8f0;
-  --color-accent: #2dd4bf;
-  --color-accent-content: #042f2e;
-  --color-neutral: #f1f5f9;
-  --color-neutral-content: #334155;
-  --color-base-100: #1e293b;
-  --color-base-200: #0f172a;
+  --color-primary: #A78BFA;
+  --color-primary-content: #1E293B;
+  --color-secondary: #F9A8D4;
+  --color-secondary-content: #1E293B;
+  --color-accent: #FDE68A;
+  --color-accent-content: #1E293B;
+  --color-neutral: #F1F5F9;
+  --color-neutral-content: #1E293B;
+  --color-base-100: #1E293B;
+  --color-base-200: #0F172A;
   --color-base-300: #334155;
-  --color-base-content: #f1f5f9;
-  --color-info: #60a5fa;
-  --color-success: #34d399;
-  --color-warning: #fbbf24;
-  --color-error: #f87171;
+  --color-base-content: #F1F5F9;
+  --color-info: #A78BFA;
+  --color-success: #6EE7B7;
+  --color-warning: #FDE68A;
+  --color-error: #FDA4AF;
 
-  --radius-field: 0.75rem;
+  --radius-field: 0.5rem;
   --radius-box: 1rem;
-
   --tt-tailw: 6px;
   --tt-bg: var(--color-primary);
 }
+
+/* ── Base Styles ─────────────────────────────────────────────────── */
 
 @layer base {
   *,
@@ -71,21 +101,28 @@
   ::before,
   ::backdrop,
   ::file-selector-button {
-    border-color: var(--color-gray-200, currentColor);
+    border-color: var(--color-pg-border);
   }
 
   p {
-    margin: 1rem 0;
+    margin: 0;
   }
 
   body {
     min-height: 100vh;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.011em;
+    background: var(--color-base-200);
   }
 
   h1, h2, h3, h4 {
+    font-family: var(--font-heading);
+    font-weight: 700;
     margin-bottom: 0.5rem;
-    line-height: 1;
+    line-height: 1.1;
+    letter-spacing: -0.025em;
   }
 }
 
@@ -94,12 +131,16 @@
   background: var(--color-base-200);
 }
 
+/* ── Component Overrides ─────────────────────────────────────────── */
+
 .btn {
-  @apply shadow-sm;
+  @apply shadow-none font-semibold;
+  font-family: var(--font-heading);
+  border-width: 2px;
 }
 
 .btn.btn-ghost {
-  @apply shadow-none;
+  @apply shadow-none border-0;
 }
 
 .link {
@@ -108,4 +149,150 @@
 
 .link:hover {
   opacity: 80%;
+}
+
+/* ── Playful Geometric Utilities ─────────────────────────────────── */
+
+/* Candy Button */
+.btn-candy {
+  @apply rounded-full font-bold text-white px-6 py-2.5;
+  font-family: var(--font-heading);
+  background: var(--color-pg-violet);
+  border: 2px solid var(--color-pg-slate);
+  box-shadow: var(--shadow-pop);
+  transition: all 200ms var(--ease-bounce);
+}
+.btn-candy:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: var(--shadow-pop-hover);
+}
+.btn-candy:active {
+  transform: translate(2px, 2px);
+  box-shadow: var(--shadow-pop-active);
+}
+
+/* Secondary outline button */
+.btn-outline-geo {
+  @apply rounded-full font-bold px-6 py-2.5;
+  font-family: var(--font-heading);
+  background: transparent;
+  color: var(--color-pg-slate);
+  border: 2px solid var(--color-pg-slate);
+  transition: all 200ms var(--ease-bounce);
+}
+.btn-outline-geo:hover {
+  background: var(--color-pg-amber);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px 0px var(--color-pg-slate);
+}
+
+/* Sticker Card */
+.card-sticker {
+  background: var(--color-base-100);
+  border: 2px solid var(--color-pg-slate);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-pop-soft);
+  transition: all 300ms var(--ease-bounce);
+}
+.card-sticker:hover {
+  transform: rotate(-1deg) scale(1.01);
+  box-shadow: var(--shadow-pop-pink);
+}
+
+/* Token Row */
+.token-row {
+  background: var(--color-base-100);
+  border: 2px solid var(--color-pg-border);
+  border-radius: 1rem;
+  transition: all 200ms var(--ease-bounce);
+}
+.token-row:hover {
+  border-color: var(--color-pg-slate);
+  box-shadow: var(--shadow-pop);
+  transform: translateY(-1px);
+}
+.token-row.expanded {
+  border-color: var(--color-pg-violet);
+  box-shadow: var(--shadow-pop-violet);
+}
+
+/* Dot grid background */
+.bg-dots {
+  background-image: radial-gradient(circle, var(--color-pg-border) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* ── Animations ──────────────────────────────────────────────────── */
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(3deg); }
+  75% { transform: rotate(-3deg); }
+}
+.hover-wiggle:hover {
+  animation: wiggle 400ms ease-in-out;
+}
+
+@keyframes popIn {
+  0% { transform: scale(0.8); opacity: 0; }
+  70% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-pop-in {
+  animation: popIn 400ms var(--ease-bounce) forwards;
+  opacity: 0;
+}
+
+@keyframes expandDown {
+  from { max-height: 0; opacity: 0; }
+  to { max-height: 700px; opacity: 1; }
+}
+.card-expand-enter {
+  animation: expandDown 300ms ease-out forwards;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-8px) rotate(3deg); }
+}
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+.animate-float-slow {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Stagger delays */
+.stagger-1 { animation-delay: 50ms; }
+.stagger-2 { animation-delay: 100ms; }
+.stagger-3 { animation-delay: 150ms; }
+.stagger-4 { animation-delay: 200ms; }
+.stagger-5 { animation-delay: 250ms; }
+.stagger-6 { animation-delay: 300ms; }
+
+/* ── Scrollbar & Utility ─────────────────────────────────────────── */
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .hover-wiggle:hover,
+  .animate-pop-in,
+  .animate-float,
+  .animate-float-slow {
+    animation: none;
+    opacity: 1;
+  }
+  .card-sticker:hover,
+  .token-row:hover,
+  .btn-candy:hover,
+  .btn-candy:active {
+    transform: none;
+  }
 }

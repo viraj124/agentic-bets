@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { NextPage } from "next";
 import { BetPanel } from "~~/components/bankrbets/BetPanel";
+import { CreateMarketModal } from "~~/components/bankrbets/CreateMarketModal";
 import { MarketCreatorBadge } from "~~/components/bankrbets/MarketCreatorBadge";
 import { PriceChart } from "~~/components/bankrbets/PriceChart";
 import { RoundTimer } from "~~/components/bankrbets/RoundTimer";
@@ -64,6 +65,7 @@ const MarketPage: NextPage = () => {
 };
 
 function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolAddress: string | null }) {
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const { data: poolData } = useGeckoTerminal(poolAddress || undefined);
   const { epoch, round, isActive } = useCurrentRound(tokenAddress);
 
@@ -84,9 +86,27 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
         </Link>
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              {poolData?.tokenName || `${tokenAddress.slice(0, 6)}...${tokenAddress.slice(-4)}`}
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold tracking-tight">
+                {poolData?.tokenName || `${tokenAddress.slice(0, 6)}...${tokenAddress.slice(-4)}`}
+              </h1>
+              {isActive ? (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-success/10 text-success rounded-full px-2.5 py-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+                  Live
+                </span>
+              ) : (
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium bg-base-content text-base-100 rounded-full px-3 py-1.5 hover:bg-base-content/80 transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  Create Market
+                </button>
+              )}
+            </div>
             <div className="flex items-center gap-3 mt-1">
               <p className="text-xs text-base-content/40 font-mono">{tokenAddress}</p>
               <MarketCreatorBadge tokenAddress={tokenAddress} />
@@ -95,7 +115,7 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
           {poolData && (
             <div className="text-right">
               <p className="text-2xl font-bold font-mono tracking-tight">{poolData.priceFormatted}</p>
-              <p className={`text-sm font-medium ${poolData.change1h >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+              <p className={`text-sm font-medium ${poolData.change1h >= 0 ? "text-success" : "text-error"}`}>
                 {poolData.change1h >= 0 ? "+" : ""}
                 {poolData.change1h.toFixed(2)}%<span className="text-base-content/40 font-normal ml-1">1h</span>
               </p>
@@ -103,6 +123,16 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
           )}
         </div>
       </div>
+
+      {/* Create Market Modal */}
+      {showCreateModal && poolAddress && (
+        <CreateMarketModal
+          tokenAddress={tokenAddress}
+          poolAddress={poolAddress}
+          tokenSymbol={poolData?.tokenName?.split("/")[0]}
+          onClose={() => setShowCreateModal(false)}
+        />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Left column: Chart + Round info */}
@@ -153,9 +183,9 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
                   <p className="text-[11px] text-base-content/40 uppercase tracking-wider mb-1">Status</p>
                   <p className="text-lg font-bold">
                     {isLocked ? (
-                      <span className="text-amber-600">Locked</span>
+                      <span className="text-warning">Locked</span>
                     ) : (
-                      <span className="text-emerald-600">Open</span>
+                      <span className="text-success">Open</span>
                     )}
                   </p>
                 </div>

@@ -77,7 +77,7 @@ const ProfilePage: NextPage = () => {
         <div className="bg-base-100 rounded-xl border border-base-300/60 p-4">
           <p className="text-[11px] text-base-content/40 uppercase tracking-wider mb-1">Net P&L</p>
           <p
-            className={`text-xl font-bold ${userStats && userStats.netPnL >= 0 ? "text-emerald-600" : userStats ? "text-red-500" : ""}`}
+            className={`text-xl font-bold ${userStats && userStats.netPnL >= 0 ? "text-success" : userStats ? "text-error" : ""}`}
           >
             {userStats ? `${userStats.netPnL >= 0 ? "+" : ""}$${userStats.netPnL.toFixed(2)}` : "--"}
           </p>
@@ -103,7 +103,7 @@ const ProfilePage: NextPage = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-base-content/50">Total won</span>
-                <span className="font-medium text-emerald-600">${userStats.totalWon.toFixed(2)}</span>
+                <span className="font-medium text-success">${userStats.totalWon.toFixed(2)}</span>
               </div>
               {earnings > 0 && (
                 <div className="flex justify-between">

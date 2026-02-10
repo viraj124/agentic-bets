@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ShareButton } from "./ShareButton";
 import { parseUnits } from "viem";
 import { base } from "viem/chains";
@@ -53,31 +53,34 @@ export function BetPanel({ tokenAddress, tokenSymbol }: BetPanelProps) {
   const bullPercent = totalPool > 0 ? (bullPool / totalPool) * 100 : 50;
   const bearPercent = totalPool > 0 ? (bearPool / totalPool) * 100 : 50;
 
-  const handleBet = async (direction: "bull" | "bear") => {
-    if (!amount || !tokenAddress) return;
-    const amountRaw = parseUnits(amount, USDC_DECIMALS);
+  const handleBet = useCallback(
+    async (direction: "bull" | "bear") => {
+      if (!amount || !tokenAddress) return;
+      const amountRaw = parseUnits(amount, USDC_DECIMALS);
 
-    try {
-      if (direction === "bull") {
-        await betBull(tokenAddress, amountRaw);
-      } else {
-        await betBear(tokenAddress, amountRaw);
+      try {
+        if (direction === "bull") {
+          await betBull(tokenAddress, amountRaw);
+        } else {
+          await betBear(tokenAddress, amountRaw);
+        }
+        setAmount("");
+      } catch (e) {
+        console.error("Bet failed:", e);
       }
-      setAmount("");
-    } catch (e) {
-      console.error("Bet failed:", e);
-    }
-  };
+    },
+    [amount, tokenAddress, betBull, betBear],
+  );
 
-  const handleApprove = async () => {
+  const handleApprove = useCallback(async () => {
     try {
       await approve();
     } catch (e) {
       console.error("Approval failed:", e);
     }
-  };
+  }, [approve]);
 
-  const handleSettle = async () => {
+  const handleSettle = useCallback(async () => {
     try {
       if (isLockable) {
         await lockRound(tokenAddress);
@@ -87,7 +90,10 @@ export function BetPanel({ tokenAddress, tokenSymbol }: BetPanelProps) {
     } catch (e) {
       console.error("Settlement failed:", e);
     }
-  };
+  }, [isLockable, isClosable, tokenAddress, lockRound, closeRound]);
+
+  const handleBetBull = useCallback(() => handleBet("bull"), [handleBet]);
+  const handleBetBear = useCallback(() => handleBet("bear"), [handleBet]);
 
   if (!isActive) {
     return (
@@ -117,9 +123,9 @@ export function BetPanel({ tokenAddress, tokenSymbol }: BetPanelProps) {
       <div className="px-5 py-3 border-b border-base-300/60 flex items-center justify-between">
         <span className="text-sm font-semibold">Round #{epoch?.toString()}</span>
         {round?.[11] ? (
-          <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Locked</span>
+          <span className="text-xs font-medium text-warning bg-warning/10 px-2 py-0.5 rounded-full">Locked</span>
         ) : (
-          <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Open</span>
+          <span className="text-xs font-medium text-success bg-success/10 px-2 py-0.5 rounded-full">Open</span>
         )}
       </div>
 
@@ -127,13 +133,13 @@ export function BetPanel({ tokenAddress, tokenSymbol }: BetPanelProps) {
         {/* Pool sentiment */}
         <div className="mb-5">
           <div className="flex justify-between text-xs mb-1.5">
-            <span className="font-medium text-emerald-600">UP {bullPercent.toFixed(0)}%</span>
+            <span className="font-medium text-success">UP {bullPercent.toFixed(0)}%</span>
             <span className="text-base-content/40">${totalPool.toFixed(2)} pool</span>
-            <span className="font-medium text-red-500">{bearPercent.toFixed(0)}% DOWN</span>
+            <span className="font-medium text-error">{bearPercent.toFixed(0)}% DOWN</span>
           </div>
-          <div className="w-full h-1.5 bg-red-100 rounded-full overflow-hidden">
+          <div className="w-full h-1.5 bg-error/20 rounded-full overflow-hidden">
             <div
-              className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+              className="h-full bg-success rounded-full transition-all duration-500"
               style={{ width: `${bullPercent}%` }}
             />
           </div>
@@ -144,7 +150,7 @@ export function BetPanel({ tokenAddress, tokenSymbol }: BetPanelProps) {
           <button
             onClick={handleSettle}
             disabled={isLocking || isClosing}
-            className="w-full mb-4 py-2.5 rounded-lg font-semibold text-sm bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50 transition-colors"
+            className="w-full mb-4 py-2.5 rounded-lg font-semibold text-sm bg-warning hover:bg-warning/90 text-white disabled:opacity-50 transition-colors"
           >
             {isLocking || isClosing ? (
               <span className="flex items-center justify-center gap-2">
@@ -165,7 +171,7 @@ export function BetPanel({ tokenAddress, tokenSymbol }: BetPanelProps) {
             <p className="text-xs text-base-content/50 mb-1">Your bet</p>
             <p className="text-xl font-bold">
               ${(Number(userBet![1]) / 1e6).toFixed(2)}{" "}
-              <span className={userBet![0] === 0 ? "text-emerald-600" : "text-red-500"}>
+              <span className={userBet![0] === 0 ? "text-success" : "text-error"}>
                 {userBet![0] === 0 ? "UP" : "DOWN"}
               </span>
             </p>
@@ -221,7 +227,7 @@ export function BetPanel({ tokenAddress, tokenSymbol }: BetPanelProps) {
               <button
                 onClick={() => switchChain({ chainId: base.id })}
                 disabled={isSwitching}
-                className="w-full py-3 rounded-lg font-semibold text-sm bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50 transition-colors"
+                className="w-full py-3 rounded-lg font-semibold text-sm bg-warning hover:bg-warning/90 text-white disabled:opacity-50 transition-colors"
               >
                 {isSwitching ? <span className="loading loading-spinner loading-sm" /> : "Switch to Base"}
               </button>
@@ -236,7 +242,7 @@ export function BetPanel({ tokenAddress, tokenSymbol }: BetPanelProps) {
               <button
                 onClick={handleApprove}
                 disabled={isApproving}
-                className="w-full py-3 rounded-lg font-semibold text-sm bg-primary hover:bg-primary/90 text-white disabled:opacity-50 transition-colors"
+                className="w-full py-3 rounded-lg font-semibold text-sm bg-primary hover:bg-primary/90 text-primary-content disabled:opacity-50 transition-colors"
               >
                 {isApproving ? (
                   <span className="flex items-center justify-center gap-2">
@@ -250,16 +256,16 @@ export function BetPanel({ tokenAddress, tokenSymbol }: BetPanelProps) {
             ) : (
               <div className="grid grid-cols-2 gap-2.5">
                 <button
-                  onClick={() => handleBet("bull")}
+                  onClick={handleBetBull}
                   disabled={isBettingBull || !amount}
-                  className="py-3 rounded-lg font-semibold text-sm bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="py-3 rounded-lg font-semibold text-sm bg-success hover:bg-success/90 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   {isBettingBull ? <span className="loading loading-spinner loading-sm" /> : "UP"}
                 </button>
                 <button
-                  onClick={() => handleBet("bear")}
+                  onClick={handleBetBear}
                   disabled={isBettingBear || !amount}
-                  className="py-3 rounded-lg font-semibold text-sm bg-red-500 hover:bg-red-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="py-3 rounded-lg font-semibold text-sm bg-error hover:bg-error/90 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   {isBettingBear ? <span className="loading loading-spinner loading-sm" /> : "DOWN"}
                 </button>

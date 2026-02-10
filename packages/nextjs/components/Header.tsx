@@ -1,11 +1,10 @@
 "use client";
 
 import React, { useRef } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { hardhat } from "viem/chains";
-import { Bars3Icon, BugAntIcon } from "@heroicons/react/24/outline";
+import { Bars3Icon } from "@heroicons/react/24/outline";
 import { FaucetButton, RainbowKitCustomConnectButton } from "~~/components/scaffold-eth";
 import { useOutsideClick, useTargetNetwork } from "~~/hooks/scaffold-eth";
 
@@ -28,11 +27,6 @@ export const menuLinks: HeaderMenuLink[] = [
     label: "Portfolio",
     href: "/profile",
   },
-  {
-    label: "Debug",
-    href: "/debug",
-    icon: <BugAntIcon className="h-4 w-4" />,
-  },
 ];
 
 export const HeaderMenuLinks = () => {
@@ -49,9 +43,10 @@ export const HeaderMenuLinks = () => {
               passHref
               className={`${
                 isActive
-                  ? "text-primary font-semibold border-b-2 border-primary"
-                  : "text-base-content/60 hover:text-base-content"
-              } px-4 py-2 text-sm transition-colors rounded-none gap-2 grid grid-flow-col`}
+                  ? "text-pg-violet font-bold bg-pg-violet/10 rounded-full"
+                  : "text-pg-muted hover:text-base-content"
+              } px-4 py-1.5 text-sm transition-all duration-200 gap-2 grid grid-flow-col`}
+              style={{ fontFamily: "var(--font-heading)" }}
             >
               {icon}
               <span>{label}</span>
@@ -63,9 +58,6 @@ export const HeaderMenuLinks = () => {
   );
 };
 
-/**
- * Site header
- */
 export const Header = () => {
   const { targetNetwork } = useTargetNetwork();
   const isLocalNetwork = targetNetwork.id === hardhat.id;
@@ -76,14 +68,14 @@ export const Header = () => {
   });
 
   return (
-    <div className="sticky top-0 navbar bg-base-100 min-h-0 shrink-0 justify-between z-20 border-b border-base-300 px-0 sm:px-2">
+    <div className="sticky top-0 navbar bg-pg-cream/95 backdrop-blur-sm min-h-0 shrink-0 justify-between z-20 border-b-2 border-pg-border px-0 sm:px-2">
       <div className="navbar-start w-auto lg:w-1/2">
         <details className="dropdown" ref={burgerMenuRef}>
           <summary className="ml-1 btn btn-ghost lg:hidden hover:bg-transparent">
             <Bars3Icon className="h-1/2" />
           </summary>
           <ul
-            className="menu menu-compact dropdown-content mt-3 p-2 shadow-sm bg-base-100 rounded-box w-52"
+            className="menu menu-compact dropdown-content mt-3 p-2 bg-base-100 rounded-xl border-2 border-pg-slate shadow-pop w-52"
             onClick={() => {
               burgerMenuRef?.current?.removeAttribute("open");
             }}
@@ -91,11 +83,21 @@ export const Header = () => {
             <HeaderMenuLinks />
           </ul>
         </details>
-        <Link href="/" passHref className="hidden lg:flex items-center gap-2.5 ml-4 mr-8 shrink-0">
-          <div className="flex relative w-8 h-8">
-            <Image alt="BankrBets logo" className="cursor-pointer" fill src="/logo.svg" />
+        <Link href="/" passHref className="hidden lg:flex items-center gap-2.5 ml-4 mr-8 shrink-0 group">
+          <div
+            className="w-8 h-8 rounded-xl bg-pg-violet border-2 border-pg-slate flex items-center justify-center shadow-pop-active group-hover:shadow-pop transition-all duration-200"
+            style={{ transitionTimingFunction: "var(--ease-bounce)" }}
+          >
+            <span className="text-white text-sm font-extrabold" style={{ fontFamily: "var(--font-heading)" }}>
+              B
+            </span>
           </div>
-          <span className="font-bold text-lg tracking-tight text-base-content">BankrBets</span>
+          <span
+            className="font-extrabold text-base tracking-tight text-base-content"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            Bankr<span className="text-pg-violet">Bets</span>
+          </span>
         </Link>
         <ul className="hidden lg:flex lg:flex-nowrap menu menu-horizontal px-1 gap-0">
           <HeaderMenuLinks />

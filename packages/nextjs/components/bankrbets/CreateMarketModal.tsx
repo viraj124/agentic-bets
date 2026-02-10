@@ -34,15 +34,24 @@ export function CreateMarketModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-pg-slate/40 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <div
-        className="bg-base-100 rounded-2xl border border-base-300/60 shadow-xl w-full max-w-md mx-4 overflow-hidden"
+        className="animate-pop-in bg-base-100 rounded-2xl border-2 border-pg-slate shadow-pop-hover w-full max-w-md mx-4 overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
-        <div className="px-6 py-4 border-b border-base-300/60 flex items-center justify-between">
-          <h3 className="text-lg font-bold">Create Prediction Market</h3>
-          <button onClick={onClose} className="text-base-content/30 hover:text-base-content/60 transition-colors">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        {/* Header */}
+        <div className="px-6 py-4 border-b-2 border-pg-border flex items-center justify-between">
+          <h3 className="text-lg font-extrabold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
+            Create Prediction Market
+          </h3>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full border-2 border-pg-border flex items-center justify-center text-pg-muted hover:border-pg-slate hover:text-base-content transition-all duration-200"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -51,39 +60,47 @@ export function CreateMarketModal({
         <div className="p-6">
           {success ? (
             <div className="text-center py-6">
-              <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-3">
+              {/* Success icon */}
+              <div className="w-16 h-16 rounded-2xl bg-pg-mint/15 border-2 border-pg-mint/30 flex items-center justify-center mx-auto mb-4">
                 <svg
-                  className="w-7 h-7 text-emerald-600"
+                  className="w-8 h-8 text-pg-mint"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
-                  strokeWidth={2}
+                  strokeWidth={2.5}
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                 </svg>
               </div>
-              <p className="font-semibold text-lg mb-1">Market created!</p>
-              <p className="text-sm text-base-content/50">
+              <p
+                className="font-extrabold text-xl mb-1 text-base-content"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                Market created!
+              </p>
+              <p className="text-sm text-pg-muted">
                 You{"'"}ll earn 0.5% of every round{"'"}s pool as the market creator.
               </p>
-              <button
-                onClick={onClose}
-                className="mt-5 px-6 py-2.5 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-              >
+              <button onClick={onClose} className="btn-candy mt-6 text-sm">
                 Start betting
               </button>
             </div>
           ) : (
             <>
               {/* Token info */}
-              <div className="bg-base-200/50 rounded-lg p-4 mb-5">
+              <div className="bg-pg-cream rounded-xl p-4 mb-5 border-2 border-pg-border">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                  <div
+                    className="w-11 h-11 rounded-xl bg-pg-violet/15 border-2 border-pg-violet/30 flex items-center justify-center text-pg-violet font-extrabold text-sm"
+                    style={{ fontFamily: "var(--font-heading)" }}
+                  >
                     {tokenSymbol?.slice(0, 2) || "??"}
                   </div>
                   <div>
-                    <p className="font-semibold">{tokenSymbol || "Unknown Token"}</p>
-                    <p className="text-xs font-mono text-base-content/40">
+                    <p className="font-bold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
+                      {tokenSymbol || "Unknown Token"}
+                    </p>
+                    <p className="text-xs font-mono text-pg-muted">
                       {tokenAddress.slice(0, 10)}...{tokenAddress.slice(-6)}
                     </p>
                   </div>
@@ -93,43 +110,51 @@ export function CreateMarketModal({
               {/* Creator benefits */}
               <div className="space-y-3 mb-6">
                 <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-primary text-xs font-bold">$</span>
+                  <div className="w-7 h-7 rounded-full bg-pg-amber/15 border-2 border-pg-amber/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-pg-amber text-xs font-extrabold">$</span>
                   </div>
                   <div>
-                    <p className="text-sm font-medium">Earn 0.5% forever</p>
-                    <p className="text-xs text-base-content/50">
+                    <p className="text-sm font-bold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
+                      Earn 0.5% forever
+                    </p>
+                    <p className="text-xs text-pg-muted leading-relaxed">
                       You earn 0.5% of every round{"'"}s betting pool for this token, permanently.
                     </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <div className="w-7 h-7 rounded-full bg-pg-pink/15 border-2 border-pg-pink/30 flex items-center justify-center flex-shrink-0 mt-0.5">
                     <svg
-                      className="w-3 h-3 text-primary"
+                      className="w-3.5 h-3.5 text-pg-pink"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
-                      strokeWidth={2}
+                      strokeWidth={2.5}
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-medium">First round starts immediately</p>
-                    <p className="text-xs text-base-content/50">
+                    <p className="text-sm font-bold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
+                      First round starts immediately
+                    </p>
+                    <p className="text-xs text-pg-muted leading-relaxed">
                       A 5-minute prediction round begins as soon as the market is created.
                     </p>
                   </div>
                 </div>
               </div>
 
-              {error && <div className="bg-red-50 text-red-600 text-xs rounded-lg px-3 py-2 mb-4">{error}</div>}
+              {error && (
+                <div className="bg-pg-pink/10 text-pg-pink text-xs font-bold rounded-xl px-4 py-2.5 mb-4 border-2 border-pg-pink/20">
+                  {error}
+                </div>
+              )}
 
               <button
                 onClick={handleCreate}
                 disabled={isCreating}
-                className="w-full py-3 rounded-lg font-semibold text-sm bg-primary hover:bg-primary/90 text-white disabled:opacity-50 transition-colors"
+                className="btn-candy w-full text-sm disabled:opacity-50"
               >
                 {isCreating ? (
                   <span className="flex items-center justify-center gap-2">
@@ -141,9 +166,7 @@ export function CreateMarketModal({
                 )}
               </button>
 
-              <p className="text-[11px] text-base-content/30 text-center mt-3">
-                Requires a valid Uniswap V4 pool on Base
-              </p>
+              <p className="text-[11px] text-pg-muted text-center mt-3">Requires a valid Uniswap V4 pool on Base</p>
             </>
           )}
         </div>

@@ -20,7 +20,7 @@ export function RoundTimer({ lockTimestamp, closeTimestamp, isLocked }: RoundTim
       <span className="text-xs font-medium text-base-content/50 uppercase tracking-wider">{label}</span>
       <div
         className={`text-3xl font-mono font-bold tabular-nums ${
-          isExpired ? "text-base-content/30" : isUrgent ? "text-red-500 animate-pulse" : "text-base-content"
+          isExpired ? "text-base-content/30" : isUrgent ? "text-error animate-pulse" : "text-base-content"
         }`}
       >
         {isExpired ? "--:--" : formatted}

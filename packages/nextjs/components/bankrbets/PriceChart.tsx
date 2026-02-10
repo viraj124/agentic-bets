@@ -13,9 +13,10 @@ interface OhlcvCandle {
 
 interface PriceChartProps {
   poolAddress: string;
+  height?: number;
 }
 
-export function PriceChart({ poolAddress }: PriceChartProps) {
+export function PriceChart({ poolAddress, height }: PriceChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [chartReady, setChartReady] = useState(false);
 
@@ -110,7 +111,7 @@ export function PriceChart({ poolAddress }: PriceChartProps) {
   }, [candles]);
 
   return (
-    <div className="relative w-full h-72">
+    <div className="relative w-full" style={{ height: height ? `${height}px` : "18rem" }}>
       <div ref={chartContainerRef} className="w-full h-full" />
       {!chartReady && (
         <div className="absolute inset-0 flex items-center justify-center">

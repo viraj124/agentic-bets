@@ -69,7 +69,7 @@ const LeaderboardPage: NextPage = () => {
                 </div>
                 <div className="text-right">{entry.winRate.toFixed(0)}%</div>
                 <div className="text-right">{entry.totalBets}</div>
-                <div className={`text-right font-medium ${entry.netPnL >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                <div className={`text-right font-medium ${entry.netPnL >= 0 ? "text-success" : "text-error"}`}>
                   {entry.netPnL >= 0 ? "+" : ""}${entry.netPnL.toFixed(2)}
                 </div>
               </div>
