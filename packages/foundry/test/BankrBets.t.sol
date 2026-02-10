@@ -86,8 +86,8 @@ contract BankrBetsTest is Test {
         // Link oracle → prediction (required for addTokenFor + active round checks)
         oracle.setPredictionContract(address(prediction));
 
-        // Build PoolKey for token1 — token1 must be one of the currencies
-        poolKey1 = PoolKey({ currency0: Currency.wrap(address(usdc)), currency1: Currency.wrap(token1), fee: 3000, tickSpacing: 60, hooks: IHooks(address(0)) });
+        // Build PoolKey for token1 — token1 is currency0 (lower address) so isToken0=true, no inversion
+        poolKey1 = PoolKey({ currency0: Currency.wrap(token1), currency1: Currency.wrap(address(usdc)), fee: 3000, tickSpacing: 60, hooks: IHooks(address(0)) });
         poolId1 = poolKey1.toId();
 
         // Set initial price + liquidity in mock (non-zero = pool is initialized)
@@ -346,8 +346,9 @@ contract BankrBetsTest is Test {
     function test_BetInactiveToken() public {
         prediction.startRound(token1);
 
-        // Cancel the round first so deactivation is allowed
-        prediction.cancelRound(token1, 1);
+        // Refund the round after grace period so deactivation is allowed
+        vm.warp(block.timestamp + 240 + 300 + 3601);
+        prediction.refundRound(token1, 1);
 
         vm.prank(marketCreator);
         oracle.deactivateMarket(token1);
@@ -665,34 +666,6 @@ contract BankrBetsTest is Test {
         assertFalse(prediction.claimable(token1, 1, bob)); // bear lost
     }
 
-    // ========== Cancel Round ==========
-
-    function test_CancelRound() public {
-        prediction.startRound(token1);
-        vm.prank(alice);
-        prediction.betBull(token1, TEN_USDC);
-
-        prediction.cancelRound(token1, 1);
-
-        BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
-        assertTrue(round.cancelled);
-
-        uint256[] memory epochs = new uint256[](1);
-        epochs[0] = 1;
-        uint256 bal = usdc.balanceOf(alice);
-        vm.prank(alice);
-        prediction.claim(token1, epochs);
-        assertEq(usdc.balanceOf(alice) - bal, TEN_USDC);
-    }
-
-    function test_CancelRoundOnlyOwner() public {
-        prediction.startRound(token1);
-
-        vm.prank(alice);
-        vm.expectRevert();
-        prediction.cancelRound(token1, 1);
-    }
-
     // ========== Admin Tests ==========
 
     function test_ClaimTreasury() public {
@@ -938,6 +911,73 @@ contract BankrBetsTest is Test {
         assertFalse(prediction.isLockable(token1));
     }
 
+    // --- Auto-cancel expired unlocked rounds ---
+
+    function test_AutoCancelExpiredUnlockedRound() public {
+        // Start a round — nobody bets or locks
+        prediction.startRound(token1);
+        assertTrue(prediction.hasActiveRound(token1));
+
+        // Warp past close timestamp (lock window expired, never locked)
+        vm.warp(block.timestamp + 240 + 300 + 1);
+
+        // lockRound is now impossible
+        vm.expectRevert(BankrBetsPrediction.LockWindowExpired.selector);
+        prediction.lockRound(token1);
+
+        // But startRound should auto-cancel the expired round and start a new one
+        prediction.startRound(token1);
+
+        // Previous round should be cancelled
+        BankrBetsPrediction.Round memory r1 = prediction.getRound(token1, 1);
+        assertTrue(r1.cancelled);
+        assertTrue(r1.oracleCalled);
+
+        // New round is now active (epoch 2)
+        assertEq(prediction.getCurrentEpoch(token1), 2);
+        assertTrue(prediction.hasActiveRound(token1));
+    }
+
+    function test_AutoCancelExpiredUnlockedRoundWithBets() public {
+        // Start round and place bets, but nobody locks
+        _startRoundAndBet(TEN_USDC, TEN_USDC);
+
+        // Warp past close timestamp without locking
+        vm.warp(block.timestamp + 240 + 300 + 1);
+
+        // Start new round — auto-cancels expired round
+        prediction.startRound(token1);
+        assertEq(prediction.getCurrentEpoch(token1), 2);
+
+        // Bettors can claim refund from the cancelled round
+        uint256[] memory epochs = new uint256[](1);
+        epochs[0] = 1;
+
+        uint256 aliceBefore = usdc.balanceOf(alice);
+        vm.prank(alice);
+        prediction.claim(token1, epochs);
+        assertEq(usdc.balanceOf(alice) - aliceBefore, TEN_USDC); // Full refund
+
+        uint256 bobBefore = usdc.balanceOf(bob);
+        vm.prank(bob);
+        prediction.claim(token1, epochs);
+        assertEq(usdc.balanceOf(bob) - bobBefore, TEN_USDC); // Full refund
+    }
+
+    function test_CannotAutoExpireLockedRound() public {
+        // Start round, bet, and lock
+        _startRoundAndBet(TEN_USDC, TEN_USDC);
+        vm.warp(block.timestamp + 240);
+        prediction.lockRound(token1);
+
+        // Warp past close — round is locked but not closed
+        vm.warp(block.timestamp + 300 + 1);
+
+        // startRound should NOT auto-cancel a locked round (someone can still close it)
+        vm.expectRevert(BankrBetsPrediction.RoundNotSettled.selector);
+        prediction.startRound(token1);
+    }
+
     // --- Finding: Refund on non-existent epoch ---
 
     function test_RefundNonExistentEpoch() public {
@@ -983,11 +1023,12 @@ contract BankrBetsTest is Test {
         assertFalse(oracle.isTokenActive(token1));
     }
 
-    function test_OwnerDeactivateAfterRoundCancelled() public {
+    function test_OwnerDeactivateAfterRoundRefunded() public {
         prediction.startRound(token1);
 
-        // Cancel the active round
-        prediction.cancelRound(token1, 1);
+        // Refund the round after grace period
+        vm.warp(block.timestamp + 240 + 300 + 3601);
+        prediction.refundRound(token1, 1);
         assertFalse(prediction.hasActiveRound(token1));
 
         // Now owner deactivation should work
@@ -1017,8 +1058,9 @@ contract BankrBetsTest is Test {
         // The two-step FullMath approach should handle it safely.
         uint160 highPrice = 1_461_446_703_485_210_103_287_273_052_203_988_822_378_723_970_342;
 
+        // token2 is currency0 (isToken0=true, no inversion) to test raw overflow safety
         address token2 = address(0x3333);
-        PoolKey memory pk2 = PoolKey({ currency0: Currency.wrap(address(usdc)), currency1: Currency.wrap(token2), fee: 3000, tickSpacing: 60, hooks: IHooks(address(0)) });
+        PoolKey memory pk2 = PoolKey({ currency0: Currency.wrap(token2), currency1: Currency.wrap(address(usdc)), fee: 3000, tickSpacing: 60, hooks: IHooks(address(0)) });
         PoolId pid2 = pk2.toId();
         mockPM.setPrice(pid2, highPrice);
         mockPM.setLiquidity(pid2, 1e18);
@@ -1033,8 +1075,9 @@ contract BankrBetsTest is Test {
         // Very low sqrtPriceX96 (near minimum)
         uint160 lowPrice = 4_295_128_739 + 1; // Just above MIN_SQRT_PRICE
 
+        // token2 is currency0 (isToken0=true, no inversion) to test raw overflow safety
         address token2 = address(0x3333);
-        PoolKey memory pk2 = PoolKey({ currency0: Currency.wrap(address(usdc)), currency1: Currency.wrap(token2), fee: 3000, tickSpacing: 60, hooks: IHooks(address(0)) });
+        PoolKey memory pk2 = PoolKey({ currency0: Currency.wrap(token2), currency1: Currency.wrap(address(usdc)), fee: 3000, tickSpacing: 60, hooks: IHooks(address(0)) });
         PoolId pid2 = pk2.toId();
         mockPM.setPrice(pid2, lowPrice);
         mockPM.setLiquidity(pid2, 1e18);
@@ -1056,6 +1099,96 @@ contract BankrBetsTest is Test {
         // Lock + close
         _lockAndClose(SQRT_PRICE_1_0, SQRT_PRICE_UP);
         assertFalse(prediction.hasActiveRound(token1));
+    }
+
+    // --- V-1 Fix: Deactivated market re-registration blocked ---
+
+    function test_ReRegistrationBlocked() public {
+        // Deactivate the existing market
+        vm.prank(marketCreator);
+        oracle.deactivateMarket(token1);
+        assertFalse(oracle.isTokenActive(token1));
+
+        // Try to re-register the same token — should fail (creator != address(0))
+        vm.prank(alice);
+        vm.expectRevert(BankrBetsOracle.MarketAlreadyExists.selector);
+        oracle.addToken(token1, pool1, poolKey1);
+
+        // Admin can still re-activate via activateMarket
+        oracle.activateMarket(token1);
+        assertTrue(oracle.isTokenActive(token1));
+    }
+
+    // --- V-2 Fix: Price direction for currency1 tokens ---
+
+    function test_PriceInversionForCurrency1Token() public {
+        // Create a market where the market token IS currency1
+        address tokenC1 = address(0xC1C1);
+        PoolKey memory pk = PoolKey({ currency0: Currency.wrap(address(usdc)), currency1: Currency.wrap(tokenC1), fee: 3000, tickSpacing: 60, hooks: IHooks(address(0)) });
+        PoolId pid = pk.toId();
+        mockPM.setPrice(pid, SQRT_PRICE_1_0);
+        mockPM.setLiquidity(pid, 1e18);
+
+        oracle.addToken(tokenC1, address(0x7777), pk);
+
+        // At sqrtPriceX96 = 2^96, raw price = 1.0, inverted price = 1.0
+        int256 price1 = oracle.getPrice(tokenC1);
+        assertEq(price1, 1e18);
+
+        // Increase sqrtPriceX96 → raw price goes UP → tokenC1 (currency1) depreciates
+        // Inverted price should go DOWN
+        mockPM.setPrice(pid, SQRT_PRICE_UP);
+        int256 price2 = oracle.getPrice(tokenC1);
+        assertTrue(price2 < 1e18);
+
+        // Decrease sqrtPriceX96 → raw price goes DOWN → tokenC1 appreciates
+        // Inverted price should go UP
+        mockPM.setPrice(pid, SQRT_PRICE_DOWN);
+        int256 price3 = oracle.getPrice(tokenC1);
+        assertTrue(price3 > 1e18);
+    }
+
+    function test_PriceNoInversionForCurrency0Token() public {
+        // token1 is currency0 in poolKey1 — price should NOT be inverted
+        // At sqrtPriceX96 = 2^96, price = 1.0
+        int256 price1 = oracle.getPrice(token1);
+        assertEq(price1, 1e18);
+
+        // Increase sqrtPriceX96 → price goes UP (no inversion for currency0)
+        mockPM.setPrice(poolId1, SQRT_PRICE_UP);
+        int256 price2 = oracle.getPrice(token1);
+        assertTrue(price2 > 1e18);
+    }
+
+    // --- getActiveMarketsInfo batch view ---
+
+    function test_GetActiveMarketsInfo() public {
+        BankrBetsOracle.MarketView[] memory infos = oracle.getActiveMarketsInfo();
+        assertEq(infos.length, 1);
+        assertEq(infos[0].token, token1);
+        assertEq(infos[0].creator, marketCreator);
+        assertEq(infos[0].poolAddress, pool1);
+        assertTrue(infos[0].createdAt > 0);
+
+        // Add another token
+        address token2 = address(0x3333);
+        PoolKey memory pk2 = PoolKey({ currency0: Currency.wrap(address(usdc)), currency1: Currency.wrap(token2), fee: 3000, tickSpacing: 60, hooks: IHooks(address(0)) });
+        mockPM.setPrice(pk2.toId(), SQRT_PRICE_1_0);
+        mockPM.setLiquidity(pk2.toId(), 1e18);
+        vm.prank(alice);
+        oracle.addToken(token2, address(0x4444), pk2);
+
+        infos = oracle.getActiveMarketsInfo();
+        assertEq(infos.length, 2);
+        assertEq(infos[1].token, token2);
+        assertEq(infos[1].creator, alice);
+
+        // Deactivate token2 — should only return token1
+        vm.prank(alice);
+        oracle.deactivateMarket(token2);
+        infos = oracle.getActiveMarketsInfo();
+        assertEq(infos.length, 1);
+        assertEq(infos[0].token, token1);
     }
 
     // --- MAX_BPS correctness ---
