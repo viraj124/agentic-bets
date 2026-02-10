@@ -12,8 +12,8 @@ import "./BankrBetsOracle.sol";
 /**
  * @title BankrBetsPrediction
  * @notice Permissionless binary prediction market for Bankr ecosystem tokens on Base
- * @dev Users bet UP or DOWN on token prices in 5-minute rounds.
- *      Pari-mutuel payouts: winners split losers' pool minus fees.
+ * @dev Users bet either bullish or bearish on token prices in 5-minute rounds.
+ *      winners split losers' pool minus fees.
  *      Prices read on-chain from Uniswap V4 PoolManager — NO keeper needed.
  *      Settlement is user-triggered: anyone can lock/close rounds and earn 0.1%.
  *
@@ -47,8 +47,8 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
         int256 lockPrice; // Price at lock (18 decimals, read from V4)
         int256 closePrice; // Price at close (18 decimals, read from V4)
         uint256 totalAmount; // Total bet pool (USDC raw units)
-        uint256 bullAmount; // Total UP bets
-        uint256 bearAmount; // Total DOWN bets
+        uint256 bullAmount; // Total bull bets
+        uint256 bearAmount; // Total bear bets
         uint256 rewardBaseCalAmount; // Winning side total
         uint256 rewardAmount; // Pool minus fees
         bool locked; // Lock price recorded
@@ -204,6 +204,9 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
 
     /**
      * @notice Start a new round — callable by ANYONE
+     * @dev If the previous round was never locked and its lock window has expired,
+     *      it is auto-cancelled so a new round can start immediately.
+     *      This prevents a single missed lock from blocking the market for 1+ hour.
      */
     function startRound(address _token) external nonReentrant whenNotPaused {
         if (!oracle.isTokenActive(_token)) revert TokenNotEligible();
@@ -211,7 +214,16 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
         uint256 epoch = currentEpochs[_token];
         if (epoch > 0) {
             Round storage prevRound = rounds[_token][epoch];
-            if (!prevRound.oracleCalled && !prevRound.cancelled) revert RoundNotSettled();
+            if (!prevRound.oracleCalled && !prevRound.cancelled) {
+                // Auto-cancel if lock window expired and round was never locked
+                if (!prevRound.locked && block.timestamp >= prevRound.closeTimestamp) {
+                    prevRound.cancelled = true;
+                    prevRound.oracleCalled = true;
+                    emit RoundRefunded(_token, epoch);
+                } else {
+                    revert RoundNotSettled();
+                }
+            }
         }
 
         _startRound(_token);
@@ -312,7 +324,7 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
             return;
         }
 
-        // All bets on winning side = no losers
+        // No winners
         if (round.rewardBaseCalAmount == 0) {
             round.cancelled = true;
             round.rewardAmount = 0;
@@ -329,7 +341,7 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
 
         // Pay creator
         address creator = oracle.getMarketCreator(_token);
-        if (creatorFee > 0 && creator != address(0)) {
+        if (creatorFee > 0) {
             creatorEarnings[creator] += creatorFee;
             betToken.safeTransfer(creator, creatorFee);
             emit CreatorReward(creator, _token, creatorFee);
@@ -358,7 +370,7 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
     function claim(address _token, uint256[] calldata _epochs) external nonReentrant {
         uint256 totalReward;
 
-        for (uint256 i = 0; i < _epochs.length; i++) {
+        for (uint256 i = 0; i < _epochs.length;) {
             uint256 epoch = _epochs[i];
             Round storage round = rounds[_token][epoch];
             BetInfo storage bet = ledger[_token][epoch][msg.sender];
@@ -381,6 +393,10 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
 
             totalReward += reward;
             emit Claim(msg.sender, _token, epoch, reward);
+
+            unchecked {
+                ++i;
+            }
         }
 
         if (totalReward == 0) revert NothingToClaim();
@@ -456,13 +472,6 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
     }
 
     // --- Admin Functions ---
-
-    function cancelRound(address _token, uint256 _epoch) external onlyOwner {
-        Round storage round = rounds[_token][_epoch];
-        round.cancelled = true;
-        round.oracleCalled = true;
-        emit RoundCancelled(_token, _epoch);
-    }
 
     function setMinBetAmount(uint256 _minBetAmount) external onlyOwner {
         minBetAmount = _minBetAmount;
