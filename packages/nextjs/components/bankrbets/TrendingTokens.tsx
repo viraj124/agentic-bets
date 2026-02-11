@@ -1,16 +1,29 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { TokenCard } from "./TokenCard";
 import { useBankrTokens } from "~~/hooks/bankrbets/useBankrTokens";
 
 export function TrendingTokens() {
   const { data: tokens, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } = useBankrTokens();
   const [expandedToken, setExpandedToken] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const handleToggle = useCallback((addr: string) => {
     setExpandedToken(prev => (prev === addr ? null : addr));
   }, []);
+
+  const filteredTokens = useMemo(() => {
+    if (!tokens || tokens.length === 0) return [];
+    if (!search.trim()) return tokens;
+    const q = search.trim().toLowerCase();
+    return tokens.filter(
+      t =>
+        t.symbol.toLowerCase().includes(q) ||
+        t.name.toLowerCase().includes(q) ||
+        t.contractAddress.toLowerCase().includes(q),
+    );
+  }, [tokens, search]);
 
   if (isLoading) {
     return (
@@ -87,8 +100,8 @@ export function TrendingTokens() {
 
   return (
     <div>
-      {/* Section header */}
-      <div className="flex items-center justify-between mb-4">
+      {/* Section header + search */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-extrabold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
             Bankr Tokens
@@ -97,6 +110,40 @@ export function TrendingTokens() {
           <span className="text-xs font-bold text-pg-muted bg-pg-border/50 px-2.5 py-0.5 rounded-full">
             {tokens.length}
           </span>
+        </div>
+
+        {/* Search bar */}
+        <div className="relative w-full sm:w-64">
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-pg-muted/60"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+            />
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name, symbol, or address..."
+            className="w-full pl-9 pr-3 py-2 text-sm bg-base-200/50 border-2 border-pg-border rounded-xl text-base-content placeholder:text-pg-muted/50 focus:outline-none focus:border-pg-violet/50 transition-colors"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-pg-border/60 flex items-center justify-center text-pg-muted hover:bg-pg-border transition-colors"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
@@ -115,34 +162,33 @@ export function TrendingTokens() {
       </div>
 
       {/* Token list */}
-      <div className="space-y-2">
-        {tokens.map((token, i) => (
-          <div key={token.contractAddress} className={`animate-pop-in stagger-${Math.min(i + 1, 6)}`}>
-            <TokenCard
-              token={token}
-              isExpanded={expandedToken === token.contractAddress}
-              onToggle={() => handleToggle(token.contractAddress)}
-            />
-          </div>
-        ))}
-      </div>
+      {filteredTokens.length > 0 ? (
+        <div className="space-y-2">
+          {filteredTokens.map((token, i) => (
+            <div key={token.contractAddress} className={`animate-pop-in stagger-${Math.min(i + 1, 6)}`}>
+              <TokenCard
+                token={token}
+                isExpanded={expandedToken === token.contractAddress}
+                onToggle={() => handleToggle(token.contractAddress)}
+              />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-12">
+          <p className="text-sm text-pg-muted font-medium">No tokens matching &ldquo;{search}&rdquo;</p>
+        </div>
+      )}
 
       {/* Load More */}
-      {hasNextPage && (
+      {hasNextPage && !search && (
         <div className="flex justify-center mt-6">
           <button
             onClick={() => fetchNextPage()}
             disabled={isFetchingNextPage}
-            className="btn-outline-geo text-sm disabled:opacity-50"
+            className="btn-outline-geo px-8 py-2.5 text-sm font-bold disabled:opacity-50"
           >
-            {isFetchingNextPage ? (
-              <span className="flex items-center gap-2">
-                <span className="loading loading-spinner loading-xs" />
-                Loading...
-              </span>
-            ) : (
-              "Load more tokens"
-            )}
+            {isFetchingNextPage ? "Loading..." : "Load More Tokens"}
           </button>
         </div>
       )}
