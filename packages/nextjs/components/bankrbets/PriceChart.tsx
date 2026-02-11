@@ -1,15 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { fetchOhlcv } from "./ohlcv";
 import { useQuery } from "@tanstack/react-query";
-
-interface OhlcvCandle {
-  time: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-}
 
 interface PriceChartProps {
   poolAddress: string;
@@ -18,44 +11,31 @@ interface PriceChartProps {
 
 export function PriceChart({ poolAddress, height }: PriceChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<any>(null);
+  const seriesRef = useRef<any>(null);
+  const hasFitRef = useRef(false);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const [chartReady, setChartReady] = useState(false);
 
   // Fetch OHLCV from GeckoTerminal (5-min candles)
   const { data: candles } = useQuery({
     queryKey: ["ohlcv", poolAddress],
-    queryFn: async (): Promise<OhlcvCandle[]> => {
-      const res = await fetch(
-        `https://api.geckoterminal.com/api/v2/networks/base/pools/${poolAddress}/ohlcv/minute?aggregate=5&limit=200&currency=usd`,
-      );
-      if (!res.ok) throw new Error("Failed to fetch OHLCV");
-      const json = await res.json();
-
-      const list = json.data?.attributes?.ohlcv_list || [];
-      return list
-        .map((c: number[]) => ({
-          time: c[0],
-          open: c[1],
-          high: c[2],
-          low: c[3],
-          close: c[4],
-        }))
-        .sort((a: OhlcvCandle, b: OhlcvCandle) => a.time - b.time);
-    },
+    queryFn: () => fetchOhlcv(poolAddress),
     enabled: !!poolAddress,
-    refetchInterval: 30000,
-    staleTime: 15000,
+    refetchInterval: 60000,
+    staleTime: 60000,
   });
 
   useEffect(() => {
-    if (!chartContainerRef.current || !candles || candles.length === 0) return;
+    if (!chartContainerRef.current || chartRef.current) return;
 
-    let chart: any;
-    let series: any;
+    let cancelled = false;
 
     const init = async () => {
       const { createChart, CandlestickSeries } = await import("lightweight-charts");
+      if (cancelled || !chartContainerRef.current) return;
 
-      chart = createChart(chartContainerRef.current!, {
+      chartRef.current = createChart(chartContainerRef.current, {
         layout: {
           background: { color: "transparent" },
           textColor: "#9ca3af",
@@ -81,7 +61,7 @@ export function PriceChart({ poolAddress, height }: PriceChartProps) {
         handleScroll: { vertTouchDrag: false },
       });
 
-      series = chart.addSeries(CandlestickSeries, {
+      seriesRef.current = chartRef.current.addSeries(CandlestickSeries, {
         upColor: "#10b981",
         downColor: "#ef4444",
         borderUpColor: "#10b981",
@@ -90,24 +70,45 @@ export function PriceChart({ poolAddress, height }: PriceChartProps) {
         wickDownColor: "#ef4444",
       });
 
-      series.setData(candles);
-      chart.timeScale().fitContent();
+      if (candles && candles.length > 0) {
+        seriesRef.current.setData(candles);
+        chartRef.current.timeScale().fitContent();
+        hasFitRef.current = true;
+      }
+
       setChartReady(true);
+
+      const observer = new ResizeObserver(() => {
+        if (!chartRef.current || !chartContainerRef.current) return;
+        chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+      });
+      observer.observe(chartContainerRef.current);
+      resizeObserverRef.current = observer;
     };
 
     init();
 
-    const handleResize = () => {
-      if (chart && chartContainerRef.current) {
-        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+    return () => {
+      cancelled = true;
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
+        resizeObserverRef.current = null;
+      }
+      if (chartRef.current) {
+        chartRef.current.remove();
+        chartRef.current = null;
+        seriesRef.current = null;
       }
     };
+  }, [candles]);
 
-    window.addEventListener("resize", handleResize);
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      if (chart) chart.remove();
-    };
+  useEffect(() => {
+    if (!seriesRef.current || !candles || candles.length === 0) return;
+    seriesRef.current.setData(candles);
+    if (!hasFitRef.current && chartRef.current) {
+      chartRef.current.timeScale().fitContent();
+      hasFitRef.current = true;
+    }
   }, [candles]);
 
   return (
