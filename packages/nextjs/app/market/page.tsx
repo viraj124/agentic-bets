@@ -10,6 +10,7 @@ import { PriceChart } from "~~/components/bankrbets/PriceChart";
 import { RoundTimer } from "~~/components/bankrbets/RoundTimer";
 import { useGeckoTerminal } from "~~/hooks/bankrbets/useGeckoTerminal";
 import { useCurrentRound } from "~~/hooks/bankrbets/usePredictionContract";
+import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
 
 const MarketPage: NextPage = () => {
   const [tokenAddress, setTokenAddress] = useState<string | null>(null);
@@ -61,8 +62,43 @@ const MarketPage: NextPage = () => {
     );
   }
 
-  return <MarketView tokenAddress={tokenAddress} poolAddress={poolAddress} />;
+  return <MarketViewGate tokenAddress={tokenAddress} poolAddress={poolAddress} />;
 };
+
+function MarketViewGate({ tokenAddress, poolAddress }: { tokenAddress: string; poolAddress: string | null }) {
+  const { data: predictionContract, isLoading: predictionLoading } = useDeployedContractInfo({
+    contractName: "BankrBetsPrediction",
+  });
+  const { data: oracleContract, isLoading: oracleLoading } = useDeployedContractInfo({
+    contractName: "BankrBetsOracle",
+  });
+
+  if (predictionLoading || oracleLoading) {
+    return (
+      <div className="flex items-center justify-center grow py-24">
+        <span className="loading loading-spinner loading-md text-primary" />
+      </div>
+    );
+  }
+
+  if (!predictionContract || !oracleContract) {
+    return (
+      <div className="max-w-2xl mx-auto px-6 py-12">
+        <div className="bg-base-100 rounded-xl border border-base-300/60 p-6 text-center">
+          <h2 className="text-lg font-bold mb-2">Market contracts not deployed</h2>
+          <p className="text-sm text-base-content/60 mb-4">
+            Deploy BankrBetsPrediction and BankrBetsOracle to enable market interactions.
+          </p>
+          <Link href="/" className="text-sm font-medium text-primary hover:text-primary/80 transition-colors">
+            Back to tokens
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return <MarketView tokenAddress={tokenAddress} poolAddress={poolAddress} />;
+}
 
 function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolAddress: string | null }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
