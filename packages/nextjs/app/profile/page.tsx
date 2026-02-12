@@ -1,18 +1,17 @@
 "use client";
 
-import { Address } from "@scaffold-ui/components";
 import type { NextPage } from "next";
 import { useAccount } from "wagmi";
+import { IdentityBadge } from "~~/components/bankrbets/IdentityBadge";
 import { useLeaderboard } from "~~/hooks/bankrbets/useLeaderboard";
-import { useTargetNetwork } from "~~/hooks/scaffold-eth";
+import { useResolvedAddresses } from "~~/hooks/bankrbets/useResolvedAddresses";
 import { useScaffoldReadContract } from "~~/hooks/scaffold-eth";
 
 const ProfilePage: NextPage = () => {
   const { address } = useAccount();
-  const { targetNetwork } = useTargetNetwork();
   const { leaderboard } = useLeaderboard();
+  const { data: resolvedMap } = useResolvedAddresses(address ? [address] : []);
 
-  // Get creator earnings for connected user
   const { data: creatorEarnings } = useScaffoldReadContract({
     contractName: "BankrBetsPrediction",
     functionName: "creatorEarnings",
@@ -23,9 +22,9 @@ const ProfilePage: NextPage = () => {
   if (!address) {
     return (
       <div className="flex flex-col items-center justify-center grow py-24">
-        <div className="w-16 h-16 rounded-full bg-base-200 flex items-center justify-center mb-4">
+        <div className="w-14 h-14 rounded-2xl bg-pg-violet/10 border-2 border-pg-violet/20 flex items-center justify-center mb-4">
           <svg
-            className="w-8 h-8 text-base-content/30"
+            className="w-7 h-7 text-pg-violet/40"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -38,85 +37,109 @@ const ProfilePage: NextPage = () => {
             />
           </svg>
         </div>
-        <h1 className="text-2xl font-bold mb-2">Portfolio</h1>
-        <p className="text-sm text-base-content/50">Connect your wallet to view your betting history</p>
+        <h1 className="text-2xl font-extrabold mb-2 text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
+          Portfolio
+        </h1>
+        <p className="text-sm text-pg-muted">Connect your wallet to view your betting history</p>
       </div>
     );
   }
 
-  // Find user stats from leaderboard
   const userStats = leaderboard.find(e => e.address.toLowerCase() === address.toLowerCase());
   const earnings = creatorEarnings ? Number(creatorEarnings) / 1e6 : 0;
 
+  const statCards = [
+    { label: "Total bets", value: userStats?.totalBets ?? "--", color: "" },
+    { label: "Wins", value: userStats?.wins ?? "--", color: "" },
+    { label: "Win rate", value: userStats ? `${userStats.winRate.toFixed(0)}%` : "--", color: "" },
+    {
+      label: "Net P&L",
+      value: userStats ? `${userStats.netPnL >= 0 ? "+" : ""}$${userStats.netPnL.toFixed(2)}` : "--",
+      color: userStats ? (userStats.netPnL >= 0 ? "text-pg-mint" : "text-pg-pink") : "",
+    },
+    { label: "Creator earnings", value: earnings > 0 ? `$${earnings.toFixed(2)}` : "--", color: "text-pg-violet" },
+  ];
+
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
-      <div className="flex items-center gap-4 mb-8">
-        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-          <span className="text-primary font-bold text-lg">{address.slice(2, 4).toUpperCase()}</span>
+      {/* Header */}
+      <div className="flex items-start gap-4 mb-8">
+        <div className="w-11 h-11 rounded-2xl bg-pg-violet border-2 border-pg-slate flex items-center justify-center shadow-pop flex-shrink-0">
+          <span className="text-white text-sm font-extrabold" style={{ fontFamily: "var(--font-heading)" }}>
+            {address.slice(2, 4).toUpperCase()}
+          </span>
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight mb-0.5">Portfolio</h1>
-          <Address address={address} chain={targetNetwork} />
+          <h1
+            className="text-2xl font-extrabold tracking-tight text-base-content"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            Portfolio
+          </h1>
+          <div className="mt-1">
+            <IdentityBadge address={address} resolved={resolvedMap.get(address.toLowerCase())} size="md" showAddress />
+          </div>
         </div>
       </div>
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
-        <div className="bg-base-100 rounded-xl border border-base-300/60 p-4">
-          <p className="text-[11px] text-base-content/40 uppercase tracking-wider mb-1">Total bets</p>
-          <p className="text-xl font-bold">{userStats?.totalBets ?? "--"}</p>
-        </div>
-        <div className="bg-base-100 rounded-xl border border-base-300/60 p-4">
-          <p className="text-[11px] text-base-content/40 uppercase tracking-wider mb-1">Wins</p>
-          <p className="text-xl font-bold">{userStats?.wins ?? "--"}</p>
-        </div>
-        <div className="bg-base-100 rounded-xl border border-base-300/60 p-4">
-          <p className="text-[11px] text-base-content/40 uppercase tracking-wider mb-1">Win rate</p>
-          <p className="text-xl font-bold">{userStats ? `${userStats.winRate.toFixed(0)}%` : "--"}</p>
-        </div>
-        <div className="bg-base-100 rounded-xl border border-base-300/60 p-4">
-          <p className="text-[11px] text-base-content/40 uppercase tracking-wider mb-1">Net P&L</p>
-          <p
-            className={`text-xl font-bold ${userStats && userStats.netPnL >= 0 ? "text-success" : userStats ? "text-error" : ""}`}
+        {statCards.map(stat => (
+          <div
+            key={stat.label}
+            className="bg-base-100 rounded-2xl border-2 border-pg-border p-4 hover:border-pg-slate/40 transition-colors"
           >
-            {userStats ? `${userStats.netPnL >= 0 ? "+" : ""}$${userStats.netPnL.toFixed(2)}` : "--"}
-          </p>
-        </div>
-        <div className="bg-base-100 rounded-xl border border-base-300/60 p-4">
-          <p className="text-[11px] text-base-content/40 uppercase tracking-wider mb-1">Creator earnings</p>
-          <p className="text-xl font-bold text-primary">{earnings > 0 ? `$${earnings.toFixed(2)}` : "--"}</p>
-        </div>
+            <p
+              className="text-[10px] text-pg-muted uppercase tracking-wider font-bold mb-1.5"
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
+              {stat.label}
+            </p>
+            <p
+              className={`text-xl font-extrabold ${stat.color || "text-base-content"}`}
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
+              {stat.value}
+            </p>
+          </div>
+        ))}
       </div>
 
-      {/* Activity info */}
-      <div className="bg-base-100 rounded-xl border border-base-300/60 overflow-hidden">
-        <div className="px-5 py-3 border-b border-base-300/60">
-          <h2 className="text-sm font-semibold">Activity</h2>
+      {/* Activity */}
+      <div className="bg-base-100 rounded-2xl border-2 border-pg-border overflow-hidden">
+        <div className="px-5 py-3.5 border-b-2 border-pg-border">
+          <h2 className="text-sm font-extrabold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
+            Activity
+          </h2>
         </div>
 
         {userStats ? (
-          <div className="p-5">
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-base-content/50">Total wagered</span>
-                <span className="font-medium">${userStats.totalWagered.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-base-content/50">Total won</span>
-                <span className="font-medium text-success">${userStats.totalWon.toFixed(2)}</span>
-              </div>
-              {earnings > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-base-content/50">Creator fee income</span>
-                  <span className="font-medium text-primary">${earnings.toFixed(2)}</span>
-                </div>
-              )}
+          <div className="p-5 space-y-3">
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-pg-muted">Total wagered</span>
+              <span className="font-bold" style={{ fontFamily: "var(--font-heading)" }}>
+                ${userStats.totalWagered.toFixed(2)}
+              </span>
             </div>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-pg-muted">Total won</span>
+              <span className="font-bold text-pg-mint" style={{ fontFamily: "var(--font-heading)" }}>
+                ${userStats.totalWon.toFixed(2)}
+              </span>
+            </div>
+            {earnings > 0 && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-pg-muted">Creator fee income</span>
+                <span className="font-bold text-pg-violet" style={{ fontFamily: "var(--font-heading)" }}>
+                  ${earnings.toFixed(2)}
+                </span>
+              </div>
+            )}
           </div>
         ) : (
           <div className="py-16 text-center">
-            <p className="text-sm text-base-content/40">No bets placed yet</p>
-            <p className="text-xs text-base-content/30 mt-1">Your history will appear here after placing bets</p>
+            <p className="text-sm text-pg-muted font-medium">No bets placed yet</p>
+            <p className="text-xs text-pg-muted/60 mt-1">Your history will appear here after placing bets</p>
           </div>
         )}
       </div>
