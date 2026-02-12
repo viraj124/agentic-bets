@@ -13,9 +13,20 @@ export type ScaffoldConfig = BaseConfig;
 
 export const DEFAULT_ALCHEMY_API_KEY = "cR4WnXePioePZ5fFrnSiR";
 
+const targetNetwork = (() => {
+  switch (process.env.NEXT_PUBLIC_TARGET_NETWORK) {
+    case "baseSepolia":
+      return chains.baseSepolia;
+    case "base":
+    default:
+      return chains.base;
+  }
+})();
+
 const scaffoldConfig = {
   // The networks on which your DApp is live
-  targetNetworks: [chains.base],
+  // Set NEXT_PUBLIC_TARGET_NETWORK=baseSepolia in .env.local for testnet
+  targetNetworks: [targetNetwork],
   // The interval at which your front-end polls the RPC servers for new data (it has no effect if you only target the local network (default is 4000))
   pollingInterval: 3000,
   // This is ours Alchemy's default API key.
