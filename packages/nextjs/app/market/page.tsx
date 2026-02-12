@@ -38,9 +38,9 @@ const MarketPage: NextPage = () => {
   if (!tokenAddress) {
     return (
       <div className="flex flex-col items-center justify-center grow py-24">
-        <div className="w-16 h-16 rounded-full bg-base-200 flex items-center justify-center mb-4">
+        <div className="w-14 h-14 rounded-2xl bg-pg-violet/10 border-2 border-pg-violet/20 flex items-center justify-center mb-4">
           <svg
-            className="w-8 h-8 text-base-content/30"
+            className="w-7 h-7 text-pg-violet/40"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -53,9 +53,11 @@ const MarketPage: NextPage = () => {
             />
           </svg>
         </div>
-        <h1 className="text-2xl font-bold mb-2">Select a token</h1>
-        <p className="text-base-content/50 mb-6 text-sm">Pick a token from the home page to start predicting</p>
-        <Link href="/" className="text-sm font-medium text-primary hover:text-primary/80 transition-colors">
+        <h1 className="text-2xl font-extrabold mb-2 text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
+          Select a token
+        </h1>
+        <p className="text-sm text-pg-muted mb-6">Pick a token from the home page to start predicting</p>
+        <Link href="/" className="btn-outline-geo text-sm px-6 py-2">
           Browse tokens
         </Link>
       </div>
@@ -76,7 +78,7 @@ function MarketViewGate({ tokenAddress, poolAddress }: { tokenAddress: string; p
   if (predictionLoading || oracleLoading) {
     return (
       <div className="flex items-center justify-center grow py-24">
-        <span className="loading loading-spinner loading-md text-primary" />
+        <span className="loading loading-spinner loading-md text-pg-violet" />
       </div>
     );
   }
@@ -84,12 +86,29 @@ function MarketViewGate({ tokenAddress, poolAddress }: { tokenAddress: string; p
   if (!predictionContract || !oracleContract) {
     return (
       <div className="max-w-2xl mx-auto px-6 py-12">
-        <div className="bg-base-100 rounded-xl border border-base-300/60 p-6 text-center">
-          <h2 className="text-lg font-bold mb-2">Market contracts not deployed</h2>
-          <p className="text-sm text-base-content/60 mb-4">
+        <div className="bg-base-100 rounded-2xl border-2 border-pg-border p-8 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-pg-amber/10 border-2 border-pg-amber/20 flex items-center justify-center mx-auto mb-4">
+            <svg
+              className="w-7 h-7 text-pg-amber/50"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+              />
+            </svg>
+          </div>
+          <h2 className="text-lg font-extrabold mb-2 text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
+            Contracts not deployed
+          </h2>
+          <p className="text-sm text-pg-muted mb-5">
             Deploy BankrBetsPrediction and BankrBetsOracle to enable market interactions.
           </p>
-          <Link href="/" className="text-sm font-medium text-primary hover:text-primary/80 transition-colors">
+          <Link href="/" className="btn-outline-geo text-sm px-6 py-2">
             Back to tokens
           </Link>
         </div>
@@ -116,44 +135,49 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
       <div className="mb-6">
         <Link
           href="/"
-          className="text-xs text-base-content/40 hover:text-base-content/60 transition-colors mb-3 inline-block"
+          className="inline-flex items-center gap-1.5 text-xs text-pg-muted hover:text-base-content transition-colors mb-3"
         >
-          &larr; Back to markets
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+          </svg>
+          Back to markets
         </Link>
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight">
+              <h1
+                className="text-2xl font-extrabold tracking-tight text-base-content"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
                 {poolData?.tokenName || `${tokenAddress.slice(0, 6)}...${tokenAddress.slice(-4)}`}
               </h1>
               {isActive ? (
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-success/10 text-success rounded-full px-2.5 py-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-pg-mint/15 text-pg-mint rounded-full px-3 py-1 border border-pg-mint/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-pg-mint animate-pulse" />
                   Live
                 </span>
               ) : (
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="inline-flex items-center gap-1.5 text-xs font-medium bg-base-content text-base-100 rounded-full px-3 py-1.5 hover:bg-base-content/80 transition-colors"
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                  </svg>
+                <button onClick={() => setShowCreateModal(true)} className="btn-candy text-xs px-4 py-1.5">
                   Create Market
                 </button>
               )}
             </div>
-            <div className="flex items-center gap-3 mt-1">
-              <p className="text-xs text-base-content/40 font-mono">{tokenAddress}</p>
+            <div className="flex items-center gap-3 mt-1.5">
+              <p className="text-xs text-pg-muted font-mono">{tokenAddress}</p>
               <MarketCreatorBadge tokenAddress={tokenAddress} />
             </div>
           </div>
           {poolData && (
-            <div className="text-right">
-              <p className="text-2xl font-bold font-mono tracking-tight">{poolData.priceFormatted}</p>
-              <p className={`text-sm font-medium ${poolData.change1h >= 0 ? "text-success" : "text-error"}`}>
+            <div className="text-right flex-shrink-0">
+              <p
+                className="text-2xl font-extrabold font-mono tracking-tight text-base-content"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                {poolData.priceFormatted}
+              </p>
+              <p className={`text-sm font-bold ${poolData.change1h >= 0 ? "text-pg-mint" : "text-pg-pink"}`}>
                 {poolData.change1h >= 0 ? "+" : ""}
-                {poolData.change1h.toFixed(2)}%<span className="text-base-content/40 font-normal ml-1">1h</span>
+                {poolData.change1h.toFixed(2)}%<span className="text-pg-muted font-normal ml-1">1h</span>
               </p>
             </div>
           )}
@@ -174,15 +198,17 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
         {/* Left column: Chart + Round info */}
         <div className="lg:col-span-2 space-y-5">
           {/* Price chart */}
-          <div className="bg-base-100 rounded-xl border border-base-300/60 overflow-hidden">
-            <div className="px-5 py-3 border-b border-base-300/60 flex items-center justify-between">
-              <span className="text-sm font-semibold">Price chart</span>
+          <div className="bg-base-100 rounded-2xl border-2 border-pg-border overflow-hidden">
+            <div className="px-5 py-3 border-b-2 border-pg-border flex items-center justify-between">
+              <span className="text-sm font-extrabold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
+                Price chart
+              </span>
               {poolAddress && (
                 <a
                   href={`https://www.geckoterminal.com/base/pools/${poolAddress}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-primary hover:text-primary/80 transition-colors"
+                  className="text-xs font-bold text-pg-violet hover:text-pg-violet/70 transition-colors"
                 >
                   GeckoTerminal
                 </a>
@@ -191,37 +217,56 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
             {poolAddress ? (
               <PriceChart poolAddress={poolAddress} />
             ) : (
-              <div className="h-72 flex items-center justify-center text-base-content/20">
-                <p className="text-xs">No pool data available</p>
+              <div className="h-72 flex items-center justify-center">
+                <p className="text-xs text-pg-muted">No pool data available</p>
               </div>
             )}
           </div>
 
           {/* Round info */}
           {isActive && round && (
-            <div className="bg-base-100 rounded-xl border border-base-300/60 p-5">
+            <div className="bg-base-100 rounded-2xl border-2 border-pg-border p-5">
               <RoundTimer
                 lockTimestamp={lockTimestamp}
                 closeTimestamp={closeTimestamp}
                 isLocked={isLocked as boolean}
               />
 
-              <div className="grid grid-cols-3 gap-4 mt-5 pt-5 border-t border-base-300/60">
+              <div className="grid grid-cols-3 gap-4 mt-5 pt-5 border-t-2 border-pg-border">
                 <div className="text-center">
-                  <p className="text-[11px] text-base-content/40 uppercase tracking-wider mb-1">Epoch</p>
-                  <p className="text-lg font-bold">#{epoch?.toString()}</p>
+                  <p
+                    className="text-[10px] text-pg-muted uppercase tracking-wider font-bold mb-1"
+                    style={{ fontFamily: "var(--font-heading)" }}
+                  >
+                    Epoch
+                  </p>
+                  <p className="text-lg font-extrabold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
+                    #{epoch?.toString()}
+                  </p>
                 </div>
                 <div className="text-center">
-                  <p className="text-[11px] text-base-content/40 uppercase tracking-wider mb-1">Lock Price</p>
-                  <p className="text-lg font-bold font-mono">{lockPrice > 0 ? `$${lockPrice.toFixed(6)}` : "--"}</p>
+                  <p
+                    className="text-[10px] text-pg-muted uppercase tracking-wider font-bold mb-1"
+                    style={{ fontFamily: "var(--font-heading)" }}
+                  >
+                    Lock Price
+                  </p>
+                  <p className="text-lg font-extrabold font-mono text-base-content">
+                    {lockPrice > 0 ? `$${lockPrice.toFixed(6)}` : "--"}
+                  </p>
                 </div>
                 <div className="text-center">
-                  <p className="text-[11px] text-base-content/40 uppercase tracking-wider mb-1">Status</p>
-                  <p className="text-lg font-bold">
+                  <p
+                    className="text-[10px] text-pg-muted uppercase tracking-wider font-bold mb-1"
+                    style={{ fontFamily: "var(--font-heading)" }}
+                  >
+                    Status
+                  </p>
+                  <p className="text-lg font-extrabold" style={{ fontFamily: "var(--font-heading)" }}>
                     {isLocked ? (
-                      <span className="text-warning">Locked</span>
+                      <span className="text-pg-amber">Locked</span>
                     ) : (
-                      <span className="text-success">Open</span>
+                      <span className="text-pg-mint">Open</span>
                     )}
                   </p>
                 </div>
@@ -236,22 +281,33 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
 
           {/* Market stats */}
           {poolData && (
-            <div className="bg-base-100 rounded-xl border border-base-300/60 p-4">
-              <h4 className="text-xs font-semibold text-base-content/50 uppercase tracking-wider mb-3">Market info</h4>
+            <div className="bg-base-100 rounded-2xl border-2 border-pg-border p-4">
+              <h4
+                className="text-[10px] text-pg-muted uppercase tracking-wider font-bold mb-3"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                Market info
+              </h4>
               <div className="space-y-2.5 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-base-content/50">Market cap</span>
-                  <span className="font-medium">{poolData.marketCapFormatted}</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-pg-muted">Market cap</span>
+                  <span className="font-bold" style={{ fontFamily: "var(--font-heading)" }}>
+                    {poolData.marketCapFormatted}
+                  </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-base-content/50">24h volume</span>
-                  <span className="font-medium">${(poolData.volume24h / 1000).toFixed(1)}K</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-pg-muted">24h volume</span>
+                  <span className="font-bold" style={{ fontFamily: "var(--font-heading)" }}>
+                    ${(poolData.volume24h / 1000).toFixed(1)}K
+                  </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-base-content/50">Platform fee</span>
-                  <span className="font-medium">2.1%</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-pg-muted">Platform fee</span>
+                  <span className="font-bold" style={{ fontFamily: "var(--font-heading)" }}>
+                    2.1%
+                  </span>
                 </div>
-                <div className="flex justify-between text-xs text-base-content/35">
+                <div className="pt-2 mt-2 border-t-2 border-pg-border/50 flex justify-between text-[11px] text-pg-muted/70">
                   <span>Breakdown</span>
                   <span>1.5% treasury + 0.5% creator + 0.1% settler</span>
                 </div>
