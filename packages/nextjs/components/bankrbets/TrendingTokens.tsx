@@ -4,6 +4,10 @@ import { useCallback, useMemo, useState } from "react";
 import { TokenCard } from "./TokenCard";
 import { useBankrTokens } from "~~/hooks/bankrbets/useBankrTokens";
 
+/** Shared column widths so header labels align with TokenCard data */
+const COL_HEADER =
+  "hidden sm:flex items-center px-4 py-2.5 text-[10px] uppercase tracking-wider text-pg-muted font-bold border-b-2 border-pg-border mb-1";
+
 export function TrendingTokens() {
   const { data: tokens, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } = useBankrTokens();
   const [expandedToken, setExpandedToken] = useState<string | null>(null);
@@ -28,40 +32,38 @@ export function TrendingTokens() {
   if (isLoading) {
     return (
       <div>
-        {/* Section header */}
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-5">
           <h2 className="text-lg font-extrabold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
             Bankr Tokens
           </h2>
           <div className="h-1 w-8 rounded-full bg-pg-pink" />
         </div>
 
-        {/* Column labels */}
-        <div
-          className="flex items-center gap-3 px-4 py-2 text-[10px] uppercase tracking-wider text-pg-muted font-bold border-b-2 border-pg-border mb-2"
-          style={{ fontFamily: "var(--font-heading)" }}
-        >
-          <span className="w-10" />
-          <span className="flex-1">Token</span>
-          <span className="w-24 text-right">Price</span>
-          <span className="w-20 text-right">24h</span>
-          <span className="w-20 text-right hidden sm:block">Mkt Cap</span>
-          <span className="w-20 text-right hidden md:block">Volume</span>
-          <span className="w-4" />
+        <div className={COL_HEADER} style={{ fontFamily: "var(--font-heading)" }}>
+          <span className="w-10 mr-3 flex-shrink-0" />
+          <span className="flex-1 min-w-0">Token</span>
+          <span className="w-24 text-right flex-shrink-0">Price</span>
+          <span className="w-20 text-right flex-shrink-0">24h</span>
+          <span className="w-20 text-right flex-shrink-0 hidden sm:block">Mkt Cap</span>
+          <span className="w-20 text-right flex-shrink-0 hidden md:block">Volume</span>
+          <span className="w-4 ml-3 flex-shrink-0" />
         </div>
 
-        {/* Skeleton rows */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="token-row animate-pulse">
               <div className="flex items-center gap-3 px-4 py-3.5">
-                <div className="w-10 h-10 rounded-xl bg-pg-border/40" />
-                <div className="flex-1 space-y-1.5">
+                <div className="w-10 h-10 rounded-xl bg-pg-border/40 flex-shrink-0" />
+                <div className="flex-1 min-w-0 space-y-1.5">
                   <div className="h-3.5 w-16 bg-pg-border/40 rounded-lg" />
                   <div className="h-2.5 w-24 bg-pg-border/30 rounded-lg" />
                 </div>
-                <div className="h-3.5 w-16 bg-pg-border/40 rounded-lg" />
-                <div className="h-3 w-14 bg-pg-border/30 rounded-full" />
+                <div className="w-24 flex justify-end flex-shrink-0">
+                  <div className="h-3.5 w-16 bg-pg-border/40 rounded-lg" />
+                </div>
+                <div className="w-20 flex justify-end flex-shrink-0">
+                  <div className="h-3 w-14 bg-pg-border/30 rounded-full" />
+                </div>
               </div>
             </div>
           ))}
@@ -101,7 +103,7 @@ export function TrendingTokens() {
   return (
     <div>
       {/* Section header + search */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-extrabold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
             Bankr Tokens
@@ -112,7 +114,6 @@ export function TrendingTokens() {
           </span>
         </div>
 
-        {/* Search bar */}
         <div className="relative w-full sm:w-64">
           <svg
             className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-pg-muted/60"
@@ -131,7 +132,7 @@ export function TrendingTokens() {
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search by name, symbol, or address..."
+            placeholder="Search tokens..."
             className="w-full pl-9 pr-3 py-2 text-sm bg-base-200/50 border-2 border-pg-border rounded-xl text-base-content placeholder:text-pg-muted/50 focus:outline-none focus:border-pg-violet/50 transition-colors"
           />
           {search && (
@@ -147,23 +148,20 @@ export function TrendingTokens() {
         </div>
       </div>
 
-      {/* Column labels */}
-      <div
-        className="flex items-center gap-3 px-4 py-2 text-[10px] uppercase tracking-wider text-pg-muted font-bold border-b-2 border-pg-border mb-2"
-        style={{ fontFamily: "var(--font-heading)" }}
-      >
-        <span className="w-10" />
-        <span className="flex-1">Token</span>
-        <span className="w-24 text-right">Price</span>
-        <span className="w-20 text-right">24h</span>
-        <span className="w-20 text-right hidden sm:block">Mkt Cap</span>
-        <span className="w-20 text-right hidden md:block">Volume</span>
-        <span className="w-4" />
+      {/* Column labels — aligned to TokenCard inner layout */}
+      <div className={COL_HEADER} style={{ fontFamily: "var(--font-heading)" }}>
+        <span className="w-10 mr-3 flex-shrink-0" />
+        <span className="flex-1 min-w-0">Token</span>
+        <span className="w-24 text-right flex-shrink-0">Price</span>
+        <span className="w-20 text-right flex-shrink-0">24h</span>
+        <span className="w-20 text-right flex-shrink-0 hidden sm:block">Mkt Cap</span>
+        <span className="w-20 text-right flex-shrink-0 hidden md:block">Volume</span>
+        <span className="w-4 ml-3 flex-shrink-0" />
       </div>
 
       {/* Token list */}
       {filteredTokens.length > 0 ? (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {filteredTokens.map((token, i) => (
             <div key={token.contractAddress} className={`animate-pop-in stagger-${Math.min(i + 1, 6)}`}>
               <TokenCard
@@ -182,7 +180,7 @@ export function TrendingTokens() {
 
       {/* Load More */}
       {hasNextPage && !search && (
-        <div className="flex justify-center mt-6">
+        <div className="flex justify-center mt-8">
           <button
             onClick={() => fetchNextPage()}
             disabled={isFetchingNextPage}
