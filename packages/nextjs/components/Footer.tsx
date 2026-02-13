@@ -45,15 +45,6 @@ export const Footer = () => {
           <span>BankrBets</span>
           <span>-</span>
           <span>Built on Base</span>
-          <span>-</span>
-          <a
-            href="https://github.com/scaffold-eth/se-2"
-            target="_blank"
-            rel="noreferrer"
-            className="hover:text-base-content/50 transition-colors"
-          >
-            Scaffold-ETH 2
-          </a>
         </div>
       </div>
     </div>

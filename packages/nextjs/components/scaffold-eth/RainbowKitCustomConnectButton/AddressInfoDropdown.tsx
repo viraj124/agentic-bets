@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { NetworkOptions } from "./NetworkOptions";
 import { getAddress } from "viem";
 import { Address } from "viem";
@@ -14,6 +14,7 @@ import {
   QrCodeIcon,
 } from "@heroicons/react/24/outline";
 import { BlockieAvatar } from "~~/components/scaffold-eth";
+import { useResolvedAddresses } from "~~/hooks/bankrbets/useResolvedAddresses";
 import { useCopyToClipboard, useOutsideClick } from "~~/hooks/scaffold-eth";
 import { getTargetNetworks } from "~~/utils/scaffold-eth";
 import { isENS } from "~~/utils/scaffold-eth/common";
@@ -38,6 +39,13 @@ export const AddressInfoDropdown = ({
   const { disconnect } = useDisconnect();
   const { connector } = useAccount();
   const checkSumAddress = getAddress(address);
+  const addresses = useMemo(() => [address], [address]);
+  const { data: resolvedMap } = useResolvedAddresses(addresses);
+  const resolved = resolvedMap?.get(address.toLowerCase());
+  const resolvedName = resolved?.ensName || resolved?.baseName || resolved?.weiName;
+  const resolvedAvatar = resolved?.ensAvatar || resolved?.baseAvatar;
+  const effectiveDisplayName = resolvedName || displayName;
+  const effectiveAvatar = resolvedAvatar || ensAvatar;
 
   const { copyToClipboard: copyAddressToClipboard, isCopiedToClipboard: isAddressCopiedToClipboard } =
     useCopyToClipboard();
@@ -55,9 +63,11 @@ export const AddressInfoDropdown = ({
     <>
       <details ref={dropdownRef} className="dropdown dropdown-end leading-3">
         <summary className="btn btn-secondary btn-sm pl-0 pr-2 shadow-md dropdown-toggle gap-0 h-auto!">
-          <BlockieAvatar address={checkSumAddress} size={30} ensImage={ensAvatar} />
+          <BlockieAvatar address={checkSumAddress} size={30} ensImage={effectiveAvatar} />
           <span className="ml-2 mr-1">
-            {isENS(displayName) ? displayName : checkSumAddress?.slice(0, 6) + "..." + checkSumAddress?.slice(-4)}
+            {resolvedName || isENS(displayName)
+              ? effectiveDisplayName
+              : checkSumAddress?.slice(0, 6) + "..." + checkSumAddress?.slice(-4)}
           </span>
           <ChevronDownIcon className="h-6 w-4 ml-2 sm:ml-0" />
         </summary>

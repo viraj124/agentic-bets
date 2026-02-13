@@ -1,5 +1,5 @@
 {
-  "name": "Scaffold-ETH 2 DApp",
-  "description": "A DApp built with Scaffold-ETH",
+  "name": "BankrBets",
+  "description": "Binary prediction market for Bankr ecosystem tokens on Base",
   "iconPath": "logo.svg"
 }

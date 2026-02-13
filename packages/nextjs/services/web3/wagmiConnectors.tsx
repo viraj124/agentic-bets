@@ -1,6 +1,7 @@
 import { connectorsForWallets } from "@rainbow-me/rainbowkit";
 import {
   baseAccount,
+  coinbaseWallet,
   ledgerWallet,
   metaMaskWallet,
   rainbowWallet,
@@ -17,6 +18,7 @@ const wallets = [
   metaMaskWallet,
   walletConnectWallet,
   ledgerWallet,
+  coinbaseWallet,
   baseAccount,
   rainbowWallet,
   safeWallet,
@@ -44,7 +46,7 @@ export const wagmiConnectors = () => {
     ],
 
     {
-      appName: "scaffold-eth-2",
+      appName: "BankrBets",
       projectId: scaffoldConfig.walletConnectProjectId,
     },
   );
