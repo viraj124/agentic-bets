@@ -14,7 +14,7 @@
     "flatten": "make flatten",
     "fork": "make fork FORK_URL=${1:-mainnet}",
     "format": "make format",
-    "postinstall": "shx cp -n .env.example .env",
+    "postinstall": "shx test -f .env.example && shx cp -n .env.example .env || true",
     "lint": "make lint",
     "test": "forge test",
     "verify": "make verify RPC_URL=${1:-localhost}"
