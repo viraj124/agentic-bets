@@ -1,9 +1,8 @@
-import { useMemo } from "react";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useCallback, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import type { EnrichedToken } from "~~/app/api/bankr-tokens/route";
 
-const GECKO_BASE = "https://api.geckoterminal.com/api/v2/networks/base";
-const TOKENS_ENDPOINT = `${GECKO_BASE}/tokens/multi`;
-const PAGE_SIZE = 30; // GeckoTerminal max per request
+const PAGE_SIZE = 10; // tokens visible per "page" in the UI
 
 export interface BankrToken {
   id: number;
@@ -55,143 +54,74 @@ function formatCompact(value: number): string {
   return "$0";
 }
 
-// ── Server-side address resolver (cached in API route) ─────────────
+// ── Transform server data to UI format ───────────────────────────────
 
-async function fetchAddressesFromServer(): Promise<string[]> {
-  const res = await fetch("/api/bankr-tokens");
-  if (!res.ok) return [];
-  const json = (await res.json()) as { addresses?: string[] };
-  return (json.addresses || []).map(addr => addr.toLowerCase());
-}
-
-// ── Fetch one page of token data from GeckoTerminal ─────────────────
-
-async function fetchTokenPage(
-  addresses: string[],
-  pageIndex: number,
-): Promise<{ tokens: BankrToken[]; nextPage: number | undefined }> {
-  const start = pageIndex * PAGE_SIZE;
-  const chunk = addresses.slice(start, start + PAGE_SIZE);
-  if (chunk.length === 0) return { tokens: [], nextPage: undefined };
-
-  const res = await fetch(`${TOKENS_ENDPOINT}/${chunk.join(",")}?include=top_pools`);
-  if (!res.ok) return { tokens: [], nextPage: undefined };
-  const json = await res.json();
-
-  const tokens: BankrToken[] = [];
-
-  // Build pool data map from "included" array
-  const poolMap = new Map<
-    string,
-    { address: string; change1h: number; change24h: number; createdAt: string; poolName: string }
-  >();
-  for (const item of json.included || []) {
-    if (item.type === "pool") {
-      const a = item.attributes;
-      poolMap.set(item.id, {
-        address: (a.address || "").toLowerCase(),
-        change1h: parseFloat(a.price_change_percentage?.h1 || "0"),
-        change24h: parseFloat(a.price_change_percentage?.h24 || "0"),
-        createdAt: a.pool_created_at || "",
-        poolName: a.name || "",
-      });
-    }
-  }
-
-  for (const t of json.data || []) {
-    const a = t.attributes;
-    const addr = (a.address || "").toLowerCase();
-    if (!addr) continue;
-
-    const priceUsd = parseFloat(a.price_usd || "0");
-    const marketCap = parseFloat(a.market_cap_usd || "0") || parseFloat(a.fdv_usd || "0");
-    const volume24h = parseFloat(a.volume_usd?.h24 || "0");
-
-    const topPoolRef = t.relationships?.top_pools?.data?.[0];
-    const pool = topPoolRef ? poolMap.get(topPoolRef.id) : undefined;
-
-    tokens.push({
-      id: 0,
-      name: a.name || "",
-      symbol: a.symbol || "",
-      contractAddress: addr,
-      imgUrl: a.image_url || "",
-      deployedAt: pool?.createdAt || "",
-      creator: "",
-      pair: pool?.poolName?.includes("USDC") ? "USDC" : "WETH",
-      type: "clanker_v4",
-      priceUsd,
-      priceFormatted: formatPrice(priceUsd),
-      change1h: pool?.change1h || 0,
-      change24h: pool?.change24h || 0,
-      marketCap,
-      marketCapFormatted: formatCompact(marketCap),
-      volume24h,
-      volumeFormatted: formatCompact(volume24h),
-      topPoolAddress: pool?.address || "",
-    });
-  }
-
-  const hasMore = start + PAGE_SIZE < addresses.length;
-  return { tokens, nextPage: hasMore ? pageIndex + 1 : undefined };
+function toBankrToken(t: EnrichedToken, id: number): BankrToken {
+  return {
+    id,
+    name: t.name,
+    symbol: t.symbol,
+    contractAddress: t.address,
+    imgUrl: t.imgUrl,
+    deployedAt: t.deployedAt,
+    creator: "",
+    pair: t.pair,
+    type: "clanker_v4",
+    priceUsd: t.priceUsd,
+    priceFormatted: formatPrice(t.priceUsd),
+    change1h: t.change1h,
+    change24h: t.change24h,
+    marketCap: t.marketCap,
+    marketCapFormatted: formatCompact(t.marketCap),
+    volume24h: t.volume24h,
+    volumeFormatted: formatCompact(t.volume24h),
+    topPoolAddress: t.topPoolAddress,
+  };
 }
 
 // ── Main hook ───────────────────────────────────────────────────────
 
 export function useBankrTokens() {
-  const addressQuery = useQuery({
-    queryKey: ["bankr-addresses"],
-    queryFn: fetchAddressesFromServer,
-    staleTime: 60_000,
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  const {
+    data: allTokens,
+    isLoading,
+    isFetching,
+  } = useQuery({
+    queryKey: ["bankr-enriched-tokens"],
+    queryFn: async (): Promise<BankrToken[]> => {
+      const res = await fetch("/api/bankr-tokens");
+      if (!res.ok) return [];
+      const json = (await res.json()) as { tokens?: EnrichedToken[] };
+      return (json.tokens || []).map((t, i) => toBankrToken(t, i));
+    },
+    staleTime: 5 * 60_000, // match server cache TTL
     gcTime: 10 * 60_000,
     refetchOnWindowFocus: false,
-    refetchInterval: 2 * 60_000,
+    refetchInterval: 5 * 60_000,
   });
 
-  const addresses = useMemo(() => {
-    const list = addressQuery.data || [];
-    return list.length > 0 ? list : undefined;
-  }, [addressQuery.data]);
+  const allData = useMemo(() => allTokens || [], [allTokens]);
+  const tokens = useMemo(() => allData.slice(0, visibleCount), [allData, visibleCount]);
 
-  const tokenQuery = useInfiniteQuery({
-    queryKey: ["bankr-tokens", addresses],
-    queryFn: ({ pageParam }) => fetchTokenPage(addresses!, pageParam),
-    initialPageParam: 0,
-    getNextPageParam: lastPage => lastPage.nextPage,
-    enabled: !!addresses && addresses.length > 0,
-    staleTime: 60_000,
-    gcTime: 5 * 60_000,
-    refetchOnWindowFocus: false,
-  });
+  const totalCount = allData.length;
+  const hasNextPage = visibleCount < totalCount;
 
-  // Flatten pages, filter $0 tokens, sort by market cap, assign IDs
-  const tokens = useMemo(() => {
-    const all = (tokenQuery.data?.pages || []).flatMap(p => p.tokens);
-    const list = all.filter(t => t.priceUsd > 0);
-    list.sort((a, b) => b.marketCap - a.marketCap);
-    list.forEach((t, i) => {
-      t.id = i;
-    });
-    return list;
-  }, [tokenQuery.data]);
+  const fetchNextPage = useCallback(() => {
+    setVisibleCount(prev => Math.min(prev + PAGE_SIZE, totalCount));
+  }, [totalCount]);
 
   return useMemo(
     () => ({
       data: tokens,
-      isLoading: addressQuery.isLoading || tokenQuery.isLoading,
-      isFetching: tokenQuery.isFetching,
-      isFetchingNextPage: tokenQuery.isFetchingNextPage,
-      hasNextPage: tokenQuery.hasNextPage,
-      fetchNextPage: tokenQuery.fetchNextPage,
+      allData,
+      isLoading,
+      isFetching,
+      hasNextPage,
+      fetchNextPage,
+      totalCount,
     }),
-    [
-      tokens,
-      addressQuery.isLoading,
-      tokenQuery.isLoading,
-      tokenQuery.isFetching,
-      tokenQuery.isFetchingNextPage,
-      tokenQuery.hasNextPage,
-      tokenQuery.fetchNextPage,
-    ],
+    [tokens, allData, isLoading, isFetching, hasNextPage, fetchNextPage, totalCount],
   );
 }
