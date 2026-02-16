@@ -162,6 +162,12 @@ contract BankrBetsOracle is Ownable {
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(market.poolId);
         if (sqrtPriceX96 == 0) revert PoolNotInitialized();
 
+        // Runtime liquidity check — pool may have been drained since registration
+        if (minLiquidity > 0) {
+            uint128 liquidity = poolManager.getLiquidity(market.poolId);
+            if (liquidity < minLiquidity) revert MinLiquidityNotMet();
+        }
+
         // Convert sqrtPriceX96 to price with 18 decimals
         // Raw V4 price = token1/token0. If market token is currency1, invert to get token0/token1.
         //
