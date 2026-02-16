@@ -35,7 +35,6 @@ contract BankrBetsTest is Test {
     // Base mainnet addresses (forked)
     address public constant BASE_POOL_MANAGER = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
     address public constant BASE_USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-    string private constant BASE_RPC_URL = "https://base-mainnet.g.alchemy.com/v2/Kg94Uwl4lYjVVZPK2SuNNKPqE1LuZN-s";
 
     // Clanker V4 pool parameters — all Bankr tokens use fee=0x800000 and tickSpacing=200
     address public constant CLANKER_STATIC_FEE_V2 = 0xb429d62f8f3bFFb98CdB9569533eA23bF0Ba28CC;
@@ -49,7 +48,7 @@ contract BankrBetsTest is Test {
     PoolKey public poolKeyWethUsdc;
 
     function setUp() public {
-        vm.createSelectFork(BASE_RPC_URL);
+        vm.createSelectFork(vm.envString("BASE_RPC_URL"));
 
         usdc = IERC20(BASE_USDC);
         oracle = new BankrBetsOracle(BASE_POOL_MANAGER);
