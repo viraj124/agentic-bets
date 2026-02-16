@@ -28,7 +28,7 @@ jobs:
           cache: yarn
 
       - name: Install dependencies
-        run: yarn install --immutable
+        run: yarn install
       
       - name: Install foundry-toolchain
         uses: foundry-rs/foundry-toolchain@v1
