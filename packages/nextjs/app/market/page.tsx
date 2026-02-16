@@ -215,7 +215,7 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
               )}
             </div>
             {poolAddress ? (
-              <PriceChart poolAddress={poolAddress} />
+              <PriceChart poolAddress={poolAddress} tokenAddress={tokenAddress} />
             ) : (
               <div className="h-72 flex items-center justify-center">
                 <p className="text-xs text-pg-muted">No pool data available</p>

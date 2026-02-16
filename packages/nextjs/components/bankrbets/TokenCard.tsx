@@ -2,8 +2,6 @@
 
 import { Suspense, lazy, memo, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { fetchOhlcv } from "./ohlcv";
-import { useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { BankrToken } from "~~/hooks/bankrbets/useBankrTokens";
 
@@ -34,7 +32,6 @@ function getAvatarColor(symbol: string) {
 export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, hasMarket }: TokenCardProps) {
   const { isConnected } = useAccount();
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const queryClient = useQueryClient();
 
   const isPositive = token.change24h >= 0;
   const changeColor = isPositive ? "text-pg-mint" : "text-pg-pink";
@@ -48,16 +45,6 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
   }, []);
 
   const closeModal = useCallback(() => setShowCreateModal(false), []);
-
-  const prefetchChart = useCallback(() => {
-    if (!token.topPoolAddress) return;
-    void loadPriceChart();
-    void queryClient.prefetchQuery({
-      queryKey: ["ohlcv", token.topPoolAddress],
-      queryFn: () => fetchOhlcv(token.topPoolAddress),
-      staleTime: 60_000,
-    });
-  }, [queryClient, token.topPoolAddress]);
 
   const stats = useMemo(
     () => [
@@ -77,12 +64,7 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
     <>
       <div className={`token-row ${isExpanded ? "expanded" : ""}`}>
         {/* ── Main clickable row ──────────────────────────────── */}
-        <button
-          onClick={onToggle}
-          onMouseEnter={prefetchChart}
-          onFocus={prefetchChart}
-          className="w-full flex items-center gap-3 px-4 py-3.5 text-left cursor-pointer"
-        >
+        <button onClick={onToggle} className="w-full flex items-center gap-3 px-4 py-3.5 text-left cursor-pointer">
           {/* Token image */}
           {token.imgUrl ? (
             <img
@@ -176,7 +158,7 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
                       </div>
                     }
                   >
-                    <PriceChart poolAddress={token.topPoolAddress} height={200} />
+                    <PriceChart poolAddress={token.topPoolAddress} tokenAddress={token.contractAddress} height={200} />
                   </Suspense>
                 </div>
               )}
