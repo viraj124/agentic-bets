@@ -30,7 +30,8 @@ export function TrendingTokens() {
     );
   }, [tokens, allData, search]);
 
-  const shownCount = search.trim() ? filteredTokens.length : tokens.length;
+  const tokenCount = totalCount > 0 ? totalCount : tokens.length;
+  const tokenCountHint = "Only tokens with an available price are displayed.";
 
   if (isLoading) {
     return (
@@ -112,9 +113,15 @@ export function TrendingTokens() {
             Bankr Tokens
           </h2>
           <div className="h-1 w-8 rounded-full bg-pg-pink" />
-          <span className="text-xs font-bold text-pg-muted bg-pg-border/50 px-2.5 py-0.5 rounded-full">
-            {shownCount}
-            {totalCount > shownCount ? ` / ${totalCount}` : ""}
+          <span
+            className="tooltip tooltip-bottom tooltip-primary"
+            data-tip={tokenCountHint}
+            title={tokenCountHint}
+            aria-label={tokenCountHint}
+          >
+            <span className="text-xs font-bold text-pg-muted bg-pg-border/50 px-2.5 py-0.5 rounded-full">
+              {tokenCount} {tokenCount === 1 ? "token" : "tokens"}
+            </span>
           </span>
         </div>
 
