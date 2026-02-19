@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { readFile, writeFile } from "node:fs/promises";
 import { encodeAbiParameters, keccak256, parseAbiParameters } from "viem";
+import { REQUIRED_TICK_SPACING, SUPPORTED_BANKR_V4_HOOK_CONFIGS, WETH_BASE } from "~~/lib/bankrPoolConstants";
 
 // Allow up to 60s for cold-cache builds (Vercel serverless default is 10s)
 export const maxDuration = 60;
@@ -36,21 +37,7 @@ const SNAPSHOT_MAX_AGE_MS = 24 * 60 * 60_000;
 const BOOTSTRAP_CLANKER_MAX_PAGES = 15;
 const BOOTSTRAP_INDEXER_MAX_TOKENS = 2_000;
 
-// WETH on Base
-const WETH = "0x4200000000000000000000000000000000000006";
-
-// V4 hooks tried in order to match pool IDs from both Clanker + Bankr launcher flows.
-const V4_HOOKS = [
-  // Clanker hooks — all use fee = 0x800000 (DYNAMIC_FEE_FLAG)
-  { name: "Clanker:DynamicFeeV2", address: "0xd60D6B218116cFd801E28F78d011a203D2b068Cc", fee: 0x800000 },
-  { name: "Clanker:StaticFeeV2", address: "0xb429d62f8f3bFFb98CdB9569533eA23bF0Ba28CC", fee: 0x800000 },
-  { name: "Clanker:DynamicFee", address: "0x34a45c6B61876d739400Bd71228CbcbD4F53E8cC", fee: 0x800000 },
-  { name: "Clanker:StaticFee", address: "0xDd5EeaFf7BD481AD55Db083062b13a3cdf0A68CC", fee: 0x800000 },
-  // Bankr launcher hooks
-  { name: "Bankr:ScheduledMulticurve", address: "0x3e342a06f9592459d75721d6956b570f02ef2dc0", fee: 12000 },
-  { name: "Bankr:DecayMulticurve", address: "0xbb7784a4d481184283ed89619a3e3ed143e1adc0", fee: 0x800000 },
-] as const;
-const TICK_SPACING = 200;
+const WETH = WETH_BASE;
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -241,12 +228,12 @@ function resolvePoolKey(tokenAddress: string, pairedToken: string, expectedPoolI
   if (!isHexBytes32(expectedPoolId)) return null;
   const [c0, c1] = sortCurrencies(tokenAddress, pairedToken);
 
-  for (const hook of V4_HOOKS) {
+  for (const hook of SUPPORTED_BANKR_V4_HOOK_CONFIGS) {
     const key: PoolKeyData = {
       currency0: c0,
       currency1: c1,
       fee: hook.fee,
-      tickSpacing: TICK_SPACING,
+      tickSpacing: REQUIRED_TICK_SPACING,
       hooks: hook.address,
     };
     if (computePoolId(key).toLowerCase() === expectedPoolId.toLowerCase()) {

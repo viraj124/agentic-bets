@@ -1,14 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import type { EnrichedToken, PoolKeyData } from "~~/app/api/bankr-tokens/route";
 import { useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
-
-// WETH on Base
-const WETH_BASE = "0x4200000000000000000000000000000000000006";
-
-// Fallback: Clanker StaticFeeV2 hook (most common for Bankr tokens)
-const FALLBACK_HOOK = "0xb429d62f8f3bFFb98CdB9569533eA23bF0Ba28CC" as `0x${string}`;
-const DYNAMIC_FEE_FLAG = 0x800000;
-const DEFAULT_TICK_SPACING = 200;
+import {
+  CLANKER_DYNAMIC_FEE_FLAG,
+  DEFAULT_FALLBACK_HOOK,
+  REQUIRED_TICK_SPACING,
+  WETH_BASE,
+} from "~~/lib/bankrPoolConstants";
 
 /** Derive a fallback PoolKey when the API doesn't have pool metadata for this token */
 function deriveFallbackPoolKey(tokenAddress: string): PoolKeyData {
@@ -19,9 +17,9 @@ function deriveFallbackPoolKey(tokenAddress: string): PoolKeyData {
   return {
     currency0,
     currency1,
-    fee: DYNAMIC_FEE_FLAG,
-    tickSpacing: DEFAULT_TICK_SPACING,
-    hooks: FALLBACK_HOOK,
+    fee: CLANKER_DYNAMIC_FEE_FLAG,
+    tickSpacing: REQUIRED_TICK_SPACING,
+    hooks: DEFAULT_FALLBACK_HOOK,
   };
 }
 
