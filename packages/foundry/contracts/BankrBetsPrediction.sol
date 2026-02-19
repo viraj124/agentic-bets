@@ -76,9 +76,11 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
 
     uint256 public roundDuration = 300; // 5 minutes (lock to close)
     uint256 public betWindow = 240; // 4 minutes to bet before lock
+    uint256 public lockGracePeriod = 60; // 60s grace after lockTimestamp to call lockRound
     uint256 public minBetAmount = 1_000_000; // 1 USDC (6 decimals)
     uint256 public treasuryFeeBps = 150; // 1.5% = 150 basis points
     uint256 public settlerFeeBps = 10; // 0.1% settler reward
+    uint256 public maxPriceMoveBps = 5000; // 50% max lock->close move, else cancel round
     uint256 public treasuryAmount; // Accumulated treasury
 
     // Creator earnings tracking
@@ -215,8 +217,9 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
         if (epoch > 0) {
             Round storage prevRound = rounds[_token][epoch];
             if (!prevRound.oracleCalled && !prevRound.cancelled) {
-                // Auto-cancel if lock window expired and round was never locked
-                if (!prevRound.locked && block.timestamp >= prevRound.closeTimestamp) {
+                // Auto-cancel if lock window expired and round was never locked.
+                // This includes missed lock grace windows (before close) and full close expiry.
+                if (!prevRound.locked && _isLockWindowExpired(prevRound)) {
                     prevRound.cancelled = true;
                     prevRound.oracleCalled = true;
                     emit RoundRefunded(_token, epoch);
@@ -270,6 +273,7 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
         Round storage round = rounds[_token][epoch];
         if (round.locked) revert RoundAlreadyLocked();
         if (block.timestamp < round.lockTimestamp) revert RoundNotLockable();
+        if (block.timestamp > round.lockTimestamp + lockGracePeriod) revert LockWindowExpired();
         if (block.timestamp >= round.closeTimestamp) revert LockWindowExpired();
 
         int256 price = oracle.getPrice(_token);
@@ -298,6 +302,18 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
 
         if (round.totalAmount == 0) {
             round.cancelled = true;
+            emit RoundCancelled(_token, epoch);
+            return;
+        }
+
+        // Circuit breaker: cancel if close moves too far from lock (spot manipulation guard).
+        uint256 lockPrice = uint256(round.lockPrice);
+        uint256 closePrice = uint256(price);
+        uint256 move = closePrice > lockPrice ? closePrice - lockPrice : lockPrice - closePrice;
+        uint256 moveBps = (move * MAX_BPS) / lockPrice;
+        if (moveBps > maxPriceMoveBps) {
+            round.cancelled = true;
+            round.rewardAmount = 0;
             emit RoundCancelled(_token, epoch);
             return;
         }
@@ -444,7 +460,7 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
         uint256 epoch = currentEpochs[_token];
         if (epoch == 0) return false;
         Round storage round = rounds[_token][epoch];
-        return !round.locked && block.timestamp >= round.lockTimestamp && block.timestamp < round.closeTimestamp;
+        return !round.locked && block.timestamp >= round.lockTimestamp && block.timestamp <= round.lockTimestamp + lockGracePeriod && block.timestamp < round.closeTimestamp;
     }
 
     function isClosable(address _token) external view returns (bool) {
@@ -490,11 +506,24 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
     function setRoundDuration(uint256 _duration) external onlyOwner {
         if (_duration < 60 || _duration > 3600) revert InvalidDuration();
         roundDuration = _duration;
+        if (lockGracePeriod > _duration) {
+            lockGracePeriod = _duration;
+        }
     }
 
     function setBetWindow(uint256 _window) external onlyOwner {
         if (_window < 30 || _window > 3600) revert InvalidDuration();
         betWindow = _window;
+    }
+
+    function setLockGracePeriod(uint256 _gracePeriod) external onlyOwner {
+        if (_gracePeriod == 0 || _gracePeriod > roundDuration) revert InvalidDuration();
+        lockGracePeriod = _gracePeriod;
+    }
+
+    function setMaxPriceMoveBps(uint256 _maxPriceMoveBps) external onlyOwner {
+        if (_maxPriceMoveBps > MAX_BPS) revert InvalidFee();
+        maxPriceMoveBps = _maxPriceMoveBps;
     }
 
     function claimTreasury() external onlyOwner {
@@ -511,5 +540,9 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
 
     function unpause() external onlyOwner {
         _unpause();
+    }
+
+    function _isLockWindowExpired(Round storage _round) internal view returns (bool) {
+        return block.timestamp > _round.lockTimestamp + lockGracePeriod || block.timestamp >= _round.closeTimestamp;
     }
 }

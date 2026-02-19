@@ -3,13 +3,11 @@ pragma solidity ^0.8.19;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IPoolManager } from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import { PoolId, PoolIdLibrary } from "@uniswap/v4-core/src/types/PoolId.sol";
+import { PoolId } from "@uniswap/v4-core/src/types/PoolId.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { StateLibrary } from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
-import { TickMath } from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import { FullMath } from "@uniswap/v4-core/src/libraries/FullMath.sol";
-import { FixedPoint96 } from "@uniswap/v4-core/src/libraries/FixedPoint96.sol";
 
 /// @notice Minimal interface for querying active rounds from the Prediction contract
 interface IBankrBetsPrediction {
@@ -25,6 +23,23 @@ interface IBankrBetsPrediction {
  */
 contract BankrBetsOracle is Ownable {
     using StateLibrary for IPoolManager;
+
+    // --- Bankr / Clanker V4 constraints (Base) ---
+
+    address public constant WETH_BASE = 0x4200000000000000000000000000000000000006;
+    uint24 public constant DYNAMIC_FEE_FLAG = 0x800000;
+    uint24 public constant BANKR_SCHEDULED_FEE = 12_000;
+    int24 public constant REQUIRED_TICK_SPACING = 200;
+
+    // Clanker hooks (legacy + current)
+    address public constant CLANKER_DYNAMIC_FEE_V2_HOOK = 0xd60D6B218116cFd801E28F78d011a203D2b068Cc;
+    address public constant CLANKER_STATIC_FEE_V2_HOOK = 0xb429d62f8f3bFFb98CdB9569533eA23bF0Ba28CC;
+    address public constant CLANKER_DYNAMIC_FEE_HOOK = 0x34a45c6B61876d739400Bd71228CbcbD4F53E8cC;
+    address public constant CLANKER_STATIC_FEE_HOOK = 0xDd5EeaFf7BD481AD55Db083062b13a3cdf0A68CC;
+
+    // Bankr launcher hooks (old + current)
+    address public constant BANKR_SCHEDULED_MULTICURVE_HOOK = 0x3e342a06f9592459D75721d6956B570F02eF2Dc0;
+    address public constant BANKR_DECAY_MULTICURVE_HOOK = 0xbB7784A4d481184283Ed89619A3e3ed143e1Adc0;
 
     // --- Structs ---
 
@@ -74,6 +89,9 @@ contract BankrBetsOracle is Ownable {
     error MinLiquidityNotMet();
     error ActiveRoundExists();
     error Unauthorized();
+    error InvalidQuoteToken();
+    error UnsupportedHook();
+    error InvalidPoolParameters();
 
     // --- Constructor ---
 
@@ -112,7 +130,22 @@ contract BankrBetsOracle is Ownable {
         address c1 = Currency.unwrap(_poolKey.currency1);
         if (_token != c0 && _token != c1) revert TokenNotInPool();
 
+        // Restrict registration to Bankr ecosystem V4 pools.
+        // This keeps "permissionless" creator flow while blocking arbitrary pool spoofing.
+        if (c0 != WETH_BASE && c1 != WETH_BASE) revert InvalidQuoteToken();
+
+        address hook = address(_poolKey.hooks);
+        if (!isSupportedHook(hook)) revert UnsupportedHook();
+        if (_poolKey.tickSpacing != REQUIRED_TICK_SPACING) revert InvalidPoolParameters();
+
+        if (hook == BANKR_SCHEDULED_MULTICURVE_HOOK) {
+            if (_poolKey.fee != BANKR_SCHEDULED_FEE) revert InvalidPoolParameters();
+        } else {
+            if (_poolKey.fee != DYNAMIC_FEE_FLAG) revert InvalidPoolParameters();
+        }
+
         PoolId poolId = _poolKey.toId();
+        address canonicalPoolAddress = address(bytes20(PoolId.unwrap(poolId)));
 
         // Verify the pool exists and is initialized by reading its slot0
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
@@ -124,10 +157,28 @@ contract BankrBetsOracle is Ownable {
             if (liquidity < minLiquidity) revert MinLiquidityNotMet();
         }
 
-        markets[_token] = MarketInfo({ creator: _creator, poolAddress: _poolAddress, poolId: poolId, maxBetAmount: DEFAULT_MAX_BET_AMOUNT, active: true, isToken0: (_token == c0), createdAt: block.timestamp });
+        // _poolAddress is user-supplied metadata; store canonical value derived from PoolKey/PoolId.
+        // This prevents spoofed pool references in downstream UIs.
+        _poolAddress;
+        markets[_token] = MarketInfo({ creator: _creator, poolAddress: canonicalPoolAddress, poolId: poolId, maxBetAmount: DEFAULT_MAX_BET_AMOUNT, active: true, isToken0: (_token == c0), createdAt: block.timestamp });
         marketList.push(_token);
 
-        emit MarketCreated(_token, _creator, _poolAddress, poolId);
+        emit MarketCreated(_token, _creator, canonicalPoolAddress, poolId);
+    }
+
+    function isSupportedHook(address _hook) public pure returns (bool) {
+        return _hook == CLANKER_DYNAMIC_FEE_V2_HOOK || _hook == CLANKER_STATIC_FEE_V2_HOOK || _hook == CLANKER_DYNAMIC_FEE_HOOK || _hook == CLANKER_STATIC_FEE_HOOK || _hook == BANKR_SCHEDULED_MULTICURVE_HOOK
+            || _hook == BANKR_DECAY_MULTICURVE_HOOK;
+    }
+
+    function getSupportedHooks() external pure returns (address[] memory hooks) {
+        hooks = new address[](6);
+        hooks[0] = CLANKER_DYNAMIC_FEE_V2_HOOK;
+        hooks[1] = CLANKER_STATIC_FEE_V2_HOOK;
+        hooks[2] = CLANKER_DYNAMIC_FEE_HOOK;
+        hooks[3] = CLANKER_STATIC_FEE_HOOK;
+        hooks[4] = BANKR_SCHEDULED_MULTICURVE_HOOK;
+        hooks[5] = BANKR_DECAY_MULTICURVE_HOOK;
     }
 
     /**
@@ -221,6 +272,49 @@ contract BankrBetsOracle is Ownable {
         }
     }
 
+    /**
+     * @notice Paginated active market view to avoid large unbounded reads.
+     * @param _offset Number of active markets to skip.
+     * @param _limit Max number of active markets to return.
+     */
+    function getActiveMarketsInfoPage(uint256 _offset, uint256 _limit) external view returns (MarketView[] memory result) {
+        if (_limit == 0) return new MarketView[](0);
+
+        uint256 skip = _offset;
+        uint256 count = 0;
+        for (uint256 i = 0; i < marketList.length && count < _limit;) {
+            address token = marketList[i];
+            if (markets[token].active) {
+                if (skip > 0) {
+                    skip--;
+                } else {
+                    count++;
+                }
+            }
+            unchecked {
+                ++i;
+            }
+        }
+
+        result = new MarketView[](count);
+        skip = _offset;
+        uint256 idx = 0;
+        for (uint256 i = 0; i < marketList.length && idx < count;) {
+            address token = marketList[i];
+            if (markets[token].active) {
+                if (skip > 0) {
+                    skip--;
+                } else {
+                    MarketInfo storage m = markets[token];
+                    result[idx++] = MarketView({ token: token, creator: m.creator, poolAddress: m.poolAddress, createdAt: m.createdAt });
+                }
+            }
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
     function isTokenActive(address _token) external view returns (bool) {
         return markets[_token].active;
     }
@@ -257,6 +351,48 @@ contract BankrBetsOracle is Ownable {
             }
         }
         return active;
+    }
+
+    /**
+     * @notice Paginated active token list to avoid large unbounded reads.
+     * @param _offset Number of active tokens to skip.
+     * @param _limit Max number of active tokens to return.
+     */
+    function getActiveTokensPage(uint256 _offset, uint256 _limit) external view returns (address[] memory result) {
+        if (_limit == 0) return new address[](0);
+
+        uint256 skip = _offset;
+        uint256 count = 0;
+        for (uint256 i = 0; i < marketList.length && count < _limit;) {
+            address token = marketList[i];
+            if (markets[token].active) {
+                if (skip > 0) {
+                    skip--;
+                } else {
+                    count++;
+                }
+            }
+            unchecked {
+                ++i;
+            }
+        }
+
+        result = new address[](count);
+        skip = _offset;
+        uint256 idx = 0;
+        for (uint256 i = 0; i < marketList.length && idx < count;) {
+            address token = marketList[i];
+            if (markets[token].active) {
+                if (skip > 0) {
+                    skip--;
+                } else {
+                    result[idx++] = token;
+                }
+            }
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     // --- Internal ---

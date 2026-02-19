@@ -9,7 +9,6 @@ import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { IHooks } from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 
-
 contract BankrBetsTest is Test {
     BankrBetsOracle public oracle;
     BankrBetsPrediction public prediction;
@@ -26,11 +25,12 @@ contract BankrBetsTest is Test {
     address public token1 = 0x9f86dB9fc6f7c9408e8Fda3Ff8ce4e78ac7a6b07; // CLAWD (currency1, WETH < CLAWD)
     address public constant QUOTE_TOKEN = 0x4200000000000000000000000000000000000006; // WETH (Base)
     address public token2 = QUOTE_TOKEN; // WETH
-    address public token3 = BASE_USDC; // USDC
+    address public token3 = 0xf48bC234855aB08ab2EC0cfaaEb2A80D065a3b07; // BNKRW
 
     // CLAWD/WETH V4 PoolId (from Clanker API, verified on-chain)
     // PoolId = keccak256(abi.encode(WETH, CLAWD, 0x800000, 200, StaticFeeV2))
     bytes32 public constant CLAWD_POOL_ID = 0x9fd58e73d8047cb14ac540acd141d3fc1a41fb6252d674b730faf62fe24aa8ce;
+    bytes32 public constant BNKRW_POOL_ID = 0x6c8fd04c19e3c6c3efc21f6f5ae79c1453a19d971b7b7d4969df1928c380aaad;
 
     // Base mainnet addresses (forked)
     address public constant BASE_POOL_MANAGER = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
@@ -45,7 +45,7 @@ contract BankrBetsTest is Test {
     uint256 public constant ONE_USDC = 1_000_000;
     uint256 public constant TEN_USDC = 10_000_000;
     PoolKey public poolKey1;
-    PoolKey public poolKeyWethUsdc;
+    PoolKey public poolKey3;
 
     function setUp() public {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"));
@@ -59,7 +59,7 @@ contract BankrBetsTest is Test {
 
         // Construct PoolKeys from known Clanker V4 parameters (verified on-chain)
         poolKey1 = _clankerPoolKey(token1, CLANKER_STATIC_FEE_V2);
-        poolKeyWethUsdc = _standardPoolKey(QUOTE_TOKEN, BASE_USDC, 500, 10);
+        poolKey3 = _clankerPoolKey(token3, CLANKER_STATIC_FEE_V2);
 
         // Register token via permissionless Oracle (marketCreator is first registrant)
         // poolAddress = PoolId cast to address (GeckoTerminal uses PoolId as pool identifier for V4)
@@ -133,7 +133,7 @@ contract BankrBetsTest is Test {
     }
 
     function test_PermissionlessAddToken() public {
-        PoolKey memory pk2 = poolKeyWethUsdc;
+        PoolKey memory pk2 = poolKey1;
 
         // Alice (random user) can register a market
         vm.prank(alice);
@@ -150,7 +150,7 @@ contract BankrBetsTest is Test {
 
     function test_AddTokenPoolNotInitialized() public {
         address token2Local = address(0x3333);
-        PoolKey memory pk2 = PoolKey({ currency0: Currency.wrap(address(usdc)), currency1: Currency.wrap(token2Local), fee: 3000, tickSpacing: 60, hooks: IHooks(address(0)) });
+        PoolKey memory pk2 = _clankerPoolKey(token2Local, CLANKER_STATIC_FEE_V2);
         // sqrtPriceX96 defaults to 0 → pool not initialized
         vm.expectRevert(BankrBetsOracle.PoolNotInitialized.selector);
         oracle.addToken(token2Local, address(0x4444), pk2);
@@ -179,10 +179,8 @@ contract BankrBetsTest is Test {
     }
 
     function test_GetActiveTokens() public {
-        PoolKey memory pk = poolKeyWethUsdc;
-
-        oracle.addToken(token2, address(0x5555), pk);
-        oracle.addToken(token3, address(0x6666), pk);
+        oracle.addToken(token2, address(bytes20(CLAWD_POOL_ID)), poolKey1);
+        oracle.addToken(token3, address(bytes20(BNKRW_POOL_ID)), poolKey3);
 
         // Deactivate token2 — test contract is creator since we called addToken
         oracle.deactivateMarket(token2);
@@ -580,7 +578,7 @@ contract BankrBetsTest is Test {
     // ========== CreateAndStartRound Tests ==========
 
     function test_CreateAndStartRound() public {
-        PoolKey memory pk2 = poolKeyWethUsdc;
+        PoolKey memory pk2 = poolKey1;
 
         vm.prank(alice);
         prediction.createAndStartRound(token2, address(0x4444), pk2);
@@ -860,7 +858,7 @@ contract BankrBetsTest is Test {
         // Set a minimum liquidity requirement
         oracle.setMinLiquidity(type(uint128).max);
 
-        PoolKey memory pk2 = poolKeyWethUsdc;
+        PoolKey memory pk2 = poolKey1;
 
         vm.expectRevert(BankrBetsOracle.MinLiquidityNotMet.selector);
         oracle.addToken(token2, address(0x4444), pk2);
@@ -869,6 +867,37 @@ contract BankrBetsTest is Test {
         oracle.setMinLiquidity(1);
         oracle.addToken(token2, address(0x4444), pk2);
         assertTrue(oracle.isTokenActive(token2));
+    }
+
+    function test_AddTokenRejectsNonWethQuote() public {
+        PoolKey memory badQuotePool = PoolKey({ currency0: Currency.wrap(address(usdc)), currency1: Currency.wrap(token3), fee: CLANKER_FEE, tickSpacing: CLANKER_TICK_SPACING, hooks: IHooks(CLANKER_STATIC_FEE_V2) });
+
+        vm.expectRevert(BankrBetsOracle.InvalidQuoteToken.selector);
+        oracle.addToken(token3, address(0x4444), badQuotePool);
+    }
+
+    function test_AddTokenRejectsUnsupportedHook() public {
+        address c0 = token3 < QUOTE_TOKEN ? token3 : QUOTE_TOKEN;
+        address c1 = token3 < QUOTE_TOKEN ? QUOTE_TOKEN : token3;
+        PoolKey memory badHookPool = PoolKey({ currency0: Currency.wrap(c0), currency1: Currency.wrap(c1), fee: CLANKER_FEE, tickSpacing: CLANKER_TICK_SPACING, hooks: IHooks(address(0)) });
+
+        vm.expectRevert(BankrBetsOracle.UnsupportedHook.selector);
+        oracle.addToken(token3, address(0x4444), badHookPool);
+    }
+
+    function test_AddTokenRejectsInvalidFeeForHook() public {
+        address c0 = token3 < QUOTE_TOKEN ? token3 : QUOTE_TOKEN;
+        address c1 = token3 < QUOTE_TOKEN ? QUOTE_TOKEN : token3;
+        PoolKey memory badFeePool = PoolKey({
+            currency0: Currency.wrap(c0),
+            currency1: Currency.wrap(c1),
+            fee: CLANKER_FEE, // Scheduled hook requires 12_000 fee
+            tickSpacing: CLANKER_TICK_SPACING,
+            hooks: IHooks(0x3e342a06f9592459D75721d6956B570F02eF2Dc0)
+        });
+
+        vm.expectRevert(BankrBetsOracle.InvalidPoolParameters.selector);
+        oracle.addToken(token3, address(0x4444), badFeePool);
     }
 
     // --- Finding: Lock window expired (lockRound after closeTimestamp) ---
@@ -880,6 +909,16 @@ contract BankrBetsTest is Test {
         vm.warp(block.timestamp + 240 + 300 + 1);
 
         // lockRound should fail — lock window has expired
+        vm.expectRevert(BankrBetsPrediction.LockWindowExpired.selector);
+        prediction.lockRound(token1);
+    }
+
+    function test_LockWindowExpiredAfterGracePeriod() public {
+        _startRoundAndBet(TEN_USDC, TEN_USDC);
+
+        // lockTimestamp + default grace (60s) + 1
+        vm.warp(block.timestamp + 240 + 61);
+
         vm.expectRevert(BankrBetsPrediction.LockWindowExpired.selector);
         prediction.lockRound(token1);
     }
@@ -963,6 +1002,21 @@ contract BankrBetsTest is Test {
         assertEq(usdc.balanceOf(bob) - bobBefore, TEN_USDC); // Full refund
     }
 
+    function test_AutoCancelAfterMissedLockGraceBeforeClose() public {
+        _startRoundAndBet(TEN_USDC, TEN_USDC);
+
+        // Past lockTimestamp + grace, but before closeTimestamp.
+        vm.warp(block.timestamp + 240 + 61);
+
+        // startRound should auto-cancel stale round and open a new one.
+        prediction.startRound(token1);
+        assertEq(prediction.getCurrentEpoch(token1), 2);
+
+        BankrBetsPrediction.Round memory r1 = prediction.getRound(token1, 1);
+        assertTrue(r1.cancelled);
+        assertTrue(r1.oracleCalled);
+    }
+
     function test_CannotAutoExpireLockedRound() public {
         // Start round, bet, and lock
         _startRoundAndBet(TEN_USDC, TEN_USDC);
@@ -1038,7 +1092,7 @@ contract BankrBetsTest is Test {
     // --- Finding: addTokenFor restricted to Prediction contract ---
 
     function test_AddTokenForUnauthorized() public {
-        PoolKey memory pk2 = poolKeyWethUsdc;
+        PoolKey memory pk2 = poolKey1;
 
         // Random user calling addTokenFor should fail
         vm.prank(alice);
@@ -1050,7 +1104,7 @@ contract BankrBetsTest is Test {
 
     function test_GetPriceSafeForExtremeSqrtPriceX96() public {
         // Ensure getPrice doesn't revert on a live pool
-        PoolKey memory pk2 = poolKeyWethUsdc;
+        PoolKey memory pk2 = poolKey1;
         oracle.addToken(token2, address(0x4444), pk2);
 
         // Should NOT revert (overflow protection)
@@ -1060,7 +1114,7 @@ contract BankrBetsTest is Test {
 
     function test_GetPriceSafeForLowSqrtPriceX96() public {
         // Ensure getPrice doesn't revert on a live pool
-        PoolKey memory pk2 = poolKeyWethUsdc;
+        PoolKey memory pk2 = poolKey1;
         oracle.addToken(token2, address(0x4444), pk2);
 
         // Should NOT revert (no divide-by-zero or underflow)
@@ -1103,16 +1157,14 @@ contract BankrBetsTest is Test {
 
     function test_PriceInversionForCurrency1Token() public {
         // Inversion consistency check on live pool:
-        // price(token2) * price(token3) ~= 1e36
-        PoolKey memory pk = poolKeyWethUsdc;
-        oracle.addToken(token2, address(0x7777), pk);
-        oracle.addToken(token3, address(0x8888), pk);
+        // price(token1) * price(token2) ~= 1e36 for opposite sides of the same pool.
+        oracle.addToken(token2, address(bytes20(CLAWD_POOL_ID)), poolKey1);
 
+        int256 priceToken1 = oracle.getPrice(token1);
         int256 priceToken2 = oracle.getPrice(token2);
-        int256 priceToken3 = oracle.getPrice(token3);
-        assertTrue(priceToken2 > 0 && priceToken3 > 0);
+        assertTrue(priceToken1 > 0 && priceToken2 > 0);
 
-        uint256 prod = uint256(priceToken2) * uint256(priceToken3);
+        uint256 prod = uint256(priceToken1) * uint256(priceToken2);
         uint256 target = 1e36;
         uint256 tolerance = target / 20; // 5%
         assertTrue(prod > target - tolerance && prod < target + tolerance);
@@ -1134,7 +1186,7 @@ contract BankrBetsTest is Test {
         assertTrue(infos[0].createdAt > 0);
 
         // Add another token
-        PoolKey memory pk2 = poolKeyWethUsdc;
+        PoolKey memory pk2 = poolKey1;
         vm.prank(alice);
         oracle.addToken(token2, address(0x4444), pk2);
 
@@ -1149,6 +1201,44 @@ contract BankrBetsTest is Test {
         infos = oracle.getActiveMarketsInfo();
         assertEq(infos.length, 1);
         assertEq(infos[0].token, token1);
+    }
+
+    function test_GetActiveMarketsInfoPage() public {
+        vm.prank(alice);
+        oracle.addToken(token2, address(bytes20(CLAWD_POOL_ID)), poolKey1);
+        vm.prank(bob);
+        oracle.addToken(token3, address(bytes20(BNKRW_POOL_ID)), poolKey3);
+
+        BankrBetsOracle.MarketView[] memory page = oracle.getActiveMarketsInfoPage(1, 1);
+        assertEq(page.length, 1);
+        assertEq(page[0].token, token2);
+    }
+
+    function test_GetActiveTokensPage() public {
+        vm.prank(alice);
+        oracle.addToken(token2, address(bytes20(CLAWD_POOL_ID)), poolKey1);
+        vm.prank(bob);
+        oracle.addToken(token3, address(bytes20(BNKRW_POOL_ID)), poolKey3);
+
+        address[] memory page = oracle.getActiveTokensPage(2, 2);
+        assertEq(page.length, 1);
+        assertEq(page[0], token3);
+    }
+
+    function test_SetLockGracePeriod() public {
+        prediction.setLockGracePeriod(45);
+        assertEq(prediction.lockGracePeriod(), 45);
+
+        vm.expectRevert(BankrBetsPrediction.InvalidDuration.selector);
+        prediction.setLockGracePeriod(0);
+    }
+
+    function test_SetMaxPriceMoveBps() public {
+        prediction.setMaxPriceMoveBps(2500);
+        assertEq(prediction.maxPriceMoveBps(), 2500);
+
+        vm.expectRevert(BankrBetsPrediction.InvalidFee.selector);
+        prediction.setMaxPriceMoveBps(10_001);
     }
 
     // --- MAX_BPS correctness ---
@@ -1197,5 +1287,4 @@ contract BankrBetsTest is Test {
         int256 priceAfter = oracle.getPrice(token1);
         assertTrue(priceAfter > 0);
     }
-
 }
