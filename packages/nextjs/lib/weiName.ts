@@ -6,11 +6,10 @@ import { isAddress } from "viem";
 
 const CONTRACT = "0x0000000000696760E15f265e828DB644A0c242EB";
 
+const ALCHEMY_KEY = process.env.ALCHEMY_API_KEY;
 const RPC_ENDPOINTS = [
   process.env.MAINNET_RPC_URL,
-  process.env.NEXT_PUBLIC_ALCHEMY_API_KEY
-    ? `https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`
-    : undefined,
+  ALCHEMY_KEY ? `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}` : undefined,
   "https://eth.llamarpc.com",
   "https://ethereum.publicnode.com",
   "https://1rpc.io/eth",

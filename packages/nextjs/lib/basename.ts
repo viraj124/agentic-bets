@@ -32,9 +32,12 @@ const L2_RESOLVER_ABI = [
   },
 ] as const;
 
+const ALCHEMY_KEY = process.env.ALCHEMY_API_KEY;
+const BASE_RPC_URL = ALCHEMY_KEY ? `https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}` : "https://mainnet.base.org";
+
 const baseClient = createPublicClient({
   chain: base,
-  transport: http(process.env.BASE_RPC_URL || "https://mainnet.base.org"),
+  transport: http(BASE_RPC_URL),
 });
 
 /**
@@ -59,7 +62,7 @@ function convertReverseNodeToBytes(address: string, chainId: number): Hex {
  * Returns the first .base.eth name found, or null.
  */
 async function resolveBasenameViaAlchemy(address: string): Promise<string | null> {
-  const alchemyKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
+  const alchemyKey = process.env.ALCHEMY_API_KEY;
   if (!alchemyKey) return null;
 
   try {
