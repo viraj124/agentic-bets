@@ -4,6 +4,7 @@ pragma solidity ^0.8.19;
 import "forge-std/Test.sol";
 import "../contracts/BankrBetsOracle.sol";
 import "../contracts/BankrBetsPrediction.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
@@ -124,6 +125,10 @@ contract BankrBetsTest is Test {
         return 0; // tie
     }
 
+    function _expectOwnableRevert(address caller) internal {
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, caller));
+    }
+
     // ========== Oracle Tests ==========
 
     function test_OracleSetup() public view {
@@ -133,13 +138,11 @@ contract BankrBetsTest is Test {
     }
 
     function test_PermissionlessAddToken() public {
-        PoolKey memory pk2 = poolKey1;
-
-        // Alice (random user) can register a market
+        // Alice (random user) can register a real Bankr token (BNKRW)
         vm.prank(alice);
-        oracle.addToken(token2, address(0x4444), pk2);
-        assertTrue(oracle.isTokenActive(token2));
-        assertEq(oracle.getMarketCreator(token2), alice);
+        oracle.addToken(token3, address(bytes20(BNKRW_POOL_ID)), poolKey3);
+        assertTrue(oracle.isTokenActive(token3));
+        assertEq(oracle.getMarketCreator(token3), alice);
         assertEq(oracle.getTokenCount(), 2);
     }
 
@@ -154,6 +157,16 @@ contract BankrBetsTest is Test {
         // sqrtPriceX96 defaults to 0 → pool not initialized
         vm.expectRevert(BankrBetsOracle.PoolNotInitialized.selector);
         oracle.addToken(token2Local, address(0x4444), pk2);
+    }
+
+    function test_OracleConstructorZeroAddress() public {
+        vm.expectRevert(BankrBetsOracle.ZeroAddress.selector);
+        new BankrBetsOracle(address(0));
+    }
+
+    function test_AddTokenZeroAddress() public {
+        vm.expectRevert(BankrBetsOracle.ZeroAddress.selector);
+        oracle.addToken(address(0), address(0x4444), poolKey1);
     }
 
     function test_DeactivateMarket() public {
@@ -171,6 +184,14 @@ contract BankrBetsTest is Test {
     function test_GetPrice() public view {
         int256 price = oracle.getPrice(token1);
         assertTrue(price > 0);
+    }
+
+    function test_GetPriceInactiveMarket() public {
+        vm.prank(marketCreator);
+        oracle.deactivateMarket(token1);
+
+        vm.expectRevert(BankrBetsOracle.MarketNotActive.selector);
+        oracle.getPrice(token1);
     }
 
     function test_GetPriceAfterChange() public view {
@@ -217,6 +238,14 @@ contract BankrBetsTest is Test {
     function test_SetMaxBetAmount() public {
         oracle.setMaxBetAmount(token1, 1000 * ONE_USDC);
         assertEq(oracle.getMaxBetAmount(token1), 1000 * ONE_USDC);
+    }
+
+    function test_SetMaxBetAmountInactiveMarket() public {
+        vm.prank(marketCreator);
+        oracle.deactivateMarket(token1);
+
+        vm.expectRevert(BankrBetsOracle.MarketNotActive.selector);
+        oracle.setMaxBetAmount(token1, 1000 * ONE_USDC);
     }
 
     // ========== Round Lifecycle Tests ==========
@@ -351,6 +380,11 @@ contract BankrBetsTest is Test {
         prediction.lockRound(token1);
     }
 
+    function test_LockRoundNoActiveRound() public {
+        vm.expectRevert(BankrBetsPrediction.NoActiveRound.selector);
+        prediction.lockRound(token1);
+    }
+
     function test_LockRoundAlreadyLocked() public {
         prediction.startRound(token1);
         vm.warp(block.timestamp + 240);
@@ -358,6 +392,35 @@ contract BankrBetsTest is Test {
 
         vm.expectRevert(BankrBetsPrediction.RoundAlreadyLocked.selector);
         prediction.lockRound(token1);
+    }
+
+    function test_LockRoundAtGraceBoundary() public {
+        prediction.startRound(token1);
+        vm.warp(block.timestamp + 240 + prediction.lockGracePeriod());
+
+        prediction.lockRound(token1);
+        assertTrue(prediction.getRound(token1, 1).locked);
+    }
+
+    function test_LockRoundAtCloseTimestampFails() public {
+        prediction.startRound(token1);
+        vm.warp(block.timestamp + 240 + 300);
+
+        vm.expectRevert(BankrBetsPrediction.LockWindowExpired.selector);
+        prediction.lockRound(token1);
+    }
+
+    function test_LockRoundOracleRevertDoesNotMutateState() public {
+        prediction.startRound(token1);
+        oracle.setMinLiquidity(type(uint128).max); // Forces oracle.getPrice() revert
+        vm.warp(block.timestamp + 240);
+
+        vm.expectRevert(BankrBetsOracle.MinLiquidityNotMet.selector);
+        prediction.lockRound(token1);
+
+        BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
+        assertFalse(round.locked);
+        assertEq(round.lockPrice, 0);
     }
 
     function test_CloseRound() public {
@@ -383,6 +446,98 @@ contract BankrBetsTest is Test {
         // Don't warp to close time
         vm.expectRevert(BankrBetsPrediction.RoundNotClosable.selector);
         prediction.closeRound(token1);
+    }
+
+    function test_CloseRoundNoActiveRound() public {
+        vm.expectRevert(BankrBetsPrediction.NoActiveRound.selector);
+        prediction.closeRound(token1);
+    }
+
+    function test_CloseRoundAlreadyClosed() public {
+        _startRoundAndBet(TEN_USDC, TEN_USDC);
+        _lockAndClose();
+
+        vm.expectRevert(BankrBetsPrediction.RoundAlreadyClosed.selector);
+        prediction.closeRound(token1);
+    }
+
+    function test_CloseRoundNoBetsCancelsRound() public {
+        prediction.startRound(token1);
+        _lockAndClose();
+
+        BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
+        assertTrue(round.cancelled);
+        assertTrue(round.oracleCalled);
+        assertEq(round.totalAmount, 0);
+        assertEq(round.rewardAmount, 0);
+        assertEq(prediction.treasuryAmount(), 0);
+    }
+
+    function test_CloseRoundCancelsOnExcessivePriceMove() public {
+        _startRoundAndBet(TEN_USDC, TEN_USDC);
+        prediction.setMaxPriceMoveBps(0);
+        uint256 settlerBefore = usdc.balanceOf(settler);
+        uint256 creatorBefore = usdc.balanceOf(marketCreator);
+
+        _lockAndClose();
+
+        BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
+        assertTrue(round.cancelled);
+        assertEq(round.rewardAmount, 0);
+        assertEq(prediction.treasuryAmount(), 0);
+        assertEq(usdc.balanceOf(settler), settlerBefore);
+        assertEq(usdc.balanceOf(marketCreator), creatorBefore);
+    }
+
+    function test_CloseRoundCancelsWhenNoWinners() public {
+        prediction.startRound(token1);
+        vm.prank(alice);
+        prediction.betBull(token1, TEN_USDC); // No bear bets
+
+        uint256 settlerBefore = usdc.balanceOf(settler);
+        uint256 creatorBefore = usdc.balanceOf(marketCreator);
+
+        _lockAndClose();
+
+        BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
+        uint256[] memory epochs = new uint256[](1);
+        epochs[0] = 1;
+        uint256 aliceBefore = usdc.balanceOf(alice);
+
+        if (round.cancelled) {
+            // This is the no-winners path when bear wins with zero bear pool (or other cancel branch).
+            assertEq(round.rewardBaseCalAmount, 0);
+            assertEq(round.rewardAmount, 0);
+            assertEq(prediction.treasuryAmount(), 0);
+            assertEq(usdc.balanceOf(settler), settlerBefore);
+            assertEq(usdc.balanceOf(marketCreator), creatorBefore);
+
+            vm.prank(alice);
+            prediction.claim(token1, epochs);
+            assertEq(usdc.balanceOf(alice) - aliceBefore, TEN_USDC);
+        } else {
+            // If bull wins, single-sided pool pays net-of-fees to the bull bettor.
+            assertEq(round.rewardBaseCalAmount, round.bullAmount);
+            vm.prank(alice);
+            prediction.claim(token1, epochs);
+            assertEq(usdc.balanceOf(alice) - aliceBefore, round.rewardAmount);
+        }
+    }
+
+    function test_CloseRoundOracleRevertDoesNotMutateState() public {
+        _startRoundAndBet(TEN_USDC, TEN_USDC);
+        vm.warp(block.timestamp + 240);
+        prediction.lockRound(token1);
+
+        oracle.setMinLiquidity(type(uint128).max); // Forces oracle.getPrice() revert at close
+        vm.warp(block.timestamp + 300);
+        vm.expectRevert(BankrBetsOracle.MinLiquidityNotMet.selector);
+        prediction.closeRound(token1);
+
+        BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
+        assertTrue(round.locked);
+        assertFalse(round.oracleCalled);
+        assertEq(round.closePrice, 0);
     }
 
     function test_AnyoneCanLockAndClose() public {
@@ -413,7 +568,7 @@ contract BankrBetsTest is Test {
 
         _lockAndClose();
         BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
-        if (_outcome(round) != 1) return;
+        if (round.cancelled || _outcome(round) != 1) return;
 
         // Settler got 0.1%
         uint256 settlerReward = (totalPool * 10) / 10_000;
@@ -445,7 +600,7 @@ contract BankrBetsTest is Test {
         _startRoundAndBet(TEN_USDC, TEN_USDC);
         _lockAndClose();
         BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
-        if (_outcome(round) != 2) return;
+        if (round.cancelled || _outcome(round) != 2) return;
 
         uint256 bobBalBefore = usdc.balanceOf(bob);
         uint256[] memory epochs = new uint256[](1);
@@ -516,7 +671,7 @@ contract BankrBetsTest is Test {
 
         _lockAndClose();
         BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
-        if (_outcome(round) != 1) return;
+        if (round.cancelled || _outcome(round) != 1) return;
 
         uint256 treasuryFee = (totalPool * 150) / 10_000;
         uint256 creatorFee = (totalPool * 50) / 10_000;
@@ -704,6 +859,85 @@ contract BankrBetsTest is Test {
 
         vm.expectRevert(BankrBetsPrediction.InvalidDuration.selector);
         prediction.setRoundDuration(30); // Too short
+    }
+
+    function test_SetRoundDurationClampsLockGracePeriod() public {
+        prediction.setLockGracePeriod(200);
+        prediction.setRoundDuration(120);
+
+        assertEq(prediction.roundDuration(), 120);
+        assertEq(prediction.lockGracePeriod(), 120);
+    }
+
+    function test_SetBetWindow() public {
+        prediction.setBetWindow(300);
+        assertEq(prediction.betWindow(), 300);
+
+        vm.expectRevert(BankrBetsPrediction.InvalidDuration.selector);
+        prediction.setBetWindow(20); // Too short
+
+        vm.expectRevert(BankrBetsPrediction.InvalidDuration.selector);
+        prediction.setBetWindow(3601); // Too long
+    }
+
+    function test_PredictionAdminFunctionsOnlyOwner() public {
+        _expectOwnableRevert(alice);
+        vm.prank(alice);
+        prediction.setMinBetAmount(ONE_USDC);
+
+        _expectOwnableRevert(alice);
+        vm.prank(alice);
+        prediction.setTreasuryFeeBps(100);
+
+        _expectOwnableRevert(alice);
+        vm.prank(alice);
+        prediction.setSettlerFeeBps(10);
+
+        _expectOwnableRevert(alice);
+        vm.prank(alice);
+        prediction.setRoundDuration(120);
+
+        _expectOwnableRevert(alice);
+        vm.prank(alice);
+        prediction.setBetWindow(120);
+
+        _expectOwnableRevert(alice);
+        vm.prank(alice);
+        prediction.setLockGracePeriod(30);
+
+        _expectOwnableRevert(alice);
+        vm.prank(alice);
+        prediction.setMaxPriceMoveBps(2500);
+
+        _expectOwnableRevert(alice);
+        vm.prank(alice);
+        prediction.claimTreasury();
+
+        _expectOwnableRevert(alice);
+        vm.prank(alice);
+        prediction.pause();
+
+        _expectOwnableRevert(alice);
+        vm.prank(alice);
+        prediction.unpause();
+    }
+
+    function test_OracleAdminFunctionsOnlyOwner() public {
+        _expectOwnableRevert(alice);
+        vm.prank(alice);
+        oracle.activateMarket(token1);
+
+        _expectOwnableRevert(alice);
+        vm.prank(alice);
+        oracle.setMaxBetAmount(token1, ONE_USDC);
+
+        _expectOwnableRevert(alice);
+        vm.prank(alice);
+        oracle.setMinLiquidity(1);
+
+        _expectOwnableRevert(alice);
+        vm.prank(alice);
+        oracle.setPredictionContract(alice);
     }
 
     // ========== View Functions ==========
@@ -1214,6 +1448,21 @@ contract BankrBetsTest is Test {
         assertEq(page[0].token, token2);
     }
 
+    function test_GetActiveMarketsInfoPageLimitZero() public view {
+        BankrBetsOracle.MarketView[] memory page = oracle.getActiveMarketsInfoPage(0, 0);
+        assertEq(page.length, 0);
+    }
+
+    function test_GetActiveMarketsInfoPageLargeOffsetReturnsEmpty() public {
+        vm.prank(alice);
+        oracle.addToken(token2, address(bytes20(CLAWD_POOL_ID)), poolKey1);
+        vm.prank(bob);
+        oracle.addToken(token3, address(bytes20(BNKRW_POOL_ID)), poolKey3);
+
+        BankrBetsOracle.MarketView[] memory page = oracle.getActiveMarketsInfoPage(100, 5);
+        assertEq(page.length, 0);
+    }
+
     function test_GetActiveTokensPage() public {
         vm.prank(alice);
         oracle.addToken(token2, address(bytes20(CLAWD_POOL_ID)), poolKey1);
@@ -1223,6 +1472,21 @@ contract BankrBetsTest is Test {
         address[] memory page = oracle.getActiveTokensPage(2, 2);
         assertEq(page.length, 1);
         assertEq(page[0], token3);
+    }
+
+    function test_GetActiveTokensPageLimitZero() public view {
+        address[] memory page = oracle.getActiveTokensPage(0, 0);
+        assertEq(page.length, 0);
+    }
+
+    function test_GetActiveTokensPageLargeOffsetReturnsEmpty() public {
+        vm.prank(alice);
+        oracle.addToken(token2, address(bytes20(CLAWD_POOL_ID)), poolKey1);
+        vm.prank(bob);
+        oracle.addToken(token3, address(bytes20(BNKRW_POOL_ID)), poolKey3);
+
+        address[] memory page = oracle.getActiveTokensPage(100, 5);
+        assertEq(page.length, 0);
     }
 
     function test_SetLockGracePeriod() public {
