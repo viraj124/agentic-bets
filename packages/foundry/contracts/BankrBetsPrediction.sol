@@ -81,6 +81,7 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
     uint256 public treasuryFeeBps = 150; // 1.5% = 150 basis points
     uint256 public settlerFeeBps = 10; // 0.1% settler reward
     uint256 public maxPriceMoveBps = 5000; // 50% max lock->close move, else cancel round
+    uint256 public maxRoundPool; // 0 = no cap; non-zero caps total bets per round (flash loan risk bound)
     uint256 public treasuryAmount; // Accumulated treasury
 
     // Creator earnings tracking
@@ -110,6 +111,7 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
     event CreatorReward(address indexed creator, address indexed token, uint256 amount);
     event TreasuryClaim(address indexed to, uint256 amount);
     event MarketCreated(address indexed token, address indexed creator);
+    event MaxRoundPoolUpdated(uint256 newLimit);
 
     // --- Errors ---
 
@@ -132,6 +134,8 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
     error RefundNotReady();
     error LockWindowExpired();
     error RoundNotStarted();
+    error OracleNotWired();
+    error ExceedsMaxRoundPool();
 
     // --- Constructor ---
 
@@ -143,14 +147,16 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
     // --- Permissionless Market Creation ---
 
     /**
-     * @notice Create a new prediction market AND start the first round
+     * @notice Create a new prediction market — the first bet will automatically start the round
      * @param _token The token to create a market for
      * @param _poolAddress The pool address (for frontend)
      * @param _poolKey The Uniswap V4 PoolKey
      */
-    function createAndStartRound(address _token, address _poolAddress, PoolKey calldata _poolKey) external nonReentrant whenNotPaused {
+    function createMarket(address _token, address _poolAddress, PoolKey calldata _poolKey) external nonReentrant whenNotPaused {
+        // M-2: Fail fast with a clear error if oracle isn't wired to this contract yet.
+        // Prevents a cryptic Unauthorized revert deep inside addTokenFor.
+        if (oracle.predictionContract() != address(this)) revert OracleNotWired();
         oracle.addTokenFor(_token, _poolAddress, _poolKey, msg.sender);
-        _startRound(_token);
         emit MarketCreated(_token, msg.sender);
     }
 
@@ -172,7 +178,27 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
         if (maxBet > 0 && _amount > maxBet) revert ExceedsMaxBet();
 
         uint256 epoch = currentEpochs[_token];
-        if (epoch == 0) revert NoActiveRound();
+
+        if (epoch == 0) {
+            // No rounds ever — start the first one
+            _startRound(_token);
+            epoch = currentEpochs[_token];
+        } else {
+            Round storage prevRound = rounds[_token][epoch];
+            if (prevRound.oracleCalled) {
+                // Previous round fully settled — start a fresh one
+                _startRound(_token);
+                epoch = currentEpochs[_token];
+            } else if (!prevRound.locked && _isLockWindowExpired(prevRound)) {
+                // Stale unlocked round — auto-cancel it and start fresh
+                prevRound.cancelled = true;
+                prevRound.oracleCalled = true;
+                emit RoundRefunded(_token, epoch);
+                _startRound(_token);
+                epoch = currentEpochs[_token];
+            }
+            // else: round is bettable or locked — fall through to bettability check below
+        }
 
         Round storage round = rounds[_token][epoch];
 
@@ -180,6 +206,9 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
             revert RoundNotBettable();
         }
         if (ledger[_token][epoch][msg.sender].amount != 0) revert AlreadyBet();
+
+        // maxRoundPool cap — 0 means no limit
+        if (maxRoundPool > 0 && round.totalAmount + _amount > maxRoundPool) revert ExceedsMaxRoundPool();
 
         // Effects (CEI)
         round.totalAmount += _amount;
@@ -309,6 +338,16 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
         // Circuit breaker: cancel if close moves too far from lock (spot manipulation guard).
         uint256 lockPrice = uint256(round.lockPrice);
         uint256 closePrice = uint256(price);
+
+        // H-1: lockPrice == 0 means oracle returned a degenerate value at lock time.
+        // Cancel to protect bettors — treasuryFee not yet accumulated so no undo needed.
+        if (lockPrice == 0) {
+            round.cancelled = true;
+            round.rewardAmount = 0;
+            emit RoundCancelled(_token, epoch);
+            return;
+        }
+
         uint256 move = closePrice > lockPrice ? closePrice - lockPrice : lockPrice - closePrice;
         uint256 moveBps = (move * MAX_BPS) / lockPrice;
         if (moveBps > maxPriceMoveBps) {
@@ -490,6 +529,7 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
     // --- Admin Functions ---
 
     function setMinBetAmount(uint256 _minBetAmount) external onlyOwner {
+        if (_minBetAmount == 0) revert InvalidFee();
         minBetAmount = _minBetAmount;
     }
 
@@ -522,8 +562,14 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
     }
 
     function setMaxPriceMoveBps(uint256 _maxPriceMoveBps) external onlyOwner {
-        if (_maxPriceMoveBps > MAX_BPS) revert InvalidFee();
+        if (_maxPriceMoveBps == 0 || _maxPriceMoveBps > MAX_BPS) revert InvalidFee();
         maxPriceMoveBps = _maxPriceMoveBps;
+    }
+
+    /// @notice Cap total USDC that can be pooled in a single round. 0 = no cap.
+    function setMaxRoundPool(uint256 _maxRoundPool) external onlyOwner {
+        maxRoundPool = _maxRoundPool;
+        emit MaxRoundPoolUpdated(_maxRoundPool);
     }
 
     function claimTreasury() external onlyOwner {

@@ -77,6 +77,7 @@ contract BankrBetsOracle is Ownable {
     event DefaultMaxBetUpdated(uint256 newMaxBet);
     event MinLiquidityUpdated(uint128 newMinLiquidity);
     event PredictionContractUpdated(address newPredictionContract);
+    event PoolUpdated(address indexed token, address poolAddress, PoolId poolId);
 
     // --- Errors ---
 
@@ -194,6 +195,56 @@ contract BankrBetsOracle is Ownable {
         emit MarketDeactivated(_token);
     }
 
+    /**
+     * @notice Update the pool reference for an existing market — callable by creator or admin
+     * @dev Cannot update while a round is in progress.
+     *      Validates the new pool contains the token, is initialized, and meets liquidity requirements.
+     *      The canonical pool address is derived from the PoolKey (user-supplied _poolAddress is ignored).
+     * @param _token The token market to update
+     * @param _poolAddress Ignored — canonical value derived from PoolKey is stored
+     * @param _poolKey The new Uniswap V4 PoolKey
+     */
+    function updatePool(address _token, address _poolAddress, PoolKey calldata _poolKey) external {
+        MarketInfo storage market = markets[_token];
+        if (msg.sender != market.creator && msg.sender != owner()) revert NotMarketCreator();
+        _requireNoActiveRound(_token);
+
+        address c0 = Currency.unwrap(_poolKey.currency0);
+        address c1 = Currency.unwrap(_poolKey.currency1);
+        if (_token != c0 && _token != c1) revert TokenNotInPool();
+
+        // Apply same ecosystem constraints as _addToken — prevents switching to an
+        // unsupported/unvalidated pool (e.g. a creator-controlled pool for price manipulation).
+        if (c0 != WETH_BASE && c1 != WETH_BASE) revert InvalidQuoteToken();
+
+        address hook = address(_poolKey.hooks);
+        if (!isSupportedHook(hook)) revert UnsupportedHook();
+        if (_poolKey.tickSpacing != REQUIRED_TICK_SPACING) revert InvalidPoolParameters();
+
+        if (hook == BANKR_SCHEDULED_MULTICURVE_HOOK) {
+            if (_poolKey.fee != BANKR_SCHEDULED_FEE) revert InvalidPoolParameters();
+        } else {
+            if (_poolKey.fee != DYNAMIC_FEE_FLAG) revert InvalidPoolParameters();
+        }
+
+        PoolId poolId = _poolKey.toId();
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
+        if (sqrtPriceX96 == 0) revert PoolNotInitialized();
+
+        if (minLiquidity > 0) {
+            uint128 liquidity = poolManager.getLiquidity(poolId);
+            if (liquidity < minLiquidity) revert MinLiquidityNotMet();
+        }
+
+        address canonicalPoolAddress = address(bytes20(PoolId.unwrap(poolId)));
+        _poolAddress;
+        market.poolAddress = canonicalPoolAddress;
+        market.poolId = poolId;
+        market.isToken0 = (_token == c0);
+
+        emit PoolUpdated(_token, canonicalPoolAddress, poolId);
+    }
+
     // --- On-Chain Price Reading ---
 
     /**
@@ -230,6 +281,9 @@ contract BankrBetsOracle is Ownable {
 
         // If market token is currency1, invert so price rises when market token appreciates
         if (!market.isToken0) {
+            // H-2: priceUint == 0 means sqrtPriceX96 was so small that ratioX96 rounded to 0.
+            // Inverting 0 would cause a FullMath division-by-zero revert; treat as uninitialized pool.
+            if (priceUint == 0) revert PoolNotInitialized();
             priceUint = FullMath.mulDiv(1e18, 1e18, priceUint);
         }
 
@@ -431,6 +485,7 @@ contract BankrBetsOracle is Ownable {
     }
 
     function setPredictionContract(address _predictionContract) external onlyOwner {
+        if (_predictionContract == address(0)) revert ZeroAddress();
         predictionContract = _predictionContract;
         emit PredictionContractUpdated(_predictionContract);
     }

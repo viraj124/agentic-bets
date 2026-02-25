@@ -12,6 +12,9 @@
   src = "contracts"
   test = "test"
 
+[rpc_endpoints]
+  base_mainnet = "${BASE_RPC_URL}"
+
 [fmt]
   bracket_spacing = true
   int_types = "long"
