@@ -7,7 +7,6 @@ import { BetPanel } from "~~/components/bankrbets/BetPanel";
 import { CreateMarketModal } from "~~/components/bankrbets/CreateMarketModal";
 import { MarketCreatorBadge } from "~~/components/bankrbets/MarketCreatorBadge";
 import { PriceChart } from "~~/components/bankrbets/PriceChart";
-import { RoundTimer } from "~~/components/bankrbets/RoundTimer";
 import { useGeckoTerminal } from "~~/hooks/bankrbets/useGeckoTerminal";
 import { useCurrentRound } from "~~/hooks/bankrbets/usePredictionContract";
 import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
@@ -124,8 +123,6 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
   const { data: poolData } = useGeckoTerminal(poolAddress || undefined);
   const { epoch, round, isActive } = useCurrentRound(tokenAddress);
 
-  const lockTimestamp = round ? Number(round[3]) : 0;
-  const closeTimestamp = round ? Number(round[4]) : 0;
   const isLocked = round ? round[11] : false;
   const lockPrice = round ? Number(round[5]) / 1e18 : 0;
 
@@ -195,7 +192,7 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Left column: Chart + Round info */}
+        {/* Left column: Chart */}
         <div className="lg:col-span-2 space-y-5">
           {/* Price chart */}
           <div className="bg-base-100 rounded-2xl border-2 border-pg-border overflow-hidden">
@@ -215,69 +212,29 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
               )}
             </div>
             {poolAddress ? (
-              <PriceChart poolAddress={poolAddress} tokenAddress={tokenAddress} />
+              <PriceChart
+                poolAddress={poolAddress}
+                tokenAddress={tokenAddress}
+                currentPrice={poolData?.priceUsd}
+                lockPrice={isLocked && lockPrice > 0 ? lockPrice : undefined}
+                isLocked={Boolean(isLocked)}
+                epoch={epoch !== undefined ? Number(epoch) : undefined}
+              />
             ) : (
               <div className="h-72 flex items-center justify-center">
                 <p className="text-xs text-pg-muted">No pool data available</p>
               </div>
             )}
           </div>
-
-          {/* Round info */}
-          {isActive && round && (
-            <div className="bg-base-100 rounded-2xl border-2 border-pg-border p-5">
-              <RoundTimer
-                lockTimestamp={lockTimestamp}
-                closeTimestamp={closeTimestamp}
-                isLocked={isLocked as boolean}
-              />
-
-              <div className="grid grid-cols-3 gap-4 mt-5 pt-5 border-t-2 border-pg-border">
-                <div className="text-center">
-                  <p
-                    className="text-[10px] text-pg-muted uppercase tracking-wider font-bold mb-1"
-                    style={{ fontFamily: "var(--font-heading)" }}
-                  >
-                    Epoch
-                  </p>
-                  <p className="text-lg font-extrabold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
-                    #{epoch?.toString()}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p
-                    className="text-[10px] text-pg-muted uppercase tracking-wider font-bold mb-1"
-                    style={{ fontFamily: "var(--font-heading)" }}
-                  >
-                    Lock Price
-                  </p>
-                  <p className="text-lg font-extrabold font-mono text-base-content">
-                    {lockPrice > 0 ? `$${lockPrice.toFixed(6)}` : "--"}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p
-                    className="text-[10px] text-pg-muted uppercase tracking-wider font-bold mb-1"
-                    style={{ fontFamily: "var(--font-heading)" }}
-                  >
-                    Status
-                  </p>
-                  <p className="text-lg font-extrabold" style={{ fontFamily: "var(--font-heading)" }}>
-                    {isLocked ? (
-                      <span className="text-pg-amber">Locked</span>
-                    ) : (
-                      <span className="text-pg-mint">Open</span>
-                    )}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Right column: Bet panel + Market info */}
         <div className="space-y-4">
-          <BetPanel tokenAddress={tokenAddress} tokenSymbol={poolData?.tokenName?.split("/")[0]} />
+          <BetPanel
+            tokenAddress={tokenAddress}
+            tokenSymbol={poolData?.tokenName?.split("/")[0]}
+            lockPrice={isLocked && lockPrice > 0 ? lockPrice : undefined}
+          />
 
           {/* Market stats */}
           {poolData && (
