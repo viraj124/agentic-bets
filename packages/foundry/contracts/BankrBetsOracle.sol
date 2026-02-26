@@ -106,23 +106,22 @@ contract BankrBetsOracle is Ownable {
     /**
      * @notice Register a new prediction market for a token — callable by ANYONE
      * @param _token The token address to create a market for
-     * @param _poolAddress The pool address (for frontend reference / GeckoTerminal)
      * @param _poolKey The Uniswap V4 PoolKey for on-chain price reads
      */
-    function addToken(address _token, address _poolAddress, PoolKey calldata _poolKey) external {
-        _addToken(_token, _poolAddress, _poolKey, msg.sender);
+    function addToken(address _token, PoolKey calldata _poolKey) external {
+        _addToken(_token, _poolKey, msg.sender);
     }
 
     /**
      * @notice Register a market on behalf of a creator — restricted to Prediction contract
      */
-    function addTokenFor(address _token, address _poolAddress, PoolKey calldata _poolKey, address _creator) external {
+    function addTokenFor(address _token, PoolKey calldata _poolKey, address _creator) external {
         if (msg.sender != predictionContract) revert Unauthorized();
         if (_creator == address(0)) revert ZeroAddress();
-        _addToken(_token, _poolAddress, _poolKey, _creator);
+        _addToken(_token, _poolKey, _creator);
     }
 
-    function _addToken(address _token, address _poolAddress, PoolKey calldata _poolKey, address _creator) internal {
+    function _addToken(address _token, PoolKey calldata _poolKey, address _creator) internal {
         if (_token == address(0)) revert ZeroAddress();
         if (markets[_token].creator != address(0)) revert MarketAlreadyExists();
 
@@ -158,9 +157,6 @@ contract BankrBetsOracle is Ownable {
             if (liquidity < minLiquidity) revert MinLiquidityNotMet();
         }
 
-        // _poolAddress is user-supplied metadata; store canonical value derived from PoolKey/PoolId.
-        // This prevents spoofed pool references in downstream UIs.
-        _poolAddress;
         markets[_token] = MarketInfo({ creator: _creator, poolAddress: canonicalPoolAddress, poolId: poolId, maxBetAmount: DEFAULT_MAX_BET_AMOUNT, active: true, isToken0: (_token == c0), createdAt: block.timestamp });
         marketList.push(_token);
 
@@ -199,12 +195,10 @@ contract BankrBetsOracle is Ownable {
      * @notice Update the pool reference for an existing market — callable by creator or admin
      * @dev Cannot update while a round is in progress.
      *      Validates the new pool contains the token, is initialized, and meets liquidity requirements.
-     *      The canonical pool address is derived from the PoolKey (user-supplied _poolAddress is ignored).
      * @param _token The token market to update
-     * @param _poolAddress Ignored — canonical value derived from PoolKey is stored
      * @param _poolKey The new Uniswap V4 PoolKey
      */
-    function updatePool(address _token, address _poolAddress, PoolKey calldata _poolKey) external {
+    function updatePool(address _token, PoolKey calldata _poolKey) external {
         MarketInfo storage market = markets[_token];
         if (msg.sender != market.creator && msg.sender != owner()) revert NotMarketCreator();
         _requireNoActiveRound(_token);
@@ -237,7 +231,6 @@ contract BankrBetsOracle is Ownable {
         }
 
         address canonicalPoolAddress = address(bytes20(PoolId.unwrap(poolId)));
-        _poolAddress;
         market.poolAddress = canonicalPoolAddress;
         market.poolId = poolId;
         market.isToken0 = (_token == c0);

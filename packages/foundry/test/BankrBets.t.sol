@@ -65,7 +65,7 @@ contract BankrBetsTest is Test {
         // Register token via permissionless Oracle (marketCreator is first registrant)
         // poolAddress = PoolId cast to address (GeckoTerminal uses PoolId as pool identifier for V4)
         vm.prank(marketCreator);
-        oracle.addToken(token1, address(bytes20(CLAWD_POOL_ID)), poolKey1);
+        oracle.addToken(token1, poolKey1);
 
         // Mint USDC to users (forked balance edits)
         deal(BASE_USDC, alice, 1000 * ONE_USDC);
@@ -140,7 +140,7 @@ contract BankrBetsTest is Test {
     function test_PermissionlessAddToken() public {
         // Alice (random user) can register a real Bankr token (BNKRW)
         vm.prank(alice);
-        oracle.addToken(token3, address(bytes20(BNKRW_POOL_ID)), poolKey3);
+        oracle.addToken(token3, poolKey3);
         assertTrue(oracle.isTokenActive(token3));
         assertEq(oracle.getMarketCreator(token3), alice);
         assertEq(oracle.getTokenCount(), 2);
@@ -148,7 +148,7 @@ contract BankrBetsTest is Test {
 
     function test_AddTokenDuplicate() public {
         vm.expectRevert(BankrBetsOracle.MarketAlreadyExists.selector);
-        oracle.addToken(token1, address(bytes20(CLAWD_POOL_ID)), poolKey1);
+        oracle.addToken(token1, poolKey1);
     }
 
     function test_AddTokenPoolNotInitialized() public {
@@ -156,7 +156,7 @@ contract BankrBetsTest is Test {
         PoolKey memory pk2 = _clankerPoolKey(token2Local, CLANKER_STATIC_FEE_V2);
         // sqrtPriceX96 defaults to 0 → pool not initialized
         vm.expectRevert(BankrBetsOracle.PoolNotInitialized.selector);
-        oracle.addToken(token2Local, address(0x4444), pk2);
+        oracle.addToken(token2Local, pk2);
     }
 
     function test_OracleConstructorZeroAddress() public {
@@ -166,7 +166,7 @@ contract BankrBetsTest is Test {
 
     function test_AddTokenZeroAddress() public {
         vm.expectRevert(BankrBetsOracle.ZeroAddress.selector);
-        oracle.addToken(address(0), address(0x4444), poolKey1);
+        oracle.addToken(address(0), poolKey1);
     }
 
     function test_DeactivateMarket() public {
@@ -200,8 +200,8 @@ contract BankrBetsTest is Test {
     }
 
     function test_GetActiveTokens() public {
-        oracle.addToken(token2, address(bytes20(CLAWD_POOL_ID)), poolKey1);
-        oracle.addToken(token3, address(bytes20(BNKRW_POOL_ID)), poolKey3);
+        oracle.addToken(token2, poolKey1);
+        oracle.addToken(token3, poolKey3);
 
         // Deactivate token2 — test contract is creator since we called addToken
         oracle.deactivateMarket(token2);
@@ -739,7 +739,7 @@ contract BankrBetsTest is Test {
         PoolKey memory pk2 = poolKey1;
 
         vm.prank(alice);
-        prediction.createMarket(token2, address(0x4444), pk2);
+        prediction.createMarket(token2, pk2);
 
         assertTrue(oracle.isTokenActive(token2));
         assertEq(oracle.getMarketCreator(token2), alice); // Creator = caller
@@ -1086,7 +1086,7 @@ contract BankrBetsTest is Test {
 
         // tokenDecoy is NOT in this pool — should revert
         vm.expectRevert(BankrBetsOracle.TokenNotInPool.selector);
-        oracle.addToken(tokenDecoy, address(0x4444), pk2);
+        oracle.addToken(tokenDecoy, pk2);
     }
 
     // --- Finding: Minimum liquidity enforcement ---
@@ -1098,11 +1098,11 @@ contract BankrBetsTest is Test {
         PoolKey memory pk2 = poolKey1;
 
         vm.expectRevert(BankrBetsOracle.MinLiquidityNotMet.selector);
-        oracle.addToken(token2, address(0x4444), pk2);
+        oracle.addToken(token2, pk2);
 
         // Set low threshold — should work with live pool liquidity
         oracle.setMinLiquidity(1);
-        oracle.addToken(token2, address(0x4444), pk2);
+        oracle.addToken(token2, pk2);
         assertTrue(oracle.isTokenActive(token2));
     }
 
@@ -1110,7 +1110,7 @@ contract BankrBetsTest is Test {
         PoolKey memory badQuotePool = PoolKey({ currency0: Currency.wrap(address(usdc)), currency1: Currency.wrap(token3), fee: CLANKER_FEE, tickSpacing: CLANKER_TICK_SPACING, hooks: IHooks(CLANKER_STATIC_FEE_V2) });
 
         vm.expectRevert(BankrBetsOracle.InvalidQuoteToken.selector);
-        oracle.addToken(token3, address(0x4444), badQuotePool);
+        oracle.addToken(token3, badQuotePool);
     }
 
     function test_AddTokenRejectsUnsupportedHook() public {
@@ -1119,7 +1119,7 @@ contract BankrBetsTest is Test {
         PoolKey memory badHookPool = PoolKey({ currency0: Currency.wrap(c0), currency1: Currency.wrap(c1), fee: CLANKER_FEE, tickSpacing: CLANKER_TICK_SPACING, hooks: IHooks(address(0)) });
 
         vm.expectRevert(BankrBetsOracle.UnsupportedHook.selector);
-        oracle.addToken(token3, address(0x4444), badHookPool);
+        oracle.addToken(token3, badHookPool);
     }
 
     function test_AddTokenRejectsInvalidFeeForHook() public {
@@ -1134,7 +1134,7 @@ contract BankrBetsTest is Test {
         });
 
         vm.expectRevert(BankrBetsOracle.InvalidPoolParameters.selector);
-        oracle.addToken(token3, address(0x4444), badFeePool);
+        oracle.addToken(token3, badFeePool);
     }
 
     // --- Finding: Lock window expired (lockRound after closeTimestamp) ---
@@ -1334,7 +1334,7 @@ contract BankrBetsTest is Test {
         // Random user calling addTokenFor should fail
         vm.prank(alice);
         vm.expectRevert(BankrBetsOracle.Unauthorized.selector);
-        oracle.addTokenFor(token2, address(0x4444), pk2, alice);
+        oracle.addTokenFor(token2, pk2, alice);
     }
 
     // --- Finding: getPrice overflow safety ---
@@ -1342,7 +1342,7 @@ contract BankrBetsTest is Test {
     function test_GetPriceSafeForExtremeSqrtPriceX96() public {
         // Ensure getPrice doesn't revert on a live pool
         PoolKey memory pk2 = poolKey1;
-        oracle.addToken(token2, address(0x4444), pk2);
+        oracle.addToken(token2, pk2);
 
         // Should NOT revert (overflow protection)
         int256 price = oracle.getPrice(token2);
@@ -1352,7 +1352,7 @@ contract BankrBetsTest is Test {
     function test_GetPriceSafeForLowSqrtPriceX96() public {
         // Ensure getPrice doesn't revert on a live pool
         PoolKey memory pk2 = poolKey1;
-        oracle.addToken(token2, address(0x4444), pk2);
+        oracle.addToken(token2, pk2);
 
         // Should NOT revert (no divide-by-zero or underflow)
         int256 price = oracle.getPrice(token2);
@@ -1383,7 +1383,7 @@ contract BankrBetsTest is Test {
         // Try to re-register the same token — should fail (creator != address(0))
         vm.prank(alice);
         vm.expectRevert(BankrBetsOracle.MarketAlreadyExists.selector);
-        oracle.addToken(token1, address(bytes20(CLAWD_POOL_ID)), poolKey1);
+        oracle.addToken(token1, poolKey1);
 
         // Admin can still re-activate via activateMarket
         oracle.activateMarket(token1);
@@ -1395,7 +1395,7 @@ contract BankrBetsTest is Test {
     function test_PriceInversionForCurrency1Token() public {
         // Inversion consistency check on live pool:
         // price(token1) * price(token2) ~= 1e36 for opposite sides of the same pool.
-        oracle.addToken(token2, address(bytes20(CLAWD_POOL_ID)), poolKey1);
+        oracle.addToken(token2, poolKey1);
 
         int256 priceToken1 = oracle.getPrice(token1);
         int256 priceToken2 = oracle.getPrice(token2);
@@ -1425,7 +1425,7 @@ contract BankrBetsTest is Test {
         // Add another token
         PoolKey memory pk2 = poolKey1;
         vm.prank(alice);
-        oracle.addToken(token2, address(0x4444), pk2);
+        oracle.addToken(token2, pk2);
 
         infos = oracle.getActiveMarketsInfo();
         assertEq(infos.length, 2);
@@ -1442,9 +1442,9 @@ contract BankrBetsTest is Test {
 
     function test_GetActiveMarketsInfoPage() public {
         vm.prank(alice);
-        oracle.addToken(token2, address(bytes20(CLAWD_POOL_ID)), poolKey1);
+        oracle.addToken(token2, poolKey1);
         vm.prank(bob);
-        oracle.addToken(token3, address(bytes20(BNKRW_POOL_ID)), poolKey3);
+        oracle.addToken(token3, poolKey3);
 
         BankrBetsOracle.MarketView[] memory page = oracle.getActiveMarketsInfoPage(1, 1);
         assertEq(page.length, 1);
@@ -1458,9 +1458,9 @@ contract BankrBetsTest is Test {
 
     function test_GetActiveMarketsInfoPageLargeOffsetReturnsEmpty() public {
         vm.prank(alice);
-        oracle.addToken(token2, address(bytes20(CLAWD_POOL_ID)), poolKey1);
+        oracle.addToken(token2, poolKey1);
         vm.prank(bob);
-        oracle.addToken(token3, address(bytes20(BNKRW_POOL_ID)), poolKey3);
+        oracle.addToken(token3, poolKey3);
 
         BankrBetsOracle.MarketView[] memory page = oracle.getActiveMarketsInfoPage(100, 5);
         assertEq(page.length, 0);
@@ -1468,9 +1468,9 @@ contract BankrBetsTest is Test {
 
     function test_GetActiveTokensPage() public {
         vm.prank(alice);
-        oracle.addToken(token2, address(bytes20(CLAWD_POOL_ID)), poolKey1);
+        oracle.addToken(token2, poolKey1);
         vm.prank(bob);
-        oracle.addToken(token3, address(bytes20(BNKRW_POOL_ID)), poolKey3);
+        oracle.addToken(token3, poolKey3);
 
         address[] memory page = oracle.getActiveTokensPage(2, 2);
         assertEq(page.length, 1);
@@ -1484,9 +1484,9 @@ contract BankrBetsTest is Test {
 
     function test_GetActiveTokensPageLargeOffsetReturnsEmpty() public {
         vm.prank(alice);
-        oracle.addToken(token2, address(bytes20(CLAWD_POOL_ID)), poolKey1);
+        oracle.addToken(token2, poolKey1);
         vm.prank(bob);
-        oracle.addToken(token3, address(bytes20(BNKRW_POOL_ID)), poolKey3);
+        oracle.addToken(token3, poolKey3);
 
         address[] memory page = oracle.getActiveTokensPage(100, 5);
         assertEq(page.length, 0);
@@ -1601,7 +1601,7 @@ contract BankrBetsTest is Test {
     function test_CreateMarketThenBetStartsRound() public {
         PoolKey memory pk2 = poolKey1;
         vm.prank(alice);
-        prediction.createMarket(token2, address(0x4444), pk2);
+        prediction.createMarket(token2, pk2);
 
         // Market exists but no round is open yet
         assertEq(prediction.getCurrentEpoch(token2), 0);
@@ -1620,7 +1620,7 @@ contract BankrBetsTest is Test {
     function test_UpdatePool() public {
         // Creator can update their market's pool reference (re-registering same pool is valid)
         vm.prank(marketCreator);
-        oracle.updatePool(token1, address(bytes20(CLAWD_POOL_ID)), poolKey1);
+        oracle.updatePool(token1, poolKey1);
 
         // Market remains active and creator is unchanged
         assertTrue(oracle.isTokenActive(token1));
@@ -1629,7 +1629,7 @@ contract BankrBetsTest is Test {
 
     function test_UpdatePoolByOwner() public {
         // Admin (owner) can update any market's pool reference
-        oracle.updatePool(token1, address(bytes20(CLAWD_POOL_ID)), poolKey1);
+        oracle.updatePool(token1, poolKey1);
         assertTrue(oracle.isTokenActive(token1));
     }
 
@@ -1637,7 +1637,7 @@ contract BankrBetsTest is Test {
         // Random user cannot update a pool they didn't create
         vm.prank(alice);
         vm.expectRevert(BankrBetsOracle.NotMarketCreator.selector);
-        oracle.updatePool(token1, address(bytes20(CLAWD_POOL_ID)), poolKey1);
+        oracle.updatePool(token1, poolKey1);
     }
 
     function test_UpdatePoolDuringActiveRound() public {
@@ -1646,14 +1646,14 @@ contract BankrBetsTest is Test {
 
         vm.prank(marketCreator);
         vm.expectRevert(BankrBetsOracle.ActiveRoundExists.selector);
-        oracle.updatePool(token1, address(bytes20(CLAWD_POOL_ID)), poolKey1);
+        oracle.updatePool(token1, poolKey1);
     }
 
     function test_UpdatePoolTokenNotInPool() public {
         // poolKey3 is the BNKRW/WETH pool — token1 (CLAWD) is not in it
         vm.prank(marketCreator);
         vm.expectRevert(BankrBetsOracle.TokenNotInPool.selector);
-        oracle.updatePool(token1, address(bytes20(BNKRW_POOL_ID)), poolKey3);
+        oracle.updatePool(token1, poolKey3);
     }
 
     // ========== Security Fix Tests (Audit Findings) ==========
@@ -1680,7 +1680,7 @@ contract BankrBetsTest is Test {
         PoolKey memory pk2 = poolKey1;
         vm.prank(alice);
         vm.expectRevert(BankrBetsPrediction.OracleNotWired.selector);
-        freshPrediction.createMarket(token2, address(0x4444), pk2);
+        freshPrediction.createMarket(token2, pk2);
     }
 
     // --- M-3: setMaxPriceMoveBps(0) blocked ---
@@ -1713,7 +1713,7 @@ contract BankrBetsTest is Test {
 
         vm.prank(marketCreator);
         vm.expectRevert(BankrBetsOracle.InvalidQuoteToken.selector);
-        oracle.updatePool(token1, address(0x4444), badQuotePool);
+        oracle.updatePool(token1, badQuotePool);
     }
 
     function test_UpdatePoolRejectsUnsupportedHook() public {
@@ -1728,7 +1728,7 @@ contract BankrBetsTest is Test {
 
         vm.prank(marketCreator);
         vm.expectRevert(BankrBetsOracle.UnsupportedHook.selector);
-        oracle.updatePool(token1, address(bytes20(CLAWD_POOL_ID)), badHookPool);
+        oracle.updatePool(token1, badHookPool);
     }
 
     function test_UpdatePoolRejectsWrongTickSpacing() public {
@@ -1742,7 +1742,7 @@ contract BankrBetsTest is Test {
 
         vm.prank(marketCreator);
         vm.expectRevert(BankrBetsOracle.InvalidPoolParameters.selector);
-        oracle.updatePool(token1, address(bytes20(CLAWD_POOL_ID)), badTickPool);
+        oracle.updatePool(token1, badTickPool);
     }
 
     function test_UpdatePoolRejectsWrongFee() public {
@@ -1756,7 +1756,7 @@ contract BankrBetsTest is Test {
 
         vm.prank(marketCreator);
         vm.expectRevert(BankrBetsOracle.InvalidPoolParameters.selector);
-        oracle.updatePool(token1, address(bytes20(CLAWD_POOL_ID)), badFeePool);
+        oracle.updatePool(token1, badFeePool);
     }
 
     // --- L-4: setPredictionContract(address(0)) blocked ---

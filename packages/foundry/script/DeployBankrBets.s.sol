@@ -98,8 +98,7 @@ contract DeployBankrBets is Script {
             tickSpacing: CLANKER_TICK_SPACING,
             hooks:       IHooks(CLANKER_STATIC_FEE_V2)
         });
-        // poolAddress arg is ignored by _addToken (canonical value derived from PoolKey)
-        oracle.addToken(CLAWD, address(0), clawdKey);
+        oracle.addToken(CLAWD, clawdKey);
 
         // BNKRW/WETH pool — WETH is currency0 (0x4200 < 0xf48b)
         PoolKey memory bnkrwKey = PoolKey({
@@ -109,7 +108,7 @@ contract DeployBankrBets is Script {
             tickSpacing: CLANKER_TICK_SPACING,
             hooks:       IHooks(CLANKER_STATIC_FEE_V2)
         });
-        oracle.addToken(BNKRW, address(0), bnkrwKey);
+        oracle.addToken(BNKRW, bnkrwKey);
 
         vm.stopBroadcast();
 

@@ -149,14 +149,13 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
     /**
      * @notice Create a new prediction market — the first bet will automatically start the round
      * @param _token The token to create a market for
-     * @param _poolAddress The pool address (for frontend)
      * @param _poolKey The Uniswap V4 PoolKey
      */
-    function createMarket(address _token, address _poolAddress, PoolKey calldata _poolKey) external nonReentrant whenNotPaused {
+    function createMarket(address _token, PoolKey calldata _poolKey) external nonReentrant whenNotPaused {
         // M-2: Fail fast with a clear error if oracle isn't wired to this contract yet.
         // Prevents a cryptic Unauthorized revert deep inside addTokenFor.
         if (oracle.predictionContract() != address(this)) revert OracleNotWired();
-        oracle.addTokenFor(_token, _poolAddress, _poolKey, msg.sender);
+        oracle.addTokenFor(_token, _poolKey, msg.sender);
         emit MarketCreated(_token, msg.sender);
     }
 
