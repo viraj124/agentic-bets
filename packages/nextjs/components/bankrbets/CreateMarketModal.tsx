@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useCreateMarket } from "~~/hooks/bankrbets/useCreateMarket";
+import { useMarketCreated } from "~~/hooks/bankrbets/usePredictionContract";
 
 interface CreateMarketModalProps {
   tokenAddress: string;
@@ -19,13 +21,14 @@ export function CreateMarketModal({
   onSuccess,
 }: CreateMarketModalProps) {
   const { createMarket, isCreating } = useCreateMarket();
+  const marketCreated = useMarketCreated(tokenAddress);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const handleCreate = async () => {
     setError(null);
     try {
-      await createMarket(tokenAddress, poolAddress);
+      await createMarket(tokenAddress);
       setSuccess(true);
       onSuccess?.();
     } catch (e: any) {
@@ -58,7 +61,46 @@ export function CreateMarketModal({
         </div>
 
         <div className="p-6">
-          {success ? (
+          {marketCreated ? (
+            <div className="text-center py-6">
+              <div className="w-16 h-16 rounded-2xl bg-pg-violet/15 border-2 border-pg-violet/30 flex items-center justify-center mx-auto mb-4">
+                <svg
+                  className="w-8 h-8 text-pg-violet"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+                  />
+                </svg>
+              </div>
+              <p
+                className="font-extrabold text-xl mb-1 text-base-content"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                Market already exists
+              </p>
+              <p className="text-sm text-pg-muted mb-6">
+                A prediction market for {tokenSymbol || "this token"} has already been created.
+              </p>
+              <div className="flex gap-3">
+                <button onClick={onClose} className="btn-outline-geo flex-1 text-sm">
+                  Close
+                </button>
+                <Link
+                  href={`/market#${tokenAddress},${poolAddress}`}
+                  className="btn-candy flex-1 text-sm text-center"
+                  onClick={onClose}
+                >
+                  View Market
+                </Link>
+              </div>
+            </div>
+          ) : success ? (
             <div className="text-center py-6">
               {/* Success icon */}
               <div className="w-16 h-16 rounded-2xl bg-pg-mint/15 border-2 border-pg-mint/30 flex items-center justify-center mx-auto mb-4">

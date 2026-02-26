@@ -1,5 +1,24 @@
 import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+/**
+ * Hook to check if a market has been created for a token.
+ * Returns undefined while loading, true if market exists, false if not.
+ * Uses BankrBetsOracle.getMarketCreator — returns zero address for unregistered tokens.
+ */
+export function useMarketCreated(tokenAddress: string) {
+  const { data: creator, isLoading } = useScaffoldReadContract({
+    contractName: "BankrBetsOracle",
+    functionName: "getMarketCreator",
+    args: [tokenAddress],
+    query: { refetchInterval: 5000 },
+  });
+
+  if (isLoading || creator === undefined) return undefined;
+  return (creator as string).toLowerCase() !== ZERO_ADDRESS;
+}
+
 /**
  * Hook to read the current round data for a token
  */

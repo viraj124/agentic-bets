@@ -19,11 +19,12 @@ interface BetPanelProps {
   tokenAddress: string;
   tokenSymbol?: string;
   lockPrice?: number;
+  marketCreated?: boolean;
 }
 
 const USDC_DECIMALS = 6;
 
-export function BetPanel({ tokenAddress, tokenSymbol, lockPrice }: BetPanelProps) {
+export function BetPanel({ tokenAddress, tokenSymbol, lockPrice, marketCreated }: BetPanelProps) {
   const { address, chainId } = useAccount();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
   const [amount, setAmount] = useState("");
@@ -47,15 +48,17 @@ export function BetPanel({ tokenAddress, tokenSymbol, lockPrice }: BetPanelProps
   const { needsApproval, hasBalance, approve, isApproving, balance } = useUsdcApproval(betAmountRaw);
 
   const isWrongNetwork = address && chainId !== base.id;
-  const isLocked = round ? round[11] : false;
-  const lockTimestamp = round ? Number(round[3]) : 0;
-  const closeTimestamp = round ? Number(round[4]) : 0;
-  const hasBet = userBet && userBet[1] > 0n;
-  const isBettingOpen = isActive && round && !isLocked && Math.floor(Date.now() / 1000) < Number(round[3]);
+  const isLocked = round ? round.locked : false;
+  const lockTimestamp = round ? Number(round.lockTimestamp) : 0;
+  const closeTimestamp = round ? Number(round.closeTimestamp) : 0;
+  const hasBet = userBet && userBet.amount > 0n;
+  const isBettingOpen = isActive && round && !isLocked && Math.floor(Date.now() / 1000) < Number(round.lockTimestamp);
+  // Market exists but no active round — first bet will auto-start one
+  const canBetToStart = marketCreated === true && !isActive;
 
-  const totalPool = round ? Number(round[6]) / 1e6 : 0;
-  const bullPool = round ? Number(round[7]) / 1e6 : 0;
-  const bearPool = round ? Number(round[8]) / 1e6 : 0;
+  const totalPool = round ? Number(round.totalAmount) / 1e6 : 0;
+  const bullPool = round ? Number(round.bullAmount) / 1e6 : 0;
+  const bearPool = round ? Number(round.bearAmount) / 1e6 : 0;
   const bullPercent = totalPool > 0 ? (bullPool / totalPool) * 100 : 50;
   const bearPercent = totalPool > 0 ? (bearPool / totalPool) * 100 : 50;
 
@@ -94,23 +97,35 @@ export function BetPanel({ tokenAddress, tokenSymbol, lockPrice }: BetPanelProps
     }
   }, [isLockable, isClosable, tokenAddress, lockRound, closeRound]);
 
-  // No active round
-  if (!isActive) {
+  // No active round and no market (or still loading) — show empty state
+  if (!isActive && !canBetToStart) {
+    const isLoading = marketCreated === undefined;
+
     return (
       <div className="bg-base-100 rounded-2xl border-2 border-pg-border p-8 text-center">
         <div className="w-10 h-10 rounded-full bg-base-200 flex items-center justify-center mx-auto mb-3">
-          <svg
-            className="w-5 h-5 text-pg-muted/40"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.5}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-          </svg>
+          {isLoading ? (
+            <span className="loading loading-spinner loading-sm text-pg-muted/40" />
+          ) : (
+            <svg
+              className="w-5 h-5 text-pg-muted/40"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+          )}
         </div>
-        <p className="text-sm font-bold text-pg-muted">No active round</p>
-        <p className="text-xs text-pg-muted/50 mt-1">Place a bet to start the round</p>
+        {isLoading ? (
+          <p className="text-sm font-bold text-pg-muted">Loading...</p>
+        ) : (
+          <>
+            <p className="text-sm font-bold text-pg-muted">No market yet</p>
+            <p className="text-xs text-pg-muted/50 mt-1">Create a market to start predicting</p>
+          </>
+        )}
       </div>
     );
   }
@@ -143,30 +158,37 @@ export function BetPanel({ tokenAddress, tokenSymbol, lockPrice }: BetPanelProps
           </button>
         )}
 
+        {/* Start-round banner */}
+        {canBetToStart && (
+          <div className="rounded-xl bg-pg-violet/10 border border-pg-violet/20 px-3 py-2 text-center">
+            <p className="text-xs font-bold text-pg-violet">Your bet will start the next round</p>
+          </div>
+        )}
+
         {hasBet ? (
           /* Existing position */
           <div className="py-4 text-center">
             <p className="text-[10px] font-bold text-pg-muted uppercase tracking-widest mb-2">Your position</p>
             <p className="text-3xl font-extrabold font-mono" style={{ fontFamily: "var(--font-heading)" }}>
-              ${(Number(userBet![1]) / 1e6).toFixed(2)}
+              ${(Number(userBet!.amount) / 1e6).toFixed(2)}
             </p>
             <span
               className={`inline-block mt-1.5 px-3 py-0.5 rounded-full text-sm font-bold border ${
-                userBet![0] === 0
+                userBet!.position === 0
                   ? "bg-pg-mint/15 text-pg-mint border-pg-mint/30"
                   : "bg-pg-pink/15 text-pg-pink border-pg-pink/30"
               }`}
             >
-              {userBet![0] === 0 ? "↑ UP" : "↓ DOWN"}
+              {userBet!.position === 0 ? "↑ UP" : "↓ DOWN"}
             </span>
             <p className="text-xs text-pg-muted/50 mt-3">Waiting for settlement</p>
             <div className="mt-4">
               <ShareButton
-                message={`I just bet $${(Number(userBet![1]) / 1e6).toFixed(2)} ${userBet![0] === 0 ? "UP" : "DOWN"} on ${tokenSymbol || "a token"} on BankrBets!`}
+                message={`I just bet $${(Number(userBet!.amount) / 1e6).toFixed(2)} ${userBet!.position === 0 ? "UP" : "DOWN"} on ${tokenSymbol || "a token"} on BankrBets!`}
               />
             </div>
           </div>
-        ) : isBettingOpen ? (
+        ) : isBettingOpen || canBetToStart ? (
           <>
             {/* Outcome buttons */}
             <div className="grid grid-cols-2 gap-2.5">
@@ -202,12 +224,14 @@ export function BetPanel({ tokenAddress, tokenSymbol, lockPrice }: BetPanelProps
             </div>
 
             {/* Pool bar */}
-            <div className="w-full h-1 bg-pg-pink/25 rounded-full overflow-hidden -mt-1">
-              <div
-                className="h-full bg-pg-mint rounded-full transition-all duration-500"
-                style={{ width: `${bullPercent}%` }}
-              />
-            </div>
+            {!canBetToStart && (
+              <div className="w-full h-1 bg-pg-pink/25 rounded-full overflow-hidden -mt-1">
+                <div
+                  className="h-full bg-pg-mint rounded-full transition-all duration-500"
+                  style={{ width: `${bullPercent}%` }}
+                />
+              </div>
+            )}
 
             {/* Amount */}
             <div>

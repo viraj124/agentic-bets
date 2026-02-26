@@ -158,7 +158,12 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
                       </div>
                     }
                   >
-                    <PriceChart poolAddress={token.topPoolAddress} tokenAddress={token.contractAddress} height={200} />
+                    <PriceChart
+                      poolAddress={token.topPoolAddress}
+                      tokenAddress={token.contractAddress}
+                      height={200}
+                      compact
+                    />
                   </Suspense>
                 </div>
               )}
@@ -184,13 +189,13 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
 
               {/* Actions */}
               <div className="flex items-center gap-3 mt-4">
-                {isConnected && (
+                {isConnected && !hasMarket && (
                   <button onClick={openModal} className="btn-candy flex-1 text-sm text-center">
                     Create Market
                   </button>
                 )}
                 <Link href={marketLink} className="btn-outline-geo flex-1 text-sm text-center">
-                  View Details
+                  {hasMarket ? "View Market" : "View Details"}
                 </Link>
               </div>
 

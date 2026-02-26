@@ -8,7 +8,7 @@ import { CreateMarketModal } from "~~/components/bankrbets/CreateMarketModal";
 import { MarketCreatorBadge } from "~~/components/bankrbets/MarketCreatorBadge";
 import { PriceChart } from "~~/components/bankrbets/PriceChart";
 import { useGeckoTerminal } from "~~/hooks/bankrbets/useGeckoTerminal";
-import { useCurrentRound } from "~~/hooks/bankrbets/usePredictionContract";
+import { useCurrentRound, useMarketCreated } from "~~/hooks/bankrbets/usePredictionContract";
 import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
 
 const MarketPage: NextPage = () => {
@@ -122,9 +122,10 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { data: poolData } = useGeckoTerminal(poolAddress || undefined);
   const { epoch, round, isActive } = useCurrentRound(tokenAddress);
+  const marketCreated = useMarketCreated(tokenAddress);
 
-  const isLocked = round ? round[11] : false;
-  const lockPrice = round ? Number(round[5]) / 1e18 : 0;
+  const isLocked = round ? round.locked : false;
+  const lockPrice = round ? Number(round.lockPrice) / 1e18 : 0;
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-6">
@@ -153,11 +154,11 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
                   <span className="w-1.5 h-1.5 rounded-full bg-pg-mint animate-pulse" />
                   Live
                 </span>
-              ) : (
+              ) : marketCreated === false ? (
                 <button onClick={() => setShowCreateModal(true)} className="btn-candy text-xs px-4 py-1.5">
                   Create Market
                 </button>
-              )}
+              ) : null}
             </div>
             <div className="flex items-center gap-3 mt-1.5">
               <p className="text-xs text-pg-muted font-mono">{tokenAddress}</p>
@@ -215,7 +216,7 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
               <PriceChart
                 poolAddress={poolAddress}
                 tokenAddress={tokenAddress}
-                currentPrice={poolData?.priceUsd}
+                currentPrice={isActive ? poolData?.priceUsd : undefined}
                 lockPrice={isLocked && lockPrice > 0 ? lockPrice : undefined}
                 isLocked={Boolean(isLocked)}
                 epoch={epoch !== undefined ? Number(epoch) : undefined}
@@ -234,6 +235,7 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
             tokenAddress={tokenAddress}
             tokenSymbol={poolData?.tokenName?.split("/")[0]}
             lockPrice={isLocked && lockPrice > 0 ? lockPrice : undefined}
+            marketCreated={marketCreated}
           />
 
           {/* Market stats */}
