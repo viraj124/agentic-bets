@@ -48,13 +48,13 @@ export function useCreateMarket() {
     gcTime: 10 * 60_000,
   });
 
-  const createMarket = async (tokenAddress: string, poolAddress: string) => {
+  const createMarket = async (tokenAddress: string) => {
     const addr = tokenAddress.toLowerCase();
     const poolKey = tokenPoolMap?.get(addr) ?? deriveFallbackPoolKey(tokenAddress);
 
     return writeContractAsync({
-      functionName: "createAndStartRound",
-      args: [tokenAddress, poolAddress, poolKey],
+      functionName: "createMarket",
+      args: [tokenAddress, poolKey],
     });
   };
 

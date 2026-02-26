@@ -27,10 +27,10 @@ contract DeployBankrBets is Script {
     // PoolManager: https://basescan.org/address/0x498581fF718922c3f8e6A244956aF099B2652b2b
     // -------------------------------------------------------------------------
     address constant POOL_MANAGER = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
-    address constant USDC         = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-    address constant WETH         = 0x4200000000000000000000000000000000000006;
+    address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    address constant WETH = 0x4200000000000000000000000000000000000006;
 
-    // Clanker V4 hook used by both CLAWD and BNKRW (StaticFeeV2)
+    // Clanker V4 hook used by CLAWD, BNKRW, and MOLT (StaticFeeV2, PoolId-verified)
     address constant CLANKER_STATIC_FEE_V2 = 0xb429d62f8f3bFFb98CdB9569533eA23bF0Ba28CC;
 
     // CLAWD — top Bankr ecosystem token by market cap
@@ -41,7 +41,7 @@ contract DeployBankrBets is Script {
 
     // MOLT (Moltbook) — #3 Bankr ecosystem token by market cap
     // PoolId verified: 0x15f351bf...464dd
-    address constant MOLT  = 0xB695559b26BB2c9703ef1935c37AeaE9526bab07;
+    address constant MOLT = 0xB695559b26BB2c9703ef1935c37AeaE9526bab07;
 
     // -------------------------------------------------------------------------
     // Operational parameters
@@ -55,8 +55,8 @@ contract DeployBankrBets is Script {
     uint256 constant MAX_ROUND_POOL = 10_000_000_000; // 10,000 USDC
 
     // Clanker pool parameters (same for all supported Bankr/Clanker V4 pools)
-    uint24  constant DYNAMIC_FEE_FLAG     = 0x800000;
-    int24   constant CLANKER_TICK_SPACING = 200;
+    uint24 constant DYNAMIC_FEE_FLAG = 0x800000;
+    int24 constant CLANKER_TICK_SPACING = 200;
 
     function run() external {
         require(block.chainid == 8453, "Deploy to Base mainnet only (chain 8453)");
@@ -95,33 +95,15 @@ contract DeployBankrBets is Script {
         // 6. Register initial markets
         // -----------------------------------------------------------------
         // CLAWD/WETH pool — WETH is currency0 (0x4200 < 0x9f86)
-        PoolKey memory clawdKey = PoolKey({
-            currency0:   Currency.wrap(WETH),
-            currency1:   Currency.wrap(CLAWD),
-            fee:         DYNAMIC_FEE_FLAG,
-            tickSpacing: CLANKER_TICK_SPACING,
-            hooks:       IHooks(CLANKER_STATIC_FEE_V2)
-        });
+        PoolKey memory clawdKey = PoolKey({ currency0: Currency.wrap(WETH), currency1: Currency.wrap(CLAWD), fee: DYNAMIC_FEE_FLAG, tickSpacing: CLANKER_TICK_SPACING, hooks: IHooks(CLANKER_STATIC_FEE_V2) });
         oracle.addToken(CLAWD, clawdKey);
 
         // BNKRW/WETH pool — WETH is currency0 (0x4200 < 0xf48b)
-        PoolKey memory bnkrwKey = PoolKey({
-            currency0:   Currency.wrap(WETH),
-            currency1:   Currency.wrap(BNKRW),
-            fee:         DYNAMIC_FEE_FLAG,
-            tickSpacing: CLANKER_TICK_SPACING,
-            hooks:       IHooks(CLANKER_STATIC_FEE_V2)
-        });
+        PoolKey memory bnkrwKey = PoolKey({ currency0: Currency.wrap(WETH), currency1: Currency.wrap(BNKRW), fee: DYNAMIC_FEE_FLAG, tickSpacing: CLANKER_TICK_SPACING, hooks: IHooks(CLANKER_STATIC_FEE_V2) });
         oracle.addToken(BNKRW, bnkrwKey);
 
         // MOLT/WETH pool — WETH is currency0 (0x4200 < 0xB695)
-        PoolKey memory moltKey = PoolKey({
-            currency0:   Currency.wrap(WETH),
-            currency1:   Currency.wrap(MOLT),
-            fee:         DYNAMIC_FEE_FLAG,
-            tickSpacing: CLANKER_TICK_SPACING,
-            hooks:       IHooks(CLANKER_STATIC_FEE_V2)
-        });
+        PoolKey memory moltKey = PoolKey({ currency0: Currency.wrap(WETH), currency1: Currency.wrap(MOLT), fee: DYNAMIC_FEE_FLAG, tickSpacing: CLANKER_TICK_SPACING, hooks: IHooks(CLANKER_STATIC_FEE_V2) });
         oracle.addToken(MOLT, moltKey);
 
         vm.stopBroadcast();

@@ -1703,13 +1703,7 @@ contract BankrBetsTest is Test {
         // Build a pool key where token1 is paired with USDC instead of WETH
         address c0 = token1 < address(usdc) ? token1 : address(usdc);
         address c1 = token1 < address(usdc) ? address(usdc) : token1;
-        PoolKey memory badQuotePool = PoolKey({
-            currency0: Currency.wrap(c0),
-            currency1: Currency.wrap(c1),
-            fee: CLANKER_FEE,
-            tickSpacing: CLANKER_TICK_SPACING,
-            hooks: IHooks(CLANKER_STATIC_FEE_V2)
-        });
+        PoolKey memory badQuotePool = PoolKey({ currency0: Currency.wrap(c0), currency1: Currency.wrap(c1), fee: CLANKER_FEE, tickSpacing: CLANKER_TICK_SPACING, hooks: IHooks(CLANKER_STATIC_FEE_V2) });
 
         vm.prank(marketCreator);
         vm.expectRevert(BankrBetsOracle.InvalidQuoteToken.selector);
@@ -1718,13 +1712,7 @@ contract BankrBetsTest is Test {
 
     function test_UpdatePoolRejectsUnsupportedHook() public {
         // Reuse a valid token pair but supply address(0) as hook
-        PoolKey memory badHookPool = PoolKey({
-            currency0: poolKey1.currency0,
-            currency1: poolKey1.currency1,
-            fee: CLANKER_FEE,
-            tickSpacing: CLANKER_TICK_SPACING,
-            hooks: IHooks(address(0))
-        });
+        PoolKey memory badHookPool = PoolKey({ currency0: poolKey1.currency0, currency1: poolKey1.currency1, fee: CLANKER_FEE, tickSpacing: CLANKER_TICK_SPACING, hooks: IHooks(address(0)) });
 
         vm.prank(marketCreator);
         vm.expectRevert(BankrBetsOracle.UnsupportedHook.selector);
@@ -1769,8 +1757,8 @@ contract BankrBetsTest is Test {
     // ========== maxRoundPool Tests ==========
 
     function test_SetMaxRoundPool() public {
-        prediction.setMaxRoundPool(5_000 * ONE_USDC);
-        assertEq(prediction.maxRoundPool(), 5_000 * ONE_USDC);
+        prediction.setMaxRoundPool(5000 * ONE_USDC);
+        assertEq(prediction.maxRoundPool(), 5000 * ONE_USDC);
 
         // Zero is valid — disables the cap
         prediction.setMaxRoundPool(0);
@@ -1780,7 +1768,7 @@ contract BankrBetsTest is Test {
     function test_SetMaxRoundPoolOnlyOwner() public {
         _expectOwnableRevert(alice);
         vm.prank(alice);
-        prediction.setMaxRoundPool(5_000 * ONE_USDC);
+        prediction.setMaxRoundPool(5000 * ONE_USDC);
     }
 
     function test_MaxRoundPoolBlocksExcessiveBet() public {
