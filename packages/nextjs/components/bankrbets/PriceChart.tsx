@@ -8,6 +8,7 @@ interface PriceChartProps {
   poolAddress: string;
   tokenAddress?: string;
   height?: number;
+  compact?: boolean; // true for mini 200px cards — fetches fewer candles at lower resolution
   currentPrice?: number;
   lockPrice?: number;
   isLocked?: boolean;
@@ -18,6 +19,7 @@ export function PriceChart({
   poolAddress,
   tokenAddress,
   height,
+  compact,
   currentPrice,
   lockPrice,
   isLocked,
@@ -37,17 +39,19 @@ export function PriceChart({
   const DOT_COLOR = "#8b5cf6";
   const [dotPos, setDotPos] = useState<{ x: number; y: number } | null>(null);
 
-  // Fetch OHLCV from GeckoTerminal (5-min candles)
+  // Fetch OHLCV from GeckoTerminal
+  // compact mode: 15-min candles (faster, smaller payload for mini home-page charts)
+  // full mode:    5-min candles (detail page)
   const {
     data: candles,
     isLoading: isLoadingCandles,
     isFetching: isFetchingCandles,
   } = useQuery({
-    queryKey: ["ohlcv", poolAddress, tokenAddress],
-    queryFn: () => fetchOhlcv(poolAddress, tokenAddress),
+    queryKey: ["ohlcv", poolAddress, tokenAddress, compact],
+    queryFn: () => fetchOhlcv(poolAddress, tokenAddress, compact),
     enabled: !!poolAddress,
-    refetchInterval: 60000,
-    staleTime: 60000,
+    refetchInterval: compact ? 5 * 60_000 : 60_000, // mini charts refetch every 5 min
+    staleTime: compact ? 5 * 60_000 : 60_000,
   });
 
   const hasCandleData = (candles?.length ?? 0) > 0;

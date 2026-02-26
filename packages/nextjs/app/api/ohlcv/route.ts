@@ -15,7 +15,7 @@ interface GeckoTokenPool {
   };
 }
 
-const CACHE_TTL_MS = 60_000;
+const CACHE_TTL_MS = 5 * 60_000; // 5 minutes — mini charts don't need real-time data
 const cache = new Map<string, { ts: number; data: OhlcvCandle[] }>();
 const FETCH_TIMEOUT_MS = 8_000;
 const FETCH_RETRIES = 2;
@@ -75,7 +75,7 @@ async function fetchJson<T>(url: string): Promise<T | null> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
-      const res = await fetch(url, { signal: controller.signal, next: { revalidate: 60 } });
+      const res = await fetch(url, { signal: controller.signal, next: { revalidate: 300 } });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as any;
       // Gecko may return HTTP 200 with an embedded error payload.
@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
   const cached = cache.get(cacheKey);
   if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
     return Response.json(cached.data, {
-      headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=60" },
+      headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" },
     });
   }
 
@@ -159,7 +159,7 @@ export async function GET(req: NextRequest) {
   if (candles === null) {
     if (cached) {
       return Response.json(cached.data, {
-        headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=60" },
+        headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" },
       });
     }
     return Response.json([], { status: 200 });
@@ -168,6 +168,6 @@ export async function GET(req: NextRequest) {
   cache.set(cacheKey, { ts: Date.now(), data: candles });
 
   return Response.json(candles, {
-    headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=60" },
+    headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" },
   });
 }

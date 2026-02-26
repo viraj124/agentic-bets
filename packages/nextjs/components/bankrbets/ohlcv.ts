@@ -42,12 +42,14 @@ function sanitizeCandles(candles: OhlcvCandle[]): OhlcvCandle[] {
   return deduped;
 }
 
-async function fetchFromApi(poolAddress: string, tokenAddress?: string): Promise<OhlcvCandle[]> {
+async function fetchFromApi(poolAddress: string, tokenAddress?: string, compact?: boolean): Promise<OhlcvCandle[]> {
   try {
     const params = new URLSearchParams({
       pool: poolAddress,
-      aggregate: "5",
-      limit: "120",
+      // compact: 15-min × 48 bars ≈ 12 h — faster for mini charts
+      // full:    5-min × 120 bars ≈ 10 h — for the detail page chart
+      aggregate: compact ? "15" : "5",
+      limit: compact ? "48" : "120",
       currency: "usd",
     });
     if (tokenAddress) params.set("token", tokenAddress);
@@ -61,7 +63,11 @@ async function fetchFromApi(poolAddress: string, tokenAddress?: string): Promise
   }
 }
 
-export async function fetchOhlcv(poolAddress: string, tokenAddress?: string): Promise<OhlcvCandle[]> {
+export async function fetchOhlcv(
+  poolAddress: string,
+  tokenAddress?: string,
+  compact?: boolean,
+): Promise<OhlcvCandle[]> {
   if (!poolAddress) return [];
-  return await fetchFromApi(poolAddress, tokenAddress);
+  return await fetchFromApi(poolAddress, tokenAddress, compact);
 }
