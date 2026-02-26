@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { readFile, writeFile } from "node:fs/promises";
 import { encodeAbiParameters, keccak256, parseAbiParameters } from "viem";
-import { REQUIRED_TICK_SPACING, SUPPORTED_BANKR_V4_HOOK_CONFIGS, WETH_BASE } from "~~/lib/bankrPoolConstants";
+import {
+  DEFAULT_FALLBACK_HOOK,
+  REQUIRED_TICK_SPACING,
+  SUPPORTED_BANKR_V4_HOOK_CONFIGS,
+  WETH_BASE,
+} from "~~/lib/bankrPoolConstants";
 
 // Allow up to 60s for cold-cache builds (Vercel serverless default is 10s)
 export const maxDuration = 60;
@@ -223,6 +228,18 @@ function sortCurrencies(tokenA: string, tokenB: string): [string, string] {
   return tokenA.toLowerCase() < tokenB.toLowerCase() ? [tokenA, tokenB] : [tokenB, tokenA];
 }
 
+/** Fallback PoolKey for tokens whose pool config couldn't be verified against known hooks. */
+function deriveFallbackPoolKey(tokenAddress: string): PoolKeyData {
+  const [c0, c1] = sortCurrencies(tokenAddress, WETH);
+  return {
+    currency0: c0,
+    currency1: c1,
+    fee: SUPPORTED_BANKR_V4_HOOK_CONFIGS[0].fee, // CLANKER_DYNAMIC_FEE_FLAG
+    tickSpacing: REQUIRED_TICK_SPACING,
+    hooks: DEFAULT_FALLBACK_HOOK,
+  };
+}
+
 /** Match an expected PoolId against known V4 hook configurations. */
 function resolvePoolKey(tokenAddress: string, pairedToken: string, expectedPoolId: string): PoolKeyData | null {
   if (!isHexBytes32(expectedPoolId)) return null;
@@ -442,7 +459,8 @@ async function enrichWithPriceData(
   geckoPriced: number;
   geckoFallbackCandidates: number;
 }> {
-  const eligible = tokens.filter(t => !!t.poolKey);
+  // Include all tokens regardless of pool key resolution — unverified ones get a fallback key.
+  const eligible = tokens;
   const addresses = eligible.map(t => t.address);
 
   // 1) DexScreener primary coverage
@@ -460,7 +478,7 @@ async function enrichWithPriceData(
   const useGeckoFallback = opts?.enableGeckoFallback ?? true;
   const geckoFallbackMaxAddresses = opts?.geckoFallbackMaxAddresses ?? GECKO_FALLBACK_MAX_ADDRESSES;
   const geckoFallbackCandidates = useGeckoFallback
-    ? Array.from(new Set(eligible.filter(t => t.fromClanker && !dexMap.has(t.address)).map(t => t.address))).slice(
+    ? Array.from(new Set(eligible.filter(t => !dexMap.has(t.address)).map(t => t.address))).slice(
         0,
         geckoFallbackMaxAddresses,
       )
@@ -484,13 +502,16 @@ async function enrichWithPriceData(
   const enriched: EnrichedToken[] = [];
   for (const token of eligible) {
     const priceData = dexMap.get(token.address) || geckoMap.get(token.address);
-    if (!priceData || !token.poolKey) continue;
+    if (!priceData) continue;
+
+    const resolvedPoolKey = token.poolKey ?? deriveFallbackPoolKey(token.address);
 
     enriched.push({
       address: token.address,
-      poolId: token.poolId,
-      poolKey: token.poolKey,
+      poolId: token.poolId || computePoolId(resolvedPoolKey),
+      poolKey: resolvedPoolKey,
       ...priceData,
+      poolKeyVerified: token.poolKey !== null,
     });
   }
 
