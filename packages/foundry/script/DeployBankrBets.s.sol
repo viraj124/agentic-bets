@@ -39,6 +39,10 @@ contract DeployBankrBets is Script {
     // BNKRW — Bankr reward token
     address constant BNKRW = 0xf48bC234855aB08ab2EC0cfaaEb2A80D065a3b07;
 
+    // MOLT (Moltbook) — #3 Bankr ecosystem token by market cap
+    // PoolId verified: 0x15f351bf...464dd
+    address constant MOLT  = 0xB695559b26BB2c9703ef1935c37AeaE9526bab07;
+
     // -------------------------------------------------------------------------
     // Operational parameters
     // -------------------------------------------------------------------------
@@ -110,6 +114,16 @@ contract DeployBankrBets is Script {
         });
         oracle.addToken(BNKRW, bnkrwKey);
 
+        // MOLT/WETH pool — WETH is currency0 (0x4200 < 0xB695)
+        PoolKey memory moltKey = PoolKey({
+            currency0:   Currency.wrap(WETH),
+            currency1:   Currency.wrap(MOLT),
+            fee:         DYNAMIC_FEE_FLAG,
+            tickSpacing: CLANKER_TICK_SPACING,
+            hooks:       IHooks(CLANKER_STATIC_FEE_V2)
+        });
+        oracle.addToken(MOLT, moltKey);
+
         vm.stopBroadcast();
 
         // -----------------------------------------------------------------
@@ -140,5 +154,6 @@ contract DeployBankrBets is Script {
         console.log("--- Initial markets ---");
         console.log("CLAWD active         :", oracle.isTokenActive(CLAWD));
         console.log("BNKRW active         :", oracle.isTokenActive(BNKRW));
+        console.log("MOLT  active         :", oracle.isTokenActive(MOLT));
     }
 }
