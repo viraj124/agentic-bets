@@ -7,8 +7,10 @@ import { parseUnits } from "viem";
 import { base } from "viem/chains";
 import { useAccount, useSwitchChain } from "wagmi";
 import {
+  useClaimable,
   useCurrentRound,
   usePredictionActions,
+  useRefundStatus,
   useSettlementActions,
   useSettlementStatus,
   useUserBet,
@@ -32,7 +34,10 @@ export function BetPanel({ tokenAddress, tokenSymbol, lockPrice, marketCreated }
 
   const { epoch, round, isActive } = useCurrentRound(tokenAddress);
   const userBet = useUserBet(tokenAddress, epoch, address);
-  const { betBull, betBear, isBettingBull, isBettingBear } = usePredictionActions();
+  const claimable = useClaimable(tokenAddress, epoch, address);
+  const { canTriggerRefund, roundCancelled } = useRefundStatus(tokenAddress);
+  const { betBull, betBear, claim, refundRound, isBettingBull, isBettingBear, isClaiming, isRefunding } =
+    usePredictionActions();
   const { lockRound, closeRound, isLocking, isClosing } = useSettlementActions();
   const { isLockable, isClosable, settlerReward } = useSettlementStatus(tokenAddress);
 
@@ -79,6 +84,24 @@ export function BetPanel({ tokenAddress, tokenSymbol, lockPrice, marketCreated }
       console.error("Bet failed:", e);
     }
   }, [amount, tokenAddress, direction, betBull, betBear]);
+
+  const handleClaim = useCallback(async () => {
+    if (!epoch) return;
+    try {
+      await claim(tokenAddress, [epoch]);
+    } catch (e) {
+      console.error("Claim failed:", e);
+    }
+  }, [epoch, tokenAddress, claim]);
+
+  const handleRefundTrigger = useCallback(async () => {
+    if (!epoch) return;
+    try {
+      await refundRound(tokenAddress, epoch);
+    } catch (e) {
+      console.error("Refund trigger failed:", e);
+    }
+  }, [epoch, tokenAddress, refundRound]);
 
   const handleApprove = useCallback(async () => {
     try {
@@ -165,6 +188,24 @@ export function BetPanel({ tokenAddress, tokenSymbol, lockPrice, marketCreated }
           </div>
         )}
 
+        {/* Trigger refund — anyone can call this to unlock stuck rounds */}
+        {canTriggerRefund && (
+          <button
+            onClick={handleRefundTrigger}
+            disabled={isRefunding}
+            className="w-full py-2.5 rounded-xl font-bold text-sm bg-pg-pink/15 hover:bg-pg-pink/25 text-pg-pink border-2 border-pg-pink/30 disabled:opacity-50 transition-colors"
+          >
+            {isRefunding ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="loading loading-spinner loading-sm" />
+                Triggering...
+              </span>
+            ) : (
+              "Trigger Refund — Round Expired"
+            )}
+          </button>
+        )}
+
         {hasBet ? (
           /* Existing position */
           <div className="py-4 text-center">
@@ -181,12 +222,57 @@ export function BetPanel({ tokenAddress, tokenSymbol, lockPrice, marketCreated }
             >
               {userBet!.position === 0 ? "↑ UP" : "↓ DOWN"}
             </span>
-            <p className="text-xs text-pg-muted/50 mt-3">Waiting for settlement</p>
-            <div className="mt-4">
-              <ShareButton
-                message={`I just bet $${(Number(userBet!.amount) / 1e6).toFixed(2)} ${userBet!.position === 0 ? "UP" : "DOWN"} on ${tokenSymbol || "a token"} on BankrBets!`}
-              />
-            </div>
+
+            {/* Claim winnings */}
+            {claimable ? (
+              <div className="mt-4 space-y-2">
+                <p className="text-xs font-bold text-pg-mint">You won! Claim your USDC.</p>
+                <button
+                  onClick={handleClaim}
+                  disabled={isClaiming}
+                  className="w-full py-2.5 rounded-xl font-bold text-sm bg-pg-mint hover:bg-pg-mint/90 text-white disabled:opacity-50 transition-colors"
+                >
+                  {isClaiming ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="loading loading-spinner loading-sm" />
+                      Claiming...
+                    </span>
+                  ) : roundCancelled ? (
+                    "Claim Refund"
+                  ) : (
+                    "Claim Winnings"
+                  )}
+                </button>
+              </div>
+            ) : roundCancelled ? (
+              <div className="mt-4 space-y-1">
+                <p className="text-xs font-bold text-pg-amber">Round cancelled — your bet will be refunded.</p>
+                <button
+                  onClick={handleClaim}
+                  disabled={isClaiming}
+                  className="w-full py-2.5 rounded-xl font-bold text-sm bg-pg-amber hover:bg-pg-amber/90 text-white disabled:opacity-50 transition-colors"
+                >
+                  {isClaiming ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="loading loading-spinner loading-sm" />
+                      Claiming...
+                    </span>
+                  ) : (
+                    "Claim Refund"
+                  )}
+                </button>
+              </div>
+            ) : (
+              <p className="text-xs text-pg-muted/50 mt-3">Waiting for settlement</p>
+            )}
+
+            {!claimable && !roundCancelled && (
+              <div className="mt-4">
+                <ShareButton
+                  message={`I just bet $${(Number(userBet!.amount) / 1e6).toFixed(2)} ${userBet!.position === 0 ? "UP" : "DOWN"} on ${tokenSymbol || "a token"} on BankrBets!`}
+                />
+              </div>
+            )}
           </div>
         ) : isBettingOpen || canBetToStart ? (
           <>
