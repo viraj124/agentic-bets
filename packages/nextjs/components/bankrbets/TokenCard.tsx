@@ -4,6 +4,7 @@ import { Suspense, lazy, memo, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAccount } from "wagmi";
 import { BankrToken } from "~~/hooks/bankrbets/useBankrTokens";
+import { useCurrentRound } from "~~/hooks/bankrbets/usePredictionContract";
 
 const loadPriceChart = () => import("./PriceChart").then(m => ({ default: m.PriceChart }));
 const PriceChart = lazy(loadPriceChart);
@@ -38,6 +39,9 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
   const changeBg = isPositive ? "bg-pg-mint/10" : "bg-pg-pink/10";
   const marketLink = `/market#${token.contractAddress},${token.topPoolAddress}`;
   const avatarColor = useMemo(() => getAvatarColor(token.symbol), [token.symbol]);
+
+  // Only fetch round status for tokens that have a market — avoids unnecessary RPC calls
+  const { isActive } = useCurrentRound(token.contractAddress, !!hasMarket);
 
   const openModal = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -94,10 +98,15 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
               >
                 {token.symbol}
               </span>
-              {hasMarket && (
+              {hasMarket && isActive && (
                 <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-pg-mint/15 text-pg-mint px-2 py-0.5 rounded-full border border-pg-mint/30">
                   <span className="w-1 h-1 rounded-full bg-pg-mint animate-pulse" />
                   LIVE
+                </span>
+              )}
+              {hasMarket && !isActive && (
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-pg-border/40 text-pg-muted px-2 py-0.5 rounded-full border border-pg-border/60">
+                  MARKET
                 </span>
               )}
             </div>

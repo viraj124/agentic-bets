@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { TokenCard } from "./TokenCard";
 import { useBankrTokens } from "~~/hooks/bankrbets/useBankrTokens";
+import { useMarketTokens } from "~~/hooks/bankrbets/useMarketTokens";
 
 /** Shared column widths so header labels align with TokenCard data */
 const COL_HEADER =
@@ -10,6 +11,12 @@ const COL_HEADER =
 
 export function TrendingTokens() {
   const { data: tokens, allData, isLoading, isFetching, hasNextPage, fetchNextPage, totalCount } = useBankrTokens();
+  const { tokens: marketTokens } = useMarketTokens();
+  const marketAddresses = useMemo(() => {
+    const set = new Set<string>();
+    marketTokens.forEach(m => set.add(m.token.toLowerCase()));
+    return set;
+  }, [marketTokens]);
   const [expandedToken, setExpandedToken] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
@@ -179,6 +186,7 @@ export function TrendingTokens() {
                 token={token}
                 isExpanded={expandedToken === token.contractAddress}
                 onToggle={() => handleToggle(token.contractAddress)}
+                hasMarket={marketAddresses.has(token.contractAddress.toLowerCase())}
               />
             </div>
           ))}
