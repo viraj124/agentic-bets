@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { NextPage } from "next";
+import { useAccount } from "wagmi";
 import { BetPanel } from "~~/components/bankrbets/BetPanel";
 import { CreateMarketModal } from "~~/components/bankrbets/CreateMarketModal";
 import { MarketCreatorBadge } from "~~/components/bankrbets/MarketCreatorBadge";
 import { PriceChart } from "~~/components/bankrbets/PriceChart";
 import { useGeckoTerminal } from "~~/hooks/bankrbets/useGeckoTerminal";
-import { useCurrentRound, useMarketCreated } from "~~/hooks/bankrbets/usePredictionContract";
+import { useCreatorEarnings, useCurrentRound, useMarketCreated } from "~~/hooks/bankrbets/usePredictionContract";
 import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
 
 const MarketPage: NextPage = () => {
@@ -123,6 +124,16 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
   const { data: poolData } = useGeckoTerminal(poolAddress || undefined);
   const { epoch, round, isActive } = useCurrentRound(tokenAddress);
   const marketCreated = useMarketCreated(tokenAddress);
+  const { address } = useAccount();
+  const { creator, earningsFormatted } = useCreatorEarnings(tokenAddress);
+  const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+  const isCreator = !!(
+    address &&
+    creator &&
+    address.toLowerCase() === creator.toLowerCase() &&
+    creator.toLowerCase() !== ZERO_ADDRESS
+  );
+  const hasCreator = !!(creator && creator.toLowerCase() !== ZERO_ADDRESS);
 
   const isLocked = round ? round.locked : false;
   const lockPrice = round ? Number(round.lockPrice) / 1e18 : 0;
@@ -227,6 +238,57 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
               </div>
             )}
           </div>
+
+          {/* Round pool stats */}
+          {isActive && round && (
+            <div className="bg-base-100 rounded-2xl border-2 border-pg-border p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span
+                  className="text-[10px] text-pg-muted uppercase tracking-wider font-bold"
+                  style={{ fontFamily: "var(--font-heading)" }}
+                >
+                  Round #{epoch?.toString()} Pool
+                </span>
+                <span className="text-xs font-bold text-base-content font-mono">
+                  ${(Number(round.totalAmount) / 1e6).toFixed(2)} total
+                </span>
+              </div>
+              <div className="flex gap-3">
+                <div className="flex-1 bg-pg-mint/10 border border-pg-mint/20 rounded-xl px-3 py-2.5">
+                  <p className="text-[10px] text-pg-mint font-bold uppercase tracking-wider mb-1">↑ UP</p>
+                  <p className="text-sm font-extrabold text-base-content font-mono">
+                    ${(Number(round.bullAmount) / 1e6).toFixed(2)}
+                  </p>
+                  <p className="text-[10px] text-pg-muted mt-0.5">
+                    {round.totalAmount > 0n
+                      ? ((Number(round.bullAmount) / Number(round.totalAmount)) * 100).toFixed(0)
+                      : 50}
+                    %
+                  </p>
+                </div>
+                <div className="flex-1 bg-pg-pink/10 border border-pg-pink/20 rounded-xl px-3 py-2.5">
+                  <p className="text-[10px] text-pg-pink font-bold uppercase tracking-wider mb-1">↓ DOWN</p>
+                  <p className="text-sm font-extrabold text-base-content font-mono">
+                    ${(Number(round.bearAmount) / 1e6).toFixed(2)}
+                  </p>
+                  <p className="text-[10px] text-pg-muted mt-0.5">
+                    {round.totalAmount > 0n
+                      ? ((Number(round.bearAmount) / Number(round.totalAmount)) * 100).toFixed(0)
+                      : 50}
+                    %
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 w-full h-1.5 bg-pg-pink/20 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-pg-mint rounded-full transition-all duration-500"
+                  style={{
+                    width: `${round.totalAmount > 0n ? (Number(round.bullAmount) / Number(round.totalAmount)) * 100 : 50}%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right column: Bet panel + Market info */}
@@ -271,6 +333,32 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
                   <span>1.5% treasury + 0.5% creator + 0.1% settler</span>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Creator earnings */}
+          {hasCreator && (
+            <div className="bg-base-100 rounded-2xl border-2 border-pg-border p-4">
+              <h4
+                className="text-[10px] text-pg-muted uppercase tracking-wider font-bold mb-3"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                {isCreator ? "Your creator earnings" : "Creator earnings"}
+              </h4>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xl font-extrabold text-pg-mint font-mono">${earningsFormatted}</p>
+                  <p className="text-[10px] text-pg-muted/60 mt-0.5">0.5% of every settled round pool</p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-pg-mint/10 border-2 border-pg-mint/20 flex items-center justify-center flex-shrink-0">
+                  <span className="text-pg-mint font-extrabold text-sm">$</span>
+                </div>
+              </div>
+              {!isCreator && creator && (
+                <p className="text-[10px] text-pg-muted/50 font-mono mt-2">
+                  {creator.slice(0, 8)}...{creator.slice(-6)}
+                </p>
+              )}
             </div>
           )}
         </div>
