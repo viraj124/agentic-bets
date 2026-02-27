@@ -1,6 +1,8 @@
 import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+/** 1 hour grace period before a stale round can be marked as refundable */
+const REFUND_GRACE_PERIOD_S = 60 * 60;
 
 /**
  * Hook to check if a market has been created for a token.
@@ -20,13 +22,15 @@ export function useMarketCreated(tokenAddress: string) {
 }
 
 /**
- * Hook to read the current round data for a token
+ * Hook to read the current round data for a token.
+ * Pass enabled=false to skip all RPC calls (e.g. for tokens without markets).
  */
-export function useCurrentRound(tokenAddress: string) {
+export function useCurrentRound(tokenAddress: string, enabled = true) {
   const { data: currentEpoch } = useScaffoldReadContract({
     contractName: "BankrBetsPrediction",
     functionName: "getCurrentEpoch",
     args: [tokenAddress],
+    query: { enabled },
   });
 
   const { data: round } = useScaffoldReadContract({
@@ -79,7 +83,7 @@ export function useClaimable(tokenAddress: string, epoch: bigint | undefined, us
 }
 
 /**
- * Hook to place bets and claim
+ * Hook to place bets, claim winnings, and trigger refunds
  */
 export function usePredictionActions() {
   const { writeContractAsync: writeBetBull, isPending: isBettingBull } =
@@ -87,6 +91,7 @@ export function usePredictionActions() {
   const { writeContractAsync: writeBetBear, isPending: isBettingBear } =
     useScaffoldWriteContract("BankrBetsPrediction");
   const { writeContractAsync: writeClaim, isPending: isClaiming } = useScaffoldWriteContract("BankrBetsPrediction");
+  const { writeContractAsync: writeRefund, isPending: isRefunding } = useScaffoldWriteContract("BankrBetsPrediction");
 
   const betBull = async (token: string, amount: bigint) => {
     return writeBetBull({
@@ -109,13 +114,22 @@ export function usePredictionActions() {
     });
   };
 
+  const refundRound = async (token: string, epoch: bigint) => {
+    return writeRefund({
+      functionName: "refundRound",
+      args: [token, epoch],
+    });
+  };
+
   return {
     betBull,
     betBear,
     claim,
+    refundRound,
     isBettingBull,
     isBettingBear,
     isClaiming,
+    isRefunding,
   };
 }
 
@@ -162,6 +176,55 @@ export function useSettlementActions() {
     isLocking,
     isClosing,
     isStarting,
+  };
+}
+
+/**
+ * Hook to detect refund eligibility for the current round.
+ * canTriggerRefund — anyone can call refundRound() to mark it cancelled.
+ * roundCancelled   — round is already cancelled; bettors can claim() to get USDC back.
+ */
+export function useRefundStatus(tokenAddress: string) {
+  const { epoch, round } = useCurrentRound(tokenAddress);
+  const now = Math.floor(Date.now() / 1000);
+
+  const canTriggerRefund = !!(
+    round &&
+    !round.oracleCalled &&
+    Number(round.closeTimestamp) > 0 &&
+    now >= Number(round.closeTimestamp) + REFUND_GRACE_PERIOD_S
+  );
+
+  const roundCancelled = !!(round && round.cancelled);
+
+  return { epoch, canTriggerRefund, roundCancelled };
+}
+
+/**
+ * Hook to read a market creator's accumulated USDC earnings from their markets.
+ * Shows the total lifetime creator fee (0.5% per settled round pool).
+ */
+export function useCreatorEarnings(tokenAddress: string) {
+  const { data: creator } = useScaffoldReadContract({
+    contractName: "BankrBetsOracle",
+    functionName: "getMarketCreator",
+    args: [tokenAddress],
+  });
+
+  const { data: earnings } = useScaffoldReadContract({
+    contractName: "BankrBetsPrediction",
+    functionName: "creatorEarnings",
+    args: [creator as `0x${string}`],
+    query: {
+      enabled: !!creator && (creator as string).toLowerCase() !== ZERO_ADDRESS,
+      refetchInterval: 10000,
+    },
+  });
+
+  return {
+    creator: creator as string | undefined,
+    earnings: earnings as bigint | undefined,
+    earningsFormatted: earnings ? (Number(earnings as bigint) / 1e6).toFixed(2) : "0.00",
   };
 }
 
