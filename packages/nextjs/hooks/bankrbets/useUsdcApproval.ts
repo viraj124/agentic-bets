@@ -1,8 +1,9 @@
 import { useCallback, useMemo } from "react";
 import { erc20Abi, maxUint256 } from "viem";
 import { base } from "viem/chains";
-import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { useAccount, useReadContract, useSwitchChain, useWriteContract } from "wagmi";
 import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
+import { getWalletActionErrorMessage, notification } from "~~/utils/scaffold-eth";
 
 // USDC addresses by chain
 const USDC_ADDRESS: Record<number, `0x${string}`> = {
@@ -16,6 +17,7 @@ const USDC_ADDRESS: Record<number, `0x${string}`> = {
  */
 export function useUsdcApproval(requiredAmount: bigint) {
   const { address, chainId } = useAccount();
+  const { switchChainAsync } = useSwitchChain();
   const { data: predictionContract } = useDeployedContractInfo("BankrBetsPrediction");
 
   const spenderAddress = predictionContract?.address;
@@ -51,12 +53,12 @@ export function useUsdcApproval(requiredAmount: bigint) {
   });
 
   const needsApproval = useMemo(() => {
-    if (!allowance || !requiredAmount) return false;
+    if (requiredAmount <= 0n || allowance === undefined) return false;
     return allowance < requiredAmount;
   }, [allowance, requiredAmount]);
 
   const hasBalance = useMemo(() => {
-    if (!balance || !requiredAmount) return true; // assume true if unknown
+    if (requiredAmount <= 0n || balance === undefined) return true; // assume true if unknown
     return balance >= requiredAmount;
   }, [balance, requiredAmount]);
 
@@ -65,20 +67,53 @@ export function useUsdcApproval(requiredAmount: bigint) {
 
   const approve = useCallback(async () => {
     if (!spenderAddress || !usdcAddress) return;
+    if (!address) {
+      notification.error("Please connect your wallet");
+      return;
+    }
 
-    const hash = await writeContractAsync({
-      address: usdcAddress,
-      abi: erc20Abi,
-      functionName: "approve",
-      args: [spenderAddress, maxUint256],
-    });
+    if (chainId !== base.id) {
+      notification.warning(`Wrong network detected. Please switch to ${base.name}`);
+      try {
+        if (switchChainAsync) {
+          await switchChainAsync({ chainId: base.id });
+        }
+      } catch (error) {
+        notification.error(
+          getWalletActionErrorMessage(error, {
+            actionLabel: "Network switch",
+            networkName: base.name,
+          }),
+        );
+      }
+      return;
+    }
+
+    let hash;
+    try {
+      hash = await writeContractAsync({
+        address: usdcAddress,
+        abi: erc20Abi,
+        functionName: "approve",
+        args: [spenderAddress, maxUint256],
+      });
+    } catch (error) {
+      notification.error(
+        getWalletActionErrorMessage(error, {
+          actionLabel: "Approval",
+          networkName: base.name,
+          fallback: "Approval failed",
+        }),
+      );
+      throw error;
+    }
 
     // Wait briefly then refetch allowance
     await new Promise(resolve => setTimeout(resolve, 2000));
     await refetchAllowance();
 
     return hash;
-  }, [spenderAddress, usdcAddress, writeContractAsync, refetchAllowance]);
+  }, [spenderAddress, usdcAddress, address, chainId, switchChainAsync, writeContractAsync, refetchAllowance]);
 
   return {
     allowance: allowance ?? 0n,

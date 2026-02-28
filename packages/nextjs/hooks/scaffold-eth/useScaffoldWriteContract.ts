@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { MutateOptions } from "@tanstack/react-query";
 import { Abi, ExtractAbiFunctionNames } from "abitype";
-import { Config, UseWriteContractParameters, useAccount, useConfig, useWriteContract } from "wagmi";
+import { Config, UseWriteContractParameters, useAccount, useConfig, useSwitchChain, useWriteContract } from "wagmi";
 import { WriteContractErrorType, WriteContractReturnType } from "wagmi/actions";
 import { WriteContractVariables } from "wagmi/query";
 import { useSelectedNetwork } from "~~/hooks/scaffold-eth";
@@ -15,6 +15,7 @@ import {
   UseScaffoldWriteConfig,
   simulateContractWriteAndNotifyError,
 } from "~~/utils/scaffold-eth/contract";
+import { getWalletActionErrorMessage } from "~~/utils/scaffold-eth/walletErrors";
 
 type ScaffoldWriteContractReturnType<TContractName extends ContractName> = Omit<
   ReturnType<typeof useWriteContract>,
@@ -72,6 +73,7 @@ export function useScaffoldWriteContract<TContractName extends ContractName>(
   }, [configOrName]);
 
   const { chain: accountChain } = useAccount();
+  const { switchChain, switchChainAsync } = useSwitchChain();
   const writeTx = useTransactor();
   const [isMining, setIsMining] = useState(false);
 
@@ -84,6 +86,50 @@ export function useScaffoldWriteContract<TContractName extends ContractName>(
     chainId: selectedNetwork.id as AllowedChainIds,
   });
 
+  const ensureAsyncNetwork = async () => {
+    if (!accountChain?.id) {
+      notification.error("Please connect your wallet");
+      return false;
+    }
+
+    if (accountChain.id === selectedNetwork.id) {
+      return true;
+    }
+
+    notification.warning(`Wrong network detected. Please switch to ${selectedNetwork.name}`);
+
+    if (!switchChainAsync) {
+      return false;
+    }
+
+    try {
+      await switchChainAsync({ chainId: selectedNetwork.id });
+      return true;
+    } catch (error) {
+      notification.error(
+        getWalletActionErrorMessage(error, {
+          actionLabel: "Network switch",
+          networkName: selectedNetwork.name,
+        }),
+      );
+      return false;
+    }
+  };
+
+  const promptSyncNetwork = () => {
+    notification.warning(`Wrong network detected. Please switch to ${selectedNetwork.name}`);
+    try {
+      switchChain?.({ chainId: selectedNetwork.id });
+    } catch (error) {
+      notification.error(
+        getWalletActionErrorMessage(error, {
+          actionLabel: "Network switch",
+          networkName: selectedNetwork.name,
+        }),
+      );
+    }
+  };
+
   const sendContractWriteAsyncTx = async <
     TFunctionName extends ExtractAbiFunctionNames<ContractAbi<TContractName>, "nonpayable" | "payable">,
   >(
@@ -95,13 +141,8 @@ export function useScaffoldWriteContract<TContractName extends ContractName>(
       return;
     }
 
-    if (!accountChain?.id) {
-      notification.error("Please connect your wallet");
-      return;
-    }
-
-    if (accountChain?.id !== selectedNetwork.id) {
-      notification.error(`Wallet is connected to the wrong network. Please switch to ${selectedNetwork.name}`);
+    const networkReady = await ensureAsyncNetwork();
+    if (!networkReady) {
       return;
     }
 
@@ -162,7 +203,7 @@ export function useScaffoldWriteContract<TContractName extends ContractName>(
     }
 
     if (accountChain?.id !== selectedNetwork.id) {
-      notification.error(`Wallet is connected to the wrong network. Please switch to ${selectedNetwork.name}`);
+      promptSyncNetwork();
       return;
     }
 

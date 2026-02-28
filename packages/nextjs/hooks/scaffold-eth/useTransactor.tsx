@@ -6,6 +6,11 @@ import scaffoldConfig from "~~/scaffold.config";
 import { wagmiConfig } from "~~/services/web3/wagmiConfig";
 import { AllowedChainIds, getBlockExplorerTxLink, notification } from "~~/utils/scaffold-eth";
 import { TransactorFuncOptions, getParsedErrorWithAllAbis } from "~~/utils/scaffold-eth/contract";
+import {
+  getWalletActionErrorMessage,
+  isUserRejectedRequestError,
+  isWrongNetworkError,
+} from "~~/utils/scaffold-eth/walletErrors";
 
 type TransactionFunc = (
   tx: (() => Promise<Hash>) | Parameters<SendTransactionMutate<Config, undefined>>[0],
@@ -102,6 +107,22 @@ export const useTransactor = (_walletClient?: WalletClient): TransactionFunc => 
         notification.remove(notificationId);
       }
       console.error("⚡️ ~ file: useTransactor.ts ~ error", error);
+
+      const targetNetworkName = scaffoldConfig.targetNetworks[0]?.name ?? "Base";
+      if (isUserRejectedRequestError(error)) {
+        notification.error(
+          getWalletActionErrorMessage(error, { actionLabel: "Transaction", networkName: targetNetworkName }),
+        );
+        throw error;
+      }
+
+      if (isWrongNetworkError(error)) {
+        notification.error(
+          getWalletActionErrorMessage(error, { actionLabel: "Transaction", networkName: targetNetworkName }),
+        );
+        throw error;
+      }
+
       const message = getParsedErrorWithAllAbis(error, chainId as AllowedChainIds);
 
       // if receipt was reverted, show notification with block explorer link and return error
