@@ -1,8 +1,7 @@
-import { Address } from "@scaffold-ui/components";
 import { QRCodeSVG } from "qrcode.react";
 import { Address as AddressType } from "viem";
-import { hardhat } from "viem/chains";
-import { useTargetNetwork } from "~~/hooks/scaffold-eth";
+import { IdentityBadge } from "~~/components/bankrbets/IdentityBadge";
+import { useResolvedAddresses } from "~~/hooks/bankrbets/useResolvedAddresses";
 
 type AddressQRCodeModalProps = {
   address: AddressType;
@@ -10,7 +9,9 @@ type AddressQRCodeModalProps = {
 };
 
 export const AddressQRCodeModal = ({ address, modalId }: AddressQRCodeModalProps) => {
-  const { targetNetwork } = useTargetNetwork();
+  const { data: resolvedMap } = useResolvedAddresses([address]);
+  const resolved = resolvedMap?.get(address.toLowerCase());
+
   return (
     <>
       <div>
@@ -25,15 +26,7 @@ export const AddressQRCodeModal = ({ address, modalId }: AddressQRCodeModalProps
             <div className="space-y-3 py-6">
               <div className="flex flex-col items-center gap-6">
                 <QRCodeSVG value={address} size={256} />
-                <Address
-                  address={address}
-                  format="long"
-                  disableAddressLink
-                  onlyEnsOrAddress
-                  blockExplorerAddressLink={
-                    targetNetwork.id === hardhat.id ? `/blockexplorer/address/${address}` : undefined
-                  }
-                />
+                <IdentityBadge address={address} resolved={resolved} size="md" showAddress />
               </div>
             </div>
           </label>

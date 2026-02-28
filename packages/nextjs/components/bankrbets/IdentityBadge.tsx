@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Address } from "@scaffold-ui/components";
 import { BlockieAvatar } from "~~/components/scaffold-eth/BlockieAvatar";
 import type { ResolvedIdentity } from "~~/hooks/bankrbets/useResolvedAddresses";
+import { getAddressAvatar, getAddressDisplayName, normalizeAddress, shortenAddress } from "~~/lib/addressDisplay";
 
 interface IdentityBadgeProps {
   address: string;
@@ -18,10 +18,17 @@ const SIZE_MAP = {
   md: "h-8 w-8 text-sm",
 };
 
+const NAME_SIZE_MAP = {
+  sm: "text-xs",
+  md: "text-sm",
+};
+
 export function IdentityBadge({ address, resolved, size = "sm", showAddress = false, href }: IdentityBadgeProps) {
-  const short = `${address.slice(0, 6)}...${address.slice(-4)}`;
-  const displayName = resolved?.ensName || resolved?.baseName || resolved?.weiName || short;
-  const avatarUrl = resolved?.ensAvatar || resolved?.baseAvatar || "";
+  const checksumAddress = normalizeAddress(address);
+  const short = shortenAddress(checksumAddress);
+  const displayName = getAddressDisplayName(checksumAddress, resolved);
+  const avatarUrl = getAddressAvatar(resolved);
+  const shouldRenderAddressLine = showAddress && displayName.toLowerCase() !== short.toLowerCase();
   const link = href || `https://basescan.org/address/${address}`;
 
   return (
@@ -43,13 +50,13 @@ export function IdentityBadge({ address, resolved, size = "sm", showAddress = fa
           href={link}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-xs font-semibold text-base-content hover:text-pg-violet transition-colors truncate block"
+          className={`${NAME_SIZE_MAP[size]} font-semibold text-base-content hover:text-pg-violet transition-colors truncate block`}
         >
           {displayName}
         </Link>
-        {showAddress && (
-          <div className="text-[10px] text-pg-muted">
-            <Address address={address} />
+        {shouldRenderAddressLine && (
+          <div className="text-[10px] text-pg-muted font-mono truncate" title={checksumAddress}>
+            {short}
           </div>
         )}
       </div>
