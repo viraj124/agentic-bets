@@ -37,7 +37,8 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
   const isPositive = token.change24h >= 0;
   const changeColor = isPositive ? "text-pg-mint" : "text-pg-pink";
   const changeBg = isPositive ? "bg-pg-mint/10" : "bg-pg-pink/10";
-  const marketLink = `/market#${token.contractAddress},${token.topPoolAddress}`;
+  const chartPoolAddress = token.poolId || token.topPoolAddress;
+  const marketLink = `/market#${token.contractAddress},${chartPoolAddress}`;
   const avatarColor = useMemo(() => getAvatarColor(token.symbol), [token.symbol]);
 
   // Only fetch round status for tokens that have a market — avoids unnecessary RPC calls
@@ -105,8 +106,17 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
                 </span>
               )}
               {hasMarket && !isActive && (
-                <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-pg-border/40 text-pg-muted px-2 py-0.5 rounded-full border border-pg-border/60">
-                  MARKET
+                <span
+                  className="inline-flex items-center gap-1 text-[9px] font-extrabold px-2 py-0.5 rounded-full"
+                  style={{
+                    background: "linear-gradient(135deg, rgba(139,92,246,0.15) 0%, rgba(168,35,196,0.12) 100%)",
+                    border: "1px solid rgba(139,92,246,0.3)",
+                    color: "#7c3aed",
+                    boxShadow: "0 0 6px rgba(139,92,246,0.15)",
+                  }}
+                >
+                  <span className="text-[9px] leading-none">$</span>
+                  BET
                 </span>
               )}
             </div>
@@ -114,12 +124,12 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
           </div>
 
           {/* Price */}
-          <div className="text-right flex-shrink-0 w-24">
+          <div className="text-left flex-shrink-0 w-28">
             <p className="font-mono text-sm font-bold tracking-tight text-base-content">{token.priceFormatted}</p>
           </div>
 
           {/* 24h Change */}
-          <div className="text-right flex-shrink-0 w-20">
+          <div className="text-left flex-shrink-0 w-24">
             <span
               className={`inline-flex items-center text-xs font-bold ${changeColor} ${changeBg} px-2 py-0.5 rounded-full`}
             >
@@ -129,12 +139,12 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
           </div>
 
           {/* Market Cap */}
-          <div className="text-right flex-shrink-0 w-20 hidden sm:block">
+          <div className="text-left pl-2 flex-shrink-0 w-24 hidden sm:block">
             <p className="text-xs text-pg-muted font-medium">{token.marketCapFormatted}</p>
           </div>
 
           {/* Volume */}
-          <div className="text-right flex-shrink-0 w-20 hidden md:block">
+          <div className="text-right pr-3 flex-shrink-0 w-24 hidden md:block">
             <p className="text-xs text-pg-muted font-medium">{token.volumeFormatted}</p>
           </div>
 
@@ -158,7 +168,7 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
           <div className="card-expand-enter overflow-hidden">
             <div className="border-t-2 border-pg-border/60 px-4 pb-5">
               {/* Chart (lazy loaded) */}
-              {token.topPoolAddress && (
+              {chartPoolAddress && (
                 <div className="mt-4 rounded-xl overflow-hidden border-2 border-pg-border bg-base-200/30">
                   <Suspense
                     fallback={
@@ -168,7 +178,7 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
                     }
                   >
                     <PriceChart
-                      poolAddress={token.topPoolAddress}
+                      poolAddress={chartPoolAddress}
                       tokenAddress={token.contractAddress}
                       height={200}
                       compact
@@ -223,11 +233,11 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
       </div>
 
       {/* Create Market Modal (lazy loaded) */}
-      {showCreateModal && token.topPoolAddress && (
+      {showCreateModal && chartPoolAddress && (
         <Suspense fallback={null}>
           <CreateMarketModal
             tokenAddress={token.contractAddress}
-            poolAddress={token.topPoolAddress}
+            poolAddress={chartPoolAddress}
             tokenSymbol={token.symbol}
             onClose={closeModal}
           />

@@ -42,33 +42,24 @@ const Home: NextPage = () => {
         {/* Floating geometric decorations */}
         <div className="absolute top-6 right-[15%] w-16 h-16 rounded-full bg-pg-amber/20 border-2 border-pg-amber/30 animate-float hidden md:block" />
         <div className="absolute top-20 right-[8%] w-8 h-8 rounded-lg bg-pg-pink/20 border-2 border-pg-pink/30 rotate-12 animate-float-slow hidden md:block" />
-        <div className="absolute bottom-4 left-[10%] w-10 h-10 rounded-full bg-pg-mint/20 border-2 border-pg-mint/30 animate-float-slow hidden lg:block" />
 
         <div className="max-w-5xl mx-auto relative">
-          <div className="flex items-start gap-4 mb-4">
-            {/* Logo mark */}
-            <div className="w-12 h-12 rounded-2xl bg-pg-violet border-2 border-pg-slate flex items-center justify-center shadow-pop flex-shrink-0">
-              <span className="text-white text-xl font-extrabold" style={{ fontFamily: "var(--font-heading)" }}>
-                B
+          <div className="mb-4">
+            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-base-content">
+              Bankr <span className="text-pg-violet">Bets</span>
+            </h1>
+            <div className="flex items-center gap-2 mt-1.5">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-pg-mint/15 text-pg-mint rounded-full px-3 py-1 border border-pg-mint/30">
+                <span className="w-1.5 h-1.5 rounded-full bg-pg-mint animate-pulse" />
+                Live on Base
               </span>
-            </div>
-            <div>
-              <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-base-content">
-                Bankr <span className="text-pg-violet">Bets</span>
-              </h1>
-              <div className="flex items-center gap-2 mt-1.5">
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-pg-mint/15 text-pg-mint rounded-full px-3 py-1 border border-pg-mint/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-pg-mint animate-pulse" />
-                  Live on Base
-                </span>
-                <span className="inline-flex items-center text-[11px] font-bold bg-pg-amber/15 text-pg-amber rounded-full px-3 py-1 border border-pg-amber/30">
-                  5-min rounds
-                </span>
-              </div>
+              <span className="inline-flex items-center text-[11px] font-bold bg-pg-amber/15 text-pg-amber rounded-full px-3 py-1 border border-pg-amber/30">
+                5-min bet rounds
+              </span>
             </div>
           </div>
 
-          <p className="text-base text-pg-muted max-w-lg leading-relaxed ml-16">
+          <p className="text-base text-pg-muted max-w-lg leading-relaxed">
             Prediction markets for Bankr ecosystem tokens. Pick a token, create a market, bet on the next 5 minutes.
           </p>
         </div>
