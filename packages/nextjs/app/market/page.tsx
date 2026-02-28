@@ -9,7 +9,7 @@ import { CreateMarketModal } from "~~/components/bankrbets/CreateMarketModal";
 import { MarketCreatorBadge } from "~~/components/bankrbets/MarketCreatorBadge";
 import { PriceChart } from "~~/components/bankrbets/PriceChart";
 import { useGeckoTerminal } from "~~/hooks/bankrbets/useGeckoTerminal";
-import { useCreatorEarnings, useCurrentRound, useMarketCreated } from "~~/hooks/bankrbets/usePredictionContract";
+import { useCreatorEarnings, useCurrentRound } from "~~/hooks/bankrbets/usePredictionContract";
 import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
 
 const MarketPage: NextPage = () => {
@@ -121,12 +121,13 @@ function MarketViewGate({ tokenAddress, poolAddress }: { tokenAddress: string; p
 
 function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolAddress: string | null }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const { data: poolData } = useGeckoTerminal(poolAddress || undefined);
+  const { data: poolData } = useGeckoTerminal(poolAddress || undefined, tokenAddress);
   const { epoch, round, isActive } = useCurrentRound(tokenAddress);
-  const marketCreated = useMarketCreated(tokenAddress);
   const { address } = useAccount();
   const { creator, earningsFormatted } = useCreatorEarnings(tokenAddress);
+  const marketPoolAddress = poolData?.poolAddress || poolAddress;
   const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+  const marketCreated = creator ? creator.toLowerCase() !== ZERO_ADDRESS : undefined;
   const isCreator = !!(
     address &&
     creator &&
@@ -173,7 +174,7 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
             </div>
             <div className="flex items-center gap-3 mt-1.5">
               <p className="text-xs text-pg-muted font-mono">{tokenAddress}</p>
-              <MarketCreatorBadge tokenAddress={tokenAddress} />
+              <MarketCreatorBadge creatorAddress={creator} />
             </div>
           </div>
           {poolData && (
@@ -194,10 +195,10 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
       </div>
 
       {/* Create Market Modal */}
-      {showCreateModal && poolAddress && (
+      {showCreateModal && marketPoolAddress && (
         <CreateMarketModal
           tokenAddress={tokenAddress}
-          poolAddress={poolAddress}
+          poolAddress={marketPoolAddress}
           tokenSymbol={poolData?.tokenName?.split("/")[0]}
           onClose={() => setShowCreateModal(false)}
         />
@@ -212,9 +213,9 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
               <span className="text-sm font-extrabold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
                 Price chart
               </span>
-              {poolAddress && (
+              {marketPoolAddress && (
                 <a
-                  href={`https://www.geckoterminal.com/base/pools/${poolAddress}`}
+                  href={`https://www.geckoterminal.com/base/pools/${marketPoolAddress}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs font-bold text-pg-violet hover:text-pg-violet/70 transition-colors"
@@ -223,9 +224,9 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
                 </a>
               )}
             </div>
-            {poolAddress ? (
+            {marketPoolAddress ? (
               <PriceChart
-                poolAddress={poolAddress}
+                poolAddress={marketPoolAddress}
                 tokenAddress={tokenAddress}
                 currentPrice={isActive ? poolData?.priceUsd : undefined}
                 lockPrice={isLocked && lockPrice > 0 ? lockPrice : undefined}
@@ -298,6 +299,9 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
             tokenSymbol={poolData?.tokenName?.split("/")[0]}
             lockPrice={isLocked && lockPrice > 0 ? lockPrice : undefined}
             marketCreated={marketCreated}
+            epoch={epoch}
+            round={round}
+            isActive={isActive}
           />
 
           {/* Market stats */}

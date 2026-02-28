@@ -15,6 +15,7 @@ export function useMarketCreated(tokenAddress: string) {
     functionName: "getMarketCreator",
     args: [tokenAddress],
     query: { refetchInterval: 5000 },
+    watch: false,
   });
 
   if (isLoading || creator === undefined) return undefined;
@@ -30,7 +31,8 @@ export function useCurrentRound(tokenAddress: string, enabled = true) {
     contractName: "BankrBetsPrediction",
     functionName: "getCurrentEpoch",
     args: [tokenAddress],
-    query: { enabled },
+    query: { enabled, refetchInterval: 5000 },
+    watch: false,
   });
 
   const { data: round } = useScaffoldReadContract({
@@ -38,9 +40,10 @@ export function useCurrentRound(tokenAddress: string, enabled = true) {
     functionName: "getRound",
     args: [tokenAddress, currentEpoch ?? 0n],
     query: {
-      enabled: currentEpoch !== undefined && currentEpoch > 0n,
-      refetchInterval: 3000,
+      enabled: enabled && currentEpoch !== undefined && currentEpoch > 0n,
+      refetchInterval: 5000,
     },
+    watch: false,
   });
 
   return {
@@ -60,7 +63,9 @@ export function useUserBet(tokenAddress: string, epoch: bigint | undefined, user
     args: [tokenAddress, epoch ?? 0n, userAddress ?? "0x0000000000000000000000000000000000000000"],
     query: {
       enabled: epoch !== undefined && epoch > 0n && !!userAddress,
+      refetchInterval: 5000,
     },
+    watch: false,
   });
 
   return bet;
@@ -76,7 +81,9 @@ export function useClaimable(tokenAddress: string, epoch: bigint | undefined, us
     args: [tokenAddress, epoch ?? 0n, userAddress ?? "0x0000000000000000000000000000000000000000"],
     query: {
       enabled: epoch !== undefined && epoch > 0n && !!userAddress,
+      refetchInterval: 5000,
     },
+    watch: false,
   });
 
   return canClaim;
@@ -144,6 +151,7 @@ export function useUserRounds(tokenAddress: string, userAddress: string | undefi
     query: {
       enabled: !!userAddress,
     },
+    watch: false,
   });
 
   return rounds;
@@ -209,6 +217,10 @@ export function useCreatorEarnings(tokenAddress: string) {
     contractName: "BankrBetsOracle",
     functionName: "getMarketCreator",
     args: [tokenAddress],
+    query: {
+      refetchInterval: 15000,
+    },
+    watch: false,
   });
 
   const { data: earnings } = useScaffoldReadContract({
@@ -219,6 +231,7 @@ export function useCreatorEarnings(tokenAddress: string) {
       enabled: !!creator && (creator as string).toLowerCase() !== ZERO_ADDRESS,
       refetchInterval: 10000,
     },
+    watch: false,
   });
 
   return {
@@ -239,6 +252,7 @@ export function useSettlementStatus(tokenAddress: string) {
     query: {
       refetchInterval: 3000,
     },
+    watch: false,
   });
 
   const { data: closable } = useScaffoldReadContract({
@@ -248,6 +262,7 @@ export function useSettlementStatus(tokenAddress: string) {
     query: {
       refetchInterval: 3000,
     },
+    watch: false,
   });
 
   const { data: settlerReward } = useScaffoldReadContract({
@@ -257,6 +272,7 @@ export function useSettlementStatus(tokenAddress: string) {
     query: {
       refetchInterval: 5000,
     },
+    watch: false,
   });
 
   return {

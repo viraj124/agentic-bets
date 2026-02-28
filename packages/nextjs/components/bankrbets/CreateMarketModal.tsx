@@ -123,6 +123,7 @@ export function CreateMarketModal({
               <p className="text-sm text-pg-muted">
                 You{"'"}ll earn 0.5% of every round{"'"}s pool as the market creator.
               </p>
+              <p className="text-xs text-pg-muted/70 mt-1">Round 1 starts when the first bet is placed.</p>
               <button onClick={onClose} className="btn-candy mt-6 text-sm">
                 Start betting
               </button>
@@ -178,10 +179,10 @@ export function CreateMarketModal({
                   </div>
                   <div>
                     <p className="text-sm font-bold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
-                      First round starts immediately
+                      First round starts on first bet
                     </p>
                     <p className="text-xs text-pg-muted leading-relaxed">
-                      A 5-minute prediction round begins as soon as the market is created.
+                      Creating a market registers it. The first 5-minute round starts when someone places a bet.
                     </p>
                   </div>
                 </div>
@@ -204,11 +205,13 @@ export function CreateMarketModal({
                     Creating market...
                   </span>
                 ) : (
-                  "Create Market & Start Round"
+                  "Create Market"
                 )}
               </button>
 
-              <p className="text-[11px] text-pg-muted text-center mt-3">Requires a valid Uniswap V4 pool on Base</p>
+              <p className="text-[11px] text-pg-muted text-center mt-3">
+                Requires a valid Uniswap V4 pool on Base. Round 1 begins on first bet.
+              </p>
             </>
           )}
         </div>

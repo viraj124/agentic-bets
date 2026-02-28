@@ -8,9 +8,7 @@ import { base } from "viem/chains";
 import { useAccount, useSwitchChain } from "wagmi";
 import {
   useClaimable,
-  useCurrentRound,
   usePredictionActions,
-  useRefundStatus,
   useSettlementActions,
   useSettlementStatus,
   useUserBet,
@@ -22,20 +20,33 @@ interface BetPanelProps {
   tokenSymbol?: string;
   lockPrice?: number;
   marketCreated?: boolean;
+  epoch?: bigint;
+  round?: any;
+  isActive?: boolean;
 }
 
 const USDC_DECIMALS = 6;
+const REFUND_GRACE_PERIOD_S = 60 * 60;
 
-export function BetPanel({ tokenAddress, tokenSymbol, lockPrice, marketCreated }: BetPanelProps) {
+export function BetPanel({
+  tokenAddress,
+  tokenSymbol,
+  lockPrice,
+  marketCreated,
+  epoch,
+  round,
+  isActive,
+}: BetPanelProps) {
   const { address, chainId } = useAccount();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
   const [amount, setAmount] = useState("");
   const [direction, setDirection] = useState<"bull" | "bear" | null>(null);
 
-  const { epoch, round, isActive } = useCurrentRound(tokenAddress);
-  const userBet = useUserBet(tokenAddress, epoch, address);
-  const claimable = useClaimable(tokenAddress, epoch, address);
-  const { canTriggerRefund, roundCancelled } = useRefundStatus(tokenAddress);
+  const currentEpoch = epoch;
+  const currentRound = round;
+  const currentIsActive = isActive ?? (currentEpoch !== undefined && currentEpoch > 0n);
+  const userBet = useUserBet(tokenAddress, currentEpoch, address);
+  const claimable = useClaimable(tokenAddress, currentEpoch, address);
   const { betBull, betBear, claim, refundRound, isBettingBull, isBettingBear, isClaiming, isRefunding } =
     usePredictionActions();
   const { lockRound, closeRound, isLocking, isClosing } = useSettlementActions();
@@ -53,17 +64,26 @@ export function BetPanel({ tokenAddress, tokenSymbol, lockPrice, marketCreated }
   const { needsApproval, hasBalance, approve, isApproving, balance } = useUsdcApproval(betAmountRaw);
 
   const isWrongNetwork = address && chainId !== base.id;
-  const isLocked = round ? round.locked : false;
-  const lockTimestamp = round ? Number(round.lockTimestamp) : 0;
-  const closeTimestamp = round ? Number(round.closeTimestamp) : 0;
+  const isLocked = currentRound ? currentRound.locked : false;
+  const lockTimestamp = currentRound ? Number(currentRound.lockTimestamp) : 0;
+  const closeTimestamp = currentRound ? Number(currentRound.closeTimestamp) : 0;
   const hasBet = userBet && userBet.amount > 0n;
-  const isBettingOpen = isActive && round && !isLocked && Math.floor(Date.now() / 1000) < Number(round.lockTimestamp);
+  const isBettingOpen =
+    currentIsActive && currentRound && !isLocked && Math.floor(Date.now() / 1000) < Number(currentRound.lockTimestamp);
+  const now = Math.floor(Date.now() / 1000);
+  const canTriggerRefund = !!(
+    currentRound &&
+    !currentRound.oracleCalled &&
+    Number(currentRound.closeTimestamp) > 0 &&
+    now >= Number(currentRound.closeTimestamp) + REFUND_GRACE_PERIOD_S
+  );
+  const roundCancelled = !!(currentRound && currentRound.cancelled);
   // Market exists but no active round — first bet will auto-start one
-  const canBetToStart = marketCreated === true && !isActive;
+  const canBetToStart = marketCreated === true && !currentIsActive;
 
-  const totalPool = round ? Number(round.totalAmount) / 1e6 : 0;
-  const bullPool = round ? Number(round.bullAmount) / 1e6 : 0;
-  const bearPool = round ? Number(round.bearAmount) / 1e6 : 0;
+  const totalPool = currentRound ? Number(currentRound.totalAmount) / 1e6 : 0;
+  const bullPool = currentRound ? Number(currentRound.bullAmount) / 1e6 : 0;
+  const bearPool = currentRound ? Number(currentRound.bearAmount) / 1e6 : 0;
   const bullPercent = totalPool > 0 ? (bullPool / totalPool) * 100 : 50;
   const bearPercent = totalPool > 0 ? (bearPool / totalPool) * 100 : 50;
 
@@ -86,22 +106,22 @@ export function BetPanel({ tokenAddress, tokenSymbol, lockPrice, marketCreated }
   }, [amount, tokenAddress, direction, betBull, betBear]);
 
   const handleClaim = useCallback(async () => {
-    if (!epoch) return;
+    if (!currentEpoch) return;
     try {
-      await claim(tokenAddress, [epoch]);
+      await claim(tokenAddress, [currentEpoch]);
     } catch (e) {
       console.error("Claim failed:", e);
     }
-  }, [epoch, tokenAddress, claim]);
+  }, [currentEpoch, tokenAddress, claim]);
 
   const handleRefundTrigger = useCallback(async () => {
-    if (!epoch) return;
+    if (!currentEpoch) return;
     try {
-      await refundRound(tokenAddress, epoch);
+      await refundRound(tokenAddress, currentEpoch);
     } catch (e) {
       console.error("Refund trigger failed:", e);
     }
-  }, [epoch, tokenAddress, refundRound]);
+  }, [currentEpoch, tokenAddress, refundRound]);
 
   const handleApprove = useCallback(async () => {
     try {
@@ -121,7 +141,7 @@ export function BetPanel({ tokenAddress, tokenSymbol, lockPrice, marketCreated }
   }, [isLockable, isClosable, tokenAddress, lockRound, closeRound]);
 
   // No active round and no market (or still loading) — show empty state
-  if (!isActive && !canBetToStart) {
+  if (!currentIsActive && !canBetToStart) {
     const isLoading = marketCreated === undefined;
 
     return (
@@ -418,7 +438,7 @@ export function BetPanel({ tokenAddress, tokenSymbol, lockPrice, marketCreated }
               {lockPrice && lockPrice > 0 ? (
                 <span className="font-mono">Lock ${lockPrice.toFixed(5)}</span>
               ) : (
-                <span>Round #{epoch?.toString()}</span>
+                <span>Round #{currentEpoch?.toString()}</span>
               )}
               <span>2.1% fee</span>
             </div>
