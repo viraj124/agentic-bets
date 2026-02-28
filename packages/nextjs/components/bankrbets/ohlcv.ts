@@ -6,6 +6,11 @@ export interface OhlcvCandle {
   close: number;
 }
 
+export interface OhlcvRequestOptions {
+  aggregateMinutes?: number;
+  limit?: number;
+}
+
 function toNumber(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -42,32 +47,43 @@ function sanitizeCandles(candles: OhlcvCandle[]): OhlcvCandle[] {
   return deduped;
 }
 
-async function fetchFromApi(poolAddress: string, tokenAddress?: string, compact?: boolean): Promise<OhlcvCandle[]> {
-  try {
-    const params = new URLSearchParams({
-      pool: poolAddress,
-      // compact: 15-min × 48 bars ≈ 12 h — faster for mini charts
-      // full:    5-min × 120 bars ≈ 10 h — for the detail page chart
-      aggregate: compact ? "15" : "5",
-      limit: compact ? "48" : "120",
-      currency: "usd",
-    });
-    if (tokenAddress) params.set("token", tokenAddress);
+async function fetchFromApi(
+  poolAddress: string,
+  tokenAddress?: string,
+  compact?: boolean,
+  options?: OhlcvRequestOptions,
+): Promise<OhlcvCandle[]> {
+  const aggregate = options?.aggregateMinutes ?? (compact ? 15 : 5);
+  const limit = options?.limit ?? (compact ? 48 : 120);
 
-    const res = await fetch(`/api/ohlcv?${params.toString()}`);
-    if (!res.ok) return [];
-    const data = (await res.json()) as OhlcvCandle[];
-    return Array.isArray(data) ? sanitizeCandles(data) : [];
-  } catch {
-    return [];
+  const params = new URLSearchParams({
+    pool: poolAddress,
+    // compact: 15-min × 48 bars ≈ 12 h — faster for mini charts
+    // full:    5-min × 120 bars ≈ 10 h — for the detail page chart
+    aggregate: String(aggregate),
+    limit: String(limit),
+    currency: "usd",
+  });
+  if (tokenAddress) params.set("token", tokenAddress);
+
+  const res = await fetch(`/api/ohlcv?${params.toString()}`);
+  if (!res.ok) {
+    throw new Error(`OHLCV request failed: ${res.status}`);
   }
+
+  const data = (await res.json()) as OhlcvCandle[];
+  if (!Array.isArray(data)) {
+    throw new Error("Invalid OHLCV response");
+  }
+  return sanitizeCandles(data);
 }
 
 export async function fetchOhlcv(
   poolAddress: string,
   tokenAddress?: string,
   compact?: boolean,
+  options?: OhlcvRequestOptions,
 ): Promise<OhlcvCandle[]> {
   if (!poolAddress) return [];
-  return await fetchFromApi(poolAddress, tokenAddress, compact);
+  return await fetchFromApi(poolAddress, tokenAddress, compact, options);
 }

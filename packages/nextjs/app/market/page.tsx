@@ -9,6 +9,7 @@ import { CreateMarketModal } from "~~/components/bankrbets/CreateMarketModal";
 import { MarketCreatorBadge } from "~~/components/bankrbets/MarketCreatorBadge";
 import { PriceChart } from "~~/components/bankrbets/PriceChart";
 import { useGeckoTerminal } from "~~/hooks/bankrbets/useGeckoTerminal";
+import { useLivePrice } from "~~/hooks/bankrbets/useLivePrice";
 import { useCreatorEarnings, useCurrentRound } from "~~/hooks/bankrbets/usePredictionContract";
 import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
 
@@ -122,10 +123,14 @@ function MarketViewGate({ tokenAddress, poolAddress }: { tokenAddress: string; p
 function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolAddress: string | null }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { data: poolData } = useGeckoTerminal(poolAddress || undefined, tokenAddress);
+  const marketPoolAddress = poolData?.poolAddress || poolAddress;
+  const { data: livePrice } = useLivePrice(marketPoolAddress || undefined, tokenAddress);
   const { epoch, round, isActive } = useCurrentRound(tokenAddress);
   const { address } = useAccount();
   const { creator, earningsFormatted } = useCreatorEarnings(tokenAddress);
-  const marketPoolAddress = poolData?.poolAddress || poolAddress;
+  const livePriceUsd = livePrice?.priceUsd;
+  const chartCurrentPrice = livePriceUsd && livePriceUsd > 0 ? livePriceUsd : poolData?.priceUsd;
+  const isChartPriceDelayed = livePrice?.isDelayed ?? false;
   const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
   const marketCreated = creator ? creator.toLowerCase() !== ZERO_ADDRESS : undefined;
   const isCreator = !!(
@@ -228,7 +233,8 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
               <PriceChart
                 poolAddress={marketPoolAddress}
                 tokenAddress={tokenAddress}
-                currentPrice={isActive ? poolData?.priceUsd : undefined}
+                currentPrice={chartCurrentPrice}
+                priceDelayed={isChartPriceDelayed}
                 lockPrice={isLocked && lockPrice > 0 ? lockPrice : undefined}
                 isLocked={Boolean(isLocked)}
                 epoch={epoch !== undefined ? Number(epoch) : undefined}

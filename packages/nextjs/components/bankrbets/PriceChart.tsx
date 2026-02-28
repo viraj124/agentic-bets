@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { fetchOhlcv } from "./ohlcv";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { type OhlcvCandle, fetchOhlcv } from "./ohlcv";
 import { useQuery } from "@tanstack/react-query";
 
 interface PriceChartProps {
@@ -10,9 +10,85 @@ interface PriceChartProps {
   height?: number;
   compact?: boolean; // true for mini 200px cards — fetches fewer candles at lower resolution
   currentPrice?: number;
+  priceDelayed?: boolean;
   lockPrice?: number;
   isLocked?: boolean;
   epoch?: number;
+}
+
+type DetailRange = "1h" | "6h" | "1d" | "1w" | "1m" | "all";
+
+const DETAIL_RANGE_OPTIONS: { value: DetailRange; label: string }[] = [
+  { value: "1h", label: "1H" },
+  { value: "6h", label: "6H" },
+  { value: "1d", label: "1D" },
+  { value: "1w", label: "1W" },
+  { value: "1m", label: "1M" },
+  { value: "all", label: "ALL" },
+];
+
+type DetailRangeConfig = {
+  aggregateMinutes: number;
+  limit: number;
+  windowSeconds: number;
+  showDateInTooltip: boolean;
+};
+
+const DETAIL_RANGE_CONFIG: Record<DetailRange, DetailRangeConfig> = {
+  "1h": { aggregateMinutes: 1, limit: 120, windowSeconds: 60 * 60, showDateInTooltip: false },
+  "6h": { aggregateMinutes: 5, limit: 96, windowSeconds: 6 * 60 * 60, showDateInTooltip: false },
+  "1d": { aggregateMinutes: 15, limit: 120, windowSeconds: 24 * 60 * 60, showDateInTooltip: false },
+  "1w": { aggregateMinutes: 60, limit: 200, windowSeconds: 7 * 24 * 60 * 60, showDateInTooltip: true },
+  "1m": { aggregateMinutes: 240, limit: 220, windowSeconds: 30 * 24 * 60 * 60, showDateInTooltip: true },
+  all: { aggregateMinutes: 1440, limit: 365, windowSeconds: 0, showDateInTooltip: true },
+};
+
+const DOT_COLOR = "#8b5cf6";
+const LIVE_LINE_COLOR = "#a78bfa";
+const LOCK_LINE_COLOR = "#f59e0b";
+const LIVE_ANIMATION_INTERVAL_MS = 180;
+const LIVE_SMOOTHING_FACTOR = 0.24;
+
+function getRangeWindowSeconds(range: DetailRange): number {
+  return DETAIL_RANGE_CONFIG[range].windowSeconds;
+}
+
+function formatUsdPrice(value: number): string {
+  if (!Number.isFinite(value)) return "$0.00";
+  const absValue = Math.abs(value);
+  if (absValue >= 1) return `$${value.toFixed(4)}`;
+  if (absValue >= 0.1) return `$${value.toFixed(5)}`;
+  return `$${value.toFixed(6)}`;
+}
+
+function formatPercent(value: number): string {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+function normalizeCrosshairTime(value: any): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.floor(value);
+  }
+
+  if (value && typeof value === "object" && "year" in value && "month" in value && "day" in value) {
+    const year = Number((value as any).year);
+    const month = Number((value as any).month);
+    const day = Number((value as any).day);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+      return null;
+    }
+    return Math.floor(Date.UTC(year, month - 1, day) / 1000);
+  }
+
+  return null;
+}
+
+function formatCrosshairTime(timestamp: number, range: DetailRange): string {
+  const date = new Date(timestamp * 1000);
+  const formatConfig = DETAIL_RANGE_CONFIG[range];
+  return formatConfig.showDateInTooltip
+    ? date.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 export function PriceChart({
@@ -21,10 +97,13 @@ export function PriceChart({
   height,
   compact,
   currentPrice,
+  priceDelayed,
   lockPrice,
   isLocked,
   epoch,
 }: PriceChartProps) {
+  const isDetailChart = !compact;
+
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
   const seriesRef = useRef<any>(null);
@@ -33,12 +112,21 @@ export function PriceChart({
   const hasFitRef = useRef(false);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const livePointsRef = useRef<{ time: number; value: number }[]>([]);
+  const displayedLivePriceRef = useRef<number | null>(null);
+  const targetLivePriceRef = useRef<number | null>(null);
+  const selectedRangeRef = useRef<DetailRange>("1h");
   const lastEpochRef = useRef<number | undefined>(undefined);
   const [chartReady, setChartReady] = useState(false);
   const [chartError, setChartError] = useState<string | null>(null);
-  const DOT_COLOR = "#8b5cf6";
+  const [selectedRange, setSelectedRange] = useState<DetailRange>("1h");
   const [dotPos, setDotPos] = useState<{ x: number; y: number } | null>(null);
+  const [hoverInfo, setHoverInfo] = useState<{ x: number; y: number; price: number; timeLabel: string } | null>(null);
   const chartHeight = height ?? 288;
+  const detailRangeConfig = DETAIL_RANGE_CONFIG[selectedRange];
+
+  useEffect(() => {
+    selectedRangeRef.current = selectedRange;
+  }, [selectedRange]);
 
   // Fetch OHLCV from GeckoTerminal
   // compact mode: 15-min candles (faster, smaller payload for mini home-page charts)
@@ -48,16 +136,69 @@ export function PriceChart({
     isLoading: isLoadingCandles,
     isFetching: isFetchingCandles,
   } = useQuery({
-    queryKey: ["ohlcv", poolAddress, tokenAddress, compact],
-    queryFn: () => fetchOhlcv(poolAddress, tokenAddress, compact),
+    queryKey: [
+      "ohlcv",
+      poolAddress,
+      tokenAddress,
+      compact,
+      isDetailChart ? detailRangeConfig.aggregateMinutes : "compact",
+      isDetailChart ? detailRangeConfig.limit : "compact",
+    ],
+    queryFn: () =>
+      fetchOhlcv(
+        poolAddress,
+        tokenAddress,
+        compact,
+        isDetailChart
+          ? { aggregateMinutes: detailRangeConfig.aggregateMinutes, limit: detailRangeConfig.limit }
+          : undefined,
+      ),
     enabled: !!poolAddress,
-    refetchInterval: compact ? 5 * 60_000 : 60_000, // mini charts refetch every 5 min
+    retry: 3,
+    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 6000),
+    // Retry empty charts sooner to recover from temporary upstream misses.
+    refetchInterval: query =>
+      query.state.data && query.state.data.length > 0 ? (compact ? 5 * 60_000 : 60_000) : 15_000,
     staleTime: compact ? 5 * 60_000 : 60_000,
+    refetchOnWindowFocus: false,
+    placeholderData: previousData => previousData,
   });
 
   const hasCandleData = (candles?.length ?? 0) > 0;
   const shouldShowLoader = !chartReady || isLoadingCandles || (isFetchingCandles && !hasCandleData);
   const shouldShowFallback = chartReady && !shouldShowLoader && (!hasCandleData || !!chartError);
+  const hasRenderableChartData = hasCandleData && !chartError;
+
+  const visibleCandles = useMemo<OhlcvCandle[]>(() => candles ?? [], [candles]);
+
+  const mainSeriesData = useMemo(() => {
+    if (visibleCandles.length === 0) return [];
+    if (!isDetailChart) return visibleCandles;
+    return visibleCandles.map(candle => ({
+      time: candle.time,
+      value: candle.close,
+    }));
+  }, [visibleCandles, isDetailChart]);
+
+  const rangeStats = useMemo(() => {
+    if (!isDetailChart || visibleCandles.length < 2) return null;
+    const startPrice = visibleCandles[0].close;
+    const endPrice = visibleCandles[visibleCandles.length - 1].close;
+    if (!Number.isFinite(startPrice) || startPrice <= 0 || !Number.isFinite(endPrice)) return null;
+    const changePercent = ((endPrice - startPrice) / startPrice) * 100;
+    return {
+      changePercent,
+      isPositive: changePercent >= 0,
+    };
+  }, [isDetailChart, visibleCandles]);
+
+  const showDetailControls =
+    isDetailChart && chartReady && hasCandleData && !shouldShowLoader && !shouldShowFallback && !chartError;
+  const latestDisplayPrice = useMemo(() => {
+    if (currentPrice && currentPrice > 0) return currentPrice;
+    const latestCandle = visibleCandles[visibleCandles.length - 1];
+    return latestCandle?.close ?? 0;
+  }, [currentPrice, visibleCandles]);
 
   const normalizedPool = poolAddress.toLowerCase();
   const normalizedToken = tokenAddress?.toLowerCase() || "";
@@ -69,9 +210,9 @@ export function PriceChart({
     dexUrl = `https://dexscreener.com/base/${normalizedToken}`;
   }
   const externalLink = geckoUrl
-    ? { href: geckoUrl, label: "🦎 View on CoinGecko" }
+    ? { href: geckoUrl, label: "View on CoinGecko" }
     : dexUrl
-      ? { href: dexUrl, label: "📊 View on DexScreener" }
+      ? { href: dexUrl, label: "View on DexScreener" }
       : null;
 
   // Chart initialization
@@ -82,8 +223,9 @@ export function PriceChart({
 
     const init = async () => {
       try {
-        const { createChart, CandlestickSeries, LineSeries } = await import("lightweight-charts");
+        const { createChart, AreaSeries, CandlestickSeries, LineSeries } = await import("lightweight-charts");
         if (cancelled || !chartContainerRef.current) return;
+
         const resizeChart = () => {
           if (!chartRef.current || !chartContainerRef.current) return;
           const width = Math.max(
@@ -95,6 +237,7 @@ export function PriceChart({
           const measuredHeight = chartContainerRef.current.clientHeight || chartHeight;
           chartRef.current.applyOptions({ width, height: Math.max(1, Math.floor(measuredHeight)) });
         };
+
         const initialWidth = Math.max(
           1,
           Math.floor(
@@ -107,46 +250,117 @@ export function PriceChart({
           height: chartHeight,
           layout: {
             background: { color: "transparent" },
-            textColor: "#9ca3af",
+            textColor: isDetailChart ? "#7f8899" : "#9ca3af",
             fontSize: 11,
             attributionLogo: false,
           },
           grid: {
-            vertLines: { color: "rgba(156, 163, 175, 0.08)" },
-            horzLines: { color: "rgba(156, 163, 175, 0.08)" },
+            vertLines: { color: isDetailChart ? "rgba(139, 92, 246, 0.04)" : "rgba(156, 163, 175, 0.08)" },
+            horzLines: { color: isDetailChart ? "rgba(139, 92, 246, 0.06)" : "rgba(156, 163, 175, 0.08)" },
           },
           crosshair: {
-            vertLine: { labelBackgroundColor: "#14b8a6" },
-            horzLine: { labelBackgroundColor: "#14b8a6" },
+            vertLine: { labelBackgroundColor: DOT_COLOR },
+            horzLine: { labelBackgroundColor: DOT_COLOR },
           },
           rightPriceScale: {
-            borderColor: "rgba(156, 163, 175, 0.15)",
+            borderColor: isDetailChart ? "rgba(139, 92, 246, 0.22)" : "rgba(156, 163, 175, 0.15)",
+            scaleMargins: isDetailChart ? { top: 0.08, bottom: 0.08 } : undefined,
           },
           timeScale: {
-            borderColor: "rgba(156, 163, 175, 0.15)",
+            borderColor: isDetailChart ? "rgba(139, 92, 246, 0.22)" : "rgba(156, 163, 175, 0.15)",
             timeVisible: true,
             secondsVisible: false,
+            rightOffset: isDetailChart ? 4 : undefined,
+            barSpacing: isDetailChart ? 14 : undefined,
+            minBarSpacing: isDetailChart ? 8 : undefined,
+          },
+          localization: {
+            priceFormatter: formatUsdPrice,
           },
           handleScale: { axisPressedMouseMove: true },
           handleScroll: { vertTouchDrag: false },
         });
 
-        seriesRef.current = chartRef.current.addSeries(CandlestickSeries, {
-          upColor: "#10b981",
-          downColor: "#ef4444",
-          borderUpColor: "#10b981",
-          borderDownColor: "#ef4444",
-          wickUpColor: "#10b981",
-          wickDownColor: "#ef4444",
-        });
+        if (isDetailChart) {
+          seriesRef.current = chartRef.current.addSeries(AreaSeries, {
+            lineColor: DOT_COLOR,
+            lineWidth: 3,
+            topColor: "rgba(139, 92, 246, 0.34)",
+            bottomColor: "rgba(139, 92, 246, 0.01)",
+            crosshairMarkerVisible: true,
+            crosshairMarkerRadius: 3,
+            crosshairMarkerBorderColor: DOT_COLOR,
+            crosshairMarkerBackgroundColor: "#ede9fe",
+            priceLineVisible: false,
+            lastValueVisible: false,
+          });
+        } else {
+          seriesRef.current = chartRef.current.addSeries(CandlestickSeries, {
+            upColor: "#10b981",
+            downColor: "#ef4444",
+            borderUpColor: "#10b981",
+            borderDownColor: "#ef4444",
+            wickUpColor: "#10b981",
+            wickDownColor: "#ef4444",
+          });
+        }
 
         liveSeriesRef.current = chartRef.current.addSeries(LineSeries, {
-          color: "#8b5cf6",
-          lineWidth: 2,
+          color: LIVE_LINE_COLOR,
+          lineWidth: isDetailChart ? 2 : 2,
           crosshairMarkerVisible: false,
           lastValueVisible: false,
           priceLineVisible: false,
         });
+
+        if (isDetailChart) {
+          const handleCrosshairMove = (param: any) => {
+            if (!chartContainerRef.current) {
+              setHoverInfo(null);
+              return;
+            }
+
+            const point = param?.point;
+            const timeValue = normalizeCrosshairTime(param?.time);
+            if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y) || !timeValue) {
+              setHoverInfo(null);
+              return;
+            }
+
+            const width = chartContainerRef.current.clientWidth || 0;
+            const height = chartContainerRef.current.clientHeight || 0;
+            if (point.x < 0 || point.y < 0 || point.x > width || point.y > height) {
+              setHoverInfo(null);
+              return;
+            }
+
+            const areaData = param?.seriesData?.get?.(seriesRef.current);
+            const liveData = param?.seriesData?.get?.(liveSeriesRef.current);
+            const hoveredPoint = liveData ?? areaData;
+            const hoveredPrice =
+              typeof hoveredPoint?.value === "number"
+                ? hoveredPoint.value
+                : typeof hoveredPoint?.close === "number"
+                  ? hoveredPoint.close
+                  : undefined;
+
+            if (hoveredPrice === undefined || !Number.isFinite(hoveredPrice)) {
+              setHoverInfo(null);
+              return;
+            }
+
+            const clampedX = Math.max(72, Math.min(width - 72, point.x));
+            const clampedY = Math.max(28, Math.min(height - 28, point.y));
+            setHoverInfo({
+              x: clampedX,
+              y: clampedY,
+              price: hoveredPrice,
+              timeLabel: formatCrosshairTime(timeValue, selectedRangeRef.current),
+            });
+          };
+
+          chartRef.current.subscribeCrosshairMove(handleCrosshairMove);
+        }
 
         const observer = new ResizeObserver(() => {
           resizeChart();
@@ -171,6 +385,7 @@ export function PriceChart({
         resizeObserverRef.current = null;
       }
       if (chartRef.current) {
+        setHoverInfo(null);
         chartRef.current.remove();
         chartRef.current = null;
         seriesRef.current = null;
@@ -178,14 +393,26 @@ export function PriceChart({
         lockLineRef.current = null;
       }
     };
-  }, [chartHeight]);
+  }, [chartHeight, isDetailChart]);
 
-  // Update OHLCV candle data
+  // Update OHLCV data in the main chart series
   useEffect(() => {
-    if (!chartReady || !seriesRef.current || !candles || candles.length === 0) return;
+    if (!chartReady || !seriesRef.current) return;
+
+    if (!hasRenderableChartData || mainSeriesData.length === 0) {
+      try {
+        seriesRef.current.setData([]);
+      } catch {
+        // ignore
+      }
+      return;
+    }
+
     try {
-      seriesRef.current.setData(candles);
-      if (!hasFitRef.current && chartRef.current) {
+      seriesRef.current.setData(mainSeriesData);
+      if (isDetailChart && chartRef.current) {
+        chartRef.current.timeScale().fitContent();
+      } else if (!hasFitRef.current && chartRef.current) {
         chartRef.current.timeScale().fitContent();
         hasFitRef.current = true;
       }
@@ -193,85 +420,198 @@ export function PriceChart({
     } catch {
       setChartError("Unable to render chart data");
     }
-  }, [candles, chartReady]);
+  }, [chartReady, hasRenderableChartData, isDetailChart, mainSeriesData]);
 
-  // Live price overlay — updates on every GeckoTerminal poll (every 5s)
+  // Capture each upstream price tick as the latest animation target.
   useEffect(() => {
-    if (!liveSeriesRef.current || !currentPrice || currentPrice <= 0) {
+    if (!currentPrice || currentPrice <= 0) {
+      targetLivePriceRef.current = null;
+      displayedLivePriceRef.current = null;
+      livePointsRef.current = [];
       setDotPos(null);
       return;
     }
 
-    // Reset live points when epoch changes (new round started)
-    if (epoch !== lastEpochRef.current) {
-      livePointsRef.current = [];
-      lastEpochRef.current = epoch;
-      if (lockLineRef.current) {
-        try {
-          liveSeriesRef.current.removePriceLine(lockLineRef.current);
-        } catch {
-          /* ignore */
-        }
-        lockLineRef.current = null;
-      }
+    if (displayedLivePriceRef.current === null || !Number.isFinite(displayedLivePriceRef.current)) {
+      displayedLivePriceRef.current = currentPrice;
     }
+    targetLivePriceRef.current = currentPrice;
+  }, [currentPrice]);
 
-    const now = Math.floor(Date.now() / 1000);
-    const pts = livePointsRef.current;
-
-    // Deduplicate: update last point if same second, otherwise append
-    if (pts.length > 0 && pts[pts.length - 1].time >= now) {
-      pts[pts.length - 1].value = currentPrice;
-    } else {
-      pts.push({ time: now, value: currentPrice });
-    }
-
-    // Cap at ~2 hours of 5s samples
-    if (pts.length > 1440) pts.splice(0, pts.length - 1440);
-
-    try {
-      liveSeriesRef.current.setData([...pts]);
-
-      liveSeriesRef.current.applyOptions({ color: DOT_COLOR });
-
-      // Dashed amber lock price line
-      if (isLocked && lockPrice && lockPrice > 0 && !lockLineRef.current) {
-        lockLineRef.current = liveSeriesRef.current.createPriceLine({
-          price: lockPrice,
-          color: "#f59e0b",
-          lineWidth: 1,
-          lineStyle: 2, // Dashed
-          axisLabelVisible: true,
-          title: "Lock",
-        });
-      } else if ((!isLocked || !lockPrice) && lockLineRef.current) {
-        try {
-          liveSeriesRef.current.removePriceLine(lockLineRef.current);
-        } catch {
-          /* ignore */
-        }
-        lockLineRef.current = null;
+  // Smooth live price overlay animation between GeckoTerminal polls
+  useEffect(() => {
+    if (!liveSeriesRef.current) return;
+    if (!hasRenderableChartData) {
+      try {
+        liveSeriesRef.current.setData([]);
+      } catch {
+        // ignore
       }
-
-      // Position pulsing dot at the latest live point
-      if (chartRef.current && pts.length > 0) {
-        const lastPt = pts[pts.length - 1];
-        const x = chartRef.current.timeScale().timeToCoordinate(lastPt.time);
-        const y = liveSeriesRef.current.priceToCoordinate(currentPrice);
-        if (x !== null && x !== undefined && y !== null && y !== undefined) {
-          setDotPos({ x, y });
-        } else {
-          setDotPos(null);
-        }
-      }
-    } catch {
       setDotPos(null);
+      setHoverInfo(null);
+      return;
     }
-  }, [currentPrice, lockPrice, isLocked, epoch]);
+    if (priceDelayed) {
+      setDotPos(null);
+      return;
+    }
+
+    const animateTick = () => {
+      if (!liveSeriesRef.current) return;
+
+      // Reset live points when epoch changes (new round started)
+      if (epoch !== lastEpochRef.current) {
+        livePointsRef.current = [];
+        lastEpochRef.current = epoch;
+        displayedLivePriceRef.current = targetLivePriceRef.current;
+        if (lockLineRef.current) {
+          try {
+            liveSeriesRef.current.removePriceLine(lockLineRef.current);
+          } catch {
+            // ignore
+          }
+          lockLineRef.current = null;
+        }
+      }
+
+      const target = targetLivePriceRef.current;
+      if (!target || target <= 0) {
+        setDotPos(null);
+        return;
+      }
+
+      const previousDisplayed = displayedLivePriceRef.current ?? target;
+      const delta = target - previousDisplayed;
+      let nextDisplayed = previousDisplayed + delta * LIVE_SMOOTHING_FACTOR;
+
+      const snapThreshold = Math.max(Math.abs(target) * 0.0001, 0.0000001);
+      if (Math.abs(target - nextDisplayed) < snapThreshold) {
+        nextDisplayed = target;
+      }
+      displayedLivePriceRef.current = nextDisplayed;
+
+      const now = Math.floor(Date.now() / 1000);
+      const points = livePointsRef.current;
+      if (points.length > 0 && points[points.length - 1].time >= now) {
+        points[points.length - 1].value = nextDisplayed;
+      } else {
+        points.push({ time: now, value: nextDisplayed });
+      }
+
+      // Cap at ~2 hours of 5s samples
+      if (points.length > 1440) points.splice(0, points.length - 1440);
+
+      try {
+        const rangeWindowSeconds = getRangeWindowSeconds(selectedRange);
+        const latestVisibleTime = visibleCandles[visibleCandles.length - 1]?.time ?? now;
+        const visibleLivePoints =
+          isDetailChart && rangeWindowSeconds > 0
+            ? points.filter(point => point.time >= latestVisibleTime - rangeWindowSeconds)
+            : points;
+
+        liveSeriesRef.current.setData([...visibleLivePoints]);
+        liveSeriesRef.current.applyOptions({ color: DOT_COLOR });
+        if (isDetailChart && chartRef.current) {
+          chartRef.current.timeScale().scrollToRealTime();
+        }
+
+        if (isLocked && lockPrice && lockPrice > 0 && !lockLineRef.current) {
+          lockLineRef.current = liveSeriesRef.current.createPriceLine({
+            price: lockPrice,
+            color: LOCK_LINE_COLOR,
+            lineWidth: 1,
+            lineStyle: 2,
+            axisLabelVisible: true,
+            title: "Lock",
+          });
+        } else if ((!isLocked || !lockPrice) && lockLineRef.current) {
+          try {
+            liveSeriesRef.current.removePriceLine(lockLineRef.current);
+          } catch {
+            // ignore
+          }
+          lockLineRef.current = null;
+        }
+
+        if (chartRef.current && visibleLivePoints.length > 0) {
+          const lastPoint = visibleLivePoints[visibleLivePoints.length - 1];
+          const x = chartRef.current.timeScale().timeToCoordinate(lastPoint.time);
+          const y = liveSeriesRef.current.priceToCoordinate(nextDisplayed);
+          if (x !== null && x !== undefined && y !== null && y !== undefined) {
+            setDotPos({ x, y });
+          } else {
+            setDotPos(null);
+          }
+        }
+      } catch {
+        setDotPos(null);
+      }
+    };
+
+    animateTick();
+    const intervalId = window.setInterval(animateTick, LIVE_ANIMATION_INTERVAL_MS);
+    return () => window.clearInterval(intervalId);
+  }, [epoch, hasRenderableChartData, isDetailChart, isLocked, lockPrice, priceDelayed, selectedRange, visibleCandles]);
 
   return (
-    <div className="relative w-full" style={{ height: `${chartHeight}px` }}>
+    <div
+      className={`relative w-full ${isDetailChart ? "bg-gradient-to-b from-pg-violet/8 via-transparent to-transparent" : ""}`}
+      style={{ height: `${chartHeight}px` }}
+    >
+      {showDetailControls && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4 pt-3">
+          <div className="pointer-events-auto max-w-[75%] overflow-x-auto rounded-xl border border-pg-violet/25 bg-base-100/90 p-1 shadow-sm backdrop-blur-sm">
+            <div className="inline-flex items-center gap-1">
+              {DETAIL_RANGE_OPTIONS.map(option => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setSelectedRange(option.value)}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+                    selectedRange === option.value
+                      ? "bg-pg-violet text-white shadow-sm"
+                      : "text-pg-muted hover:text-base-content hover:bg-pg-violet/10"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {priceDelayed && (
+              <span className="rounded-full border border-pg-amber/35 bg-pg-amber/10 px-2 py-0.5 text-[10px] font-bold text-pg-amber">
+                Live delayed
+              </span>
+            )}
+            {rangeStats && latestDisplayPrice > 0 && (
+              <div className="rounded-xl border border-pg-violet/20 bg-base-100/90 px-3 py-1.5 text-right shadow-sm backdrop-blur-sm">
+                <p className="text-[10px] font-bold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
+                  {formatUsdPrice(latestDisplayPrice)}
+                </p>
+                <p className={`text-[10px] font-bold ${rangeStats.isPositive ? "text-pg-violet" : "text-pg-pink"}`}>
+                  {formatPercent(rangeStats.changePercent)}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div ref={chartContainerRef} className={`w-full h-full ${shouldShowFallback ? "pointer-events-none" : ""}`} />
+
+      {hoverInfo && !shouldShowLoader && !shouldShowFallback && (
+        <div
+          className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-[115%] rounded-lg border border-pg-violet/25 bg-base-100/95 px-2.5 py-1.5 shadow-sm backdrop-blur-sm"
+          style={{ left: `${hoverInfo.x}px`, top: `${hoverInfo.y}px` }}
+        >
+          <p className="text-[10px] font-bold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
+            {formatUsdPrice(hoverInfo.price)}
+          </p>
+          <p className="text-[10px] text-pg-muted">{hoverInfo.timeLabel}</p>
+        </div>
+      )}
 
       {/* Pulsing live price beacon */}
       {dotPos && !shouldShowLoader && !shouldShowFallback && (
@@ -280,11 +620,11 @@ export function PriceChart({
           style={{ left: `${dotPos.x}px`, top: `${dotPos.y}px`, transform: "translate(-50%, -50%)", zIndex: 9 }}
         >
           <span
-            className="absolute inline-flex h-3 w-3 rounded-full animate-ping opacity-60"
+            className="absolute inline-flex h-2.5 w-2.5 rounded-full animate-ping opacity-60"
             style={{ backgroundColor: DOT_COLOR }}
           />
           <span
-            className="relative inline-flex h-3 w-3 rounded-full ring-2 ring-white/20"
+            className="relative inline-flex h-2.5 w-2.5 rounded-full ring-2 ring-white/20"
             style={{ backgroundColor: DOT_COLOR }}
           />
         </div>
@@ -336,7 +676,7 @@ export function PriceChart({
                     d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
                   />
                 </svg>
-                {externalLink.label.replace(/^[^\s]+\s/, "")}
+                {externalLink.label}
               </a>
             )}
           </div>

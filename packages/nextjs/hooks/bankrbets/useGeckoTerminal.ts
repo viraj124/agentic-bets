@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 const GECKO_BASE_URL = "https://api.geckoterminal.com/api/v2/networks/base/pools";
 const GECKO_TOKENS_URL = "https://api.geckoterminal.com/api/v2/networks/base/tokens";
+const DEXSCREENER_TOKENS_URL = "https://api.dexscreener.com/latest/dex/tokens";
 const RESOLVED_POOL_TTL_MS = 10 * 60_000;
 const resolvedPoolCache = new Map<string, { pool: string; ts: number }>();
 
@@ -100,6 +101,64 @@ async function fetchPoolData(poolAddress: string): Promise<PoolData | null> {
   return toPoolData(attrs, poolAddress);
 }
 
+function toDexPairPoolData(pair: any): PoolData | null {
+  const poolAddress = (pair?.pairAddress || "").toLowerCase();
+  if (!poolAddress || (!isHexAddress(poolAddress) && !isHexBytes32(poolAddress))) return null;
+
+  const priceUsd = toNumber(pair?.priceUsd);
+  const marketCap = toNumber(pair?.marketCap) || toNumber(pair?.fdv);
+  const volume24h = toNumber(pair?.volume?.h24);
+  const change1h = toNumber(pair?.priceChange?.h1);
+  const baseSymbol = pair?.baseToken?.symbol || "";
+  const quoteSymbol = pair?.quoteToken?.symbol || "USD";
+
+  return {
+    priceUsd,
+    priceFormatted: formatPrice(priceUsd),
+    change1h,
+    marketCap,
+    marketCapFormatted: formatMarketCap(marketCap),
+    volume24h,
+    poolAddress,
+    tokenName: baseSymbol ? `${baseSymbol}/${quoteSymbol}` : pair?.baseToken?.name || "",
+    tokenSymbol: baseSymbol,
+  };
+}
+
+async function fetchDexScreenerPoolData(tokenAddress: string, preferredPoolAddress?: string): Promise<PoolData | null> {
+  if (!tokenAddress || !isHexAddress(tokenAddress)) return null;
+
+  const res = await fetch(`${DEXSCREENER_TOKENS_URL}/${tokenAddress}`);
+  if (!res.ok) return null;
+  const json = await res.json();
+  const pairs = Array.isArray(json?.pairs) ? json.pairs : [];
+  if (pairs.length === 0) return null;
+
+  const preferred = (preferredPoolAddress || "").toLowerCase();
+  let bestPair: any = null;
+  let bestScore = -1;
+
+  for (const pair of pairs) {
+    if ((pair?.chainId || "").toLowerCase() !== "base") continue;
+    const candidateAddress = (pair?.pairAddress || "").toLowerCase();
+    if (!candidateAddress) continue;
+
+    if (preferred && candidateAddress === preferred) {
+      bestPair = pair;
+      break;
+    }
+
+    const score = toNumber(pair?.volume?.h24) + toNumber(pair?.liquidity?.usd) * 0.1;
+    if (score > bestScore) {
+      bestScore = score;
+      bestPair = pair;
+    }
+  }
+
+  if (!bestPair) return null;
+  return toDexPairPoolData(bestPair);
+}
+
 async function resolveBestPoolForToken(tokenAddress: string): Promise<string | null> {
   const cached = resolvedPoolCache.get(tokenAddress);
   if (cached && Date.now() - cached.ts < RESOLVED_POOL_TTL_MS) {
@@ -135,6 +194,7 @@ export function useGeckoTerminal(poolAddress: string | undefined, tokenAddress?:
     queryFn: async (): Promise<PoolData> => {
       const normalizedPool = (poolAddress || "").toLowerCase();
       const normalizedToken = (tokenAddress || "").toLowerCase();
+      let geckoData: PoolData | null = null;
 
       if (normalizedToken && isHexAddress(normalizedToken)) {
         const cachedResolvedPool = resolvedPoolCache.get(normalizedToken);
@@ -144,22 +204,28 @@ export function useGeckoTerminal(poolAddress: string | undefined, tokenAddress?:
           cachedResolvedPool.pool &&
           cachedResolvedPool.pool !== normalizedPool
         ) {
-          const fromCache = await fetchPoolData(cachedResolvedPool.pool);
-          if (fromCache) return fromCache;
+          geckoData = await fetchPoolData(cachedResolvedPool.pool);
+          if (geckoData) return geckoData;
         }
       }
 
-      if (normalizedPool && (isHexAddress(normalizedPool) || isHexBytes32(normalizedPool))) {
-        const direct = await fetchPoolData(normalizedPool);
-        if (direct) return direct;
+      if (!geckoData && normalizedPool && (isHexAddress(normalizedPool) || isHexBytes32(normalizedPool))) {
+        geckoData = await fetchPoolData(normalizedPool);
+        if (geckoData) return geckoData;
       }
 
-      if (normalizedToken && isHexAddress(normalizedToken)) {
+      if (!geckoData && normalizedToken && isHexAddress(normalizedToken)) {
         const resolvedPool = await resolveBestPoolForToken(normalizedToken);
         if (resolvedPool) {
-          const fallback = await fetchPoolData(resolvedPool);
-          if (fallback) return fallback;
+          geckoData = await fetchPoolData(resolvedPool);
+          if (geckoData) return geckoData;
         }
+      }
+
+      // Gecko can intermittently 429. Use DexScreener fallback for resilient live price updates.
+      if (normalizedToken && isHexAddress(normalizedToken)) {
+        const dexData = await fetchDexScreenerPoolData(normalizedToken, normalizedPool);
+        if (dexData) return dexData;
       }
 
       throw new Error("Failed to fetch pool data");

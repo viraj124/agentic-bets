@@ -202,7 +202,7 @@ export async function GET(req: NextRequest) {
         headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" },
       });
     }
-    return Response.json([], { status: 200 });
+    return Response.json({ error: "Upstream chart provider unavailable" }, { status: 503 });
   }
 
   // Only cache non-empty results — empty arrays must not block retries for 5 minutes
