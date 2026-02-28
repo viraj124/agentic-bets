@@ -9,6 +9,10 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 import "./BankrBetsOracle.sol";
 
+interface IUSDCWithAuthorization {
+    function receiveWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s) external;
+}
+
 /**
  * @title BankrBetsPrediction
  * @notice Permissionless binary prediction market for Bankr ecosystem tokens on Base
@@ -136,6 +140,7 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
     error RoundNotStarted();
     error OracleNotWired();
     error ExceedsMaxRoundPool();
+    error InvalidPosition();
 
     // --- Constructor ---
 
@@ -161,15 +166,23 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
 
     // --- Core Betting Functions ---
 
-    function betBull(address _token, uint256 _amount) external nonReentrant whenNotPaused {
-        _bet(_token, _amount, Position.Bull);
+    /**
+     * @notice Place a bet using USDC EIP-3009 authorization (no ERC20 approve needed).
+     * @param _position 0 = Bull, 1 = Bear
+     * @dev Caller signs ReceiveWithAuthorization off-chain, then submits this tx with signature params.
+     */
+    function betWithAuthorization(address _token, uint256 _amount, uint8 _position, uint256 _validAfter, uint256 _validBefore, bytes32 _nonce, uint8 _v, bytes32 _r, bytes32 _s) external nonReentrant whenNotPaused {
+        if (_position > 1) revert InvalidPosition();
+        _betWithAuthorization(_token, _amount, _position == 0 ? Position.Bull : Position.Bear, _validAfter, _validBefore, _nonce, _v, _r, _s);
     }
 
-    function betBear(address _token, uint256 _amount) external nonReentrant whenNotPaused {
-        _bet(_token, _amount, Position.Bear);
+    function _betWithAuthorization(address _token, uint256 _amount, Position _position, uint256 _validAfter, uint256 _validBefore, bytes32 _nonce, uint8 _v, bytes32 _r, bytes32 _s) internal {
+        address bettor = msg.sender;
+        IUSDCWithAuthorization(address(betToken)).receiveWithAuthorization(bettor, address(this), _amount, _validAfter, _validBefore, _nonce, _v, _r, _s);
+        _betFor(_token, _amount, _position, bettor);
     }
 
-    function _bet(address _token, uint256 _amount, Position _position) internal {
+    function _betFor(address _token, uint256 _amount, Position _position, address _bettor) internal {
         if (!oracle.isTokenActive(_token)) revert TokenNotEligible();
         if (_amount < minBetAmount) revert BelowMinBet();
 
@@ -204,7 +217,7 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
         if (block.timestamp < round.startTimestamp || block.timestamp >= round.lockTimestamp) {
             revert RoundNotBettable();
         }
-        if (ledger[_token][epoch][msg.sender].amount != 0) revert AlreadyBet();
+        if (ledger[_token][epoch][_bettor].amount != 0) revert AlreadyBet();
 
         // maxRoundPool cap — 0 means no limit
         if (maxRoundPool > 0 && round.totalAmount + _amount > maxRoundPool) revert ExceedsMaxRoundPool();
@@ -217,16 +230,16 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
             round.bearAmount += _amount;
         }
 
-        ledger[_token][epoch][msg.sender] = BetInfo({ position: _position, amount: _amount, claimed: false });
-        userRounds[_token][msg.sender].push(epoch);
+        ledger[_token][epoch][_bettor] = BetInfo({ position: _position, amount: _amount, claimed: false });
+        userRounds[_token][_bettor].push(epoch);
 
         // Interaction
-        betToken.safeTransferFrom(msg.sender, address(this), _amount);
+        // USDC is already transferred into the contract by receiveWithAuthorization in _betWithAuthorization.
 
         if (_position == Position.Bull) {
-            emit BetBull(msg.sender, _token, epoch, _amount);
+            emit BetBull(_bettor, _token, epoch, _amount);
         } else {
-            emit BetBear(msg.sender, _token, epoch, _amount);
+            emit BetBear(_bettor, _token, epoch, _amount);
         }
     }
 

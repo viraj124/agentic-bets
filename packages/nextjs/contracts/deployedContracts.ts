@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   8453: {
     BankrBetsOracle: {
-      address: "0x023D9E11b79c648121d9A456B03b49231aa7b919",
+      address: "0x7720E87acFEb0c7Fe3554cF18C5Ef47A8e12eaA4",
       abi: [
         {
           type: "constructor",
@@ -449,7 +449,7 @@ const deployedContracts = {
       ] as const,
     },
     BankrBetsPrediction: {
-      address: "0x3469E0EAc359E3F7e05E909861b6eDc3Be3bda65",
+      address: "0x01fD7d89C9415B1b52980A8FF44F0c3f1F3A74F6",
       abi: [
         {
           type: "constructor",
@@ -496,20 +496,17 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "betBear",
+          name: "betWithAuthorization",
           inputs: [
             { name: "_token", type: "address", internalType: "address" },
             { name: "_amount", type: "uint256", internalType: "uint256" },
-          ],
-          outputs: [],
-          stateMutability: "nonpayable",
-        },
-        {
-          type: "function",
-          name: "betBull",
-          inputs: [
-            { name: "_token", type: "address", internalType: "address" },
-            { name: "_amount", type: "uint256", internalType: "uint256" },
+            { name: "_position", type: "uint8", internalType: "uint8" },
+            { name: "_validAfter", type: "uint256", internalType: "uint256" },
+            { name: "_validBefore", type: "uint256", internalType: "uint256" },
+            { name: "_nonce", type: "bytes32", internalType: "bytes32" },
+            { name: "_v", type: "uint8", internalType: "uint8" },
+            { name: "_r", type: "bytes32", internalType: "bytes32" },
+            { name: "_s", type: "bytes32", internalType: "bytes32" },
           ],
           outputs: [],
           stateMutability: "nonpayable",
@@ -1090,6 +1087,7 @@ const deployedContracts = {
         { type: "error", name: "ExpectedPause", inputs: [] },
         { type: "error", name: "InvalidDuration", inputs: [] },
         { type: "error", name: "InvalidFee", inputs: [] },
+        { type: "error", name: "InvalidPosition", inputs: [] },
         { type: "error", name: "LockWindowExpired", inputs: [] },
         { type: "error", name: "NoActiveRound", inputs: [] },
         { type: "error", name: "NoBetPlaced", inputs: [] },

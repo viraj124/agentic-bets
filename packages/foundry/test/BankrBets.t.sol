@@ -16,9 +16,12 @@ contract BankrBetsTest is Test {
     IERC20 public usdc;
 
     address public owner = address(this);
-    address public alice = address(0xA11CE);
-    address public bob = address(0xB0B);
-    address public carol = address(0xCA401);
+    uint256 internal alicePk = 0xA11CE12345;
+    uint256 internal bobPk = 0xB0B12345;
+    uint256 internal carolPk = 0xCA40112345;
+    address public alice;
+    address public bob;
+    address public carol;
     address public marketCreator = address(0xCEE8);
     address public settler = address(0x5E77);
 
@@ -42,6 +45,8 @@ contract BankrBetsTest is Test {
     address public constant CLANKER_DYNAMIC_FEE_V2 = 0xd60D6B218116cFd801E28F78d011a203D2b068Cc;
     uint24 public constant CLANKER_FEE = 0x800000; // DYNAMIC_FEE_FLAG (used by all Clanker hooks)
     int24 public constant CLANKER_TICK_SPACING = 200;
+    bytes32 internal constant EIP712_DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+    bytes32 internal constant RECEIVE_WITH_AUTHORIZATION_TYPEHASH = keccak256("ReceiveWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)");
 
     uint256 public constant ONE_USDC = 1_000_000;
     uint256 public constant TEN_USDC = 10_000_000;
@@ -50,6 +55,9 @@ contract BankrBetsTest is Test {
 
     function setUp() public {
         vm.createSelectFork("base_mainnet");
+        alice = vm.addr(alicePk);
+        bob = vm.addr(bobPk);
+        carol = vm.addr(carolPk);
 
         usdc = IERC20(BASE_USDC);
         oracle = new BankrBetsOracle(BASE_POOL_MANAGER);
@@ -71,14 +79,6 @@ contract BankrBetsTest is Test {
         deal(BASE_USDC, alice, 1000 * ONE_USDC);
         deal(BASE_USDC, bob, 1000 * ONE_USDC);
         deal(BASE_USDC, carol, 1000 * ONE_USDC);
-
-        // Approve prediction contract
-        vm.prank(alice);
-        usdc.approve(address(prediction), type(uint256).max);
-        vm.prank(bob);
-        usdc.approve(address(prediction), type(uint256).max);
-        vm.prank(carol);
-        usdc.approve(address(prediction), type(uint256).max);
     }
 
     // --- Helpers ---
@@ -100,12 +100,10 @@ contract BankrBetsTest is Test {
     function _startRoundAndBet(uint256 aliceBet, uint256 bobBet) internal {
         // First non-zero bet auto-starts the round
         if (aliceBet > 0) {
-            vm.prank(alice);
-            prediction.betBull(token1, aliceBet);
+            _betBull(alice, token1, aliceBet);
         }
         if (bobBet > 0) {
-            vm.prank(bob);
-            prediction.betBear(token1, bobBet);
+            _betBear(bob, token1, bobBet);
         }
     }
 
@@ -127,6 +125,44 @@ contract BankrBetsTest is Test {
 
     function _expectOwnableRevert(address caller) internal {
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, caller));
+    }
+
+    function _usdcAuthorizationDigest(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce) internal view returns (bytes32 digest) {
+        bytes32 domainSeparator = keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, keccak256(bytes("USD Coin")), keccak256(bytes("2")), block.chainid, BASE_USDC));
+
+        bytes32 structHash = keccak256(abi.encode(RECEIVE_WITH_AUTHORIZATION_TYPEHASH, from, to, value, validAfter, validBefore, nonce));
+
+        digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+    }
+
+    function _signUsdcReceiveAuthorization(uint256 privateKey, address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce) internal view returns (uint8 v, bytes32 r, bytes32 s) {
+        bytes32 digest = _usdcAuthorizationDigest(from, to, value, validAfter, validBefore, nonce);
+        (v, r, s) = vm.sign(privateKey, digest);
+    }
+
+    function _privateKeyOf(address bettor) internal view returns (uint256 pk) {
+        if (bettor == alice) return alicePk;
+        if (bettor == bob) return bobPk;
+        if (bettor == carol) return carolPk;
+        revert("Unknown bettor");
+    }
+
+    function _betWithAuthorization(address bettor, address token, uint256 amount, BankrBetsPrediction.Position position) internal {
+        uint256 validAfter = block.timestamp - 1;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 nonce = keccak256(abi.encodePacked("auth", bettor, token, amount, position, block.timestamp, gasleft()));
+        (uint8 v, bytes32 r, bytes32 s) = _signUsdcReceiveAuthorization(_privateKeyOf(bettor), bettor, address(prediction), amount, validAfter, validBefore, nonce);
+
+        vm.prank(bettor);
+        prediction.betWithAuthorization(token, amount, uint8(position), validAfter, validBefore, nonce, v, r, s);
+    }
+
+    function _betBull(address bettor, address token, uint256 amount) internal {
+        _betWithAuthorization(bettor, token, amount, BankrBetsPrediction.Position.Bull);
+    }
+
+    function _betBear(address bettor, address token, uint256 amount) internal {
+        _betWithAuthorization(bettor, token, amount, BankrBetsPrediction.Position.Bear);
     }
 
     // ========== Oracle Tests ==========
@@ -280,8 +316,7 @@ contract BankrBetsTest is Test {
     function test_BetBull() public {
         prediction.startRound(token1);
 
-        vm.prank(alice);
-        prediction.betBull(token1, TEN_USDC);
+        _betBull(alice, token1, TEN_USDC);
 
         BankrBetsPrediction.BetInfo memory bet = prediction.getUserBet(token1, 1, alice);
         assertEq(uint8(bet.position), uint8(BankrBetsPrediction.Position.Bull));
@@ -297,48 +332,155 @@ contract BankrBetsTest is Test {
     function test_BetBear() public {
         prediction.startRound(token1);
 
-        vm.prank(bob);
-        prediction.betBear(token1, TEN_USDC);
+        _betBear(bob, token1, TEN_USDC);
 
         BankrBetsPrediction.BetInfo memory bet = prediction.getUserBet(token1, 1, bob);
         assertEq(uint8(bet.position), uint8(BankrBetsPrediction.Position.Bear));
         assertEq(bet.amount, TEN_USDC);
     }
 
+    function test_BetBullWithAuthorization() public {
+        uint256 bettorPk = 0xA11CE123;
+        address bettor = vm.addr(bettorPk);
+        uint256 amount = TEN_USDC;
+
+        prediction.startRound(token1);
+        deal(BASE_USDC, bettor, 1000 * ONE_USDC);
+        assertEq(usdc.allowance(bettor, address(prediction)), 0);
+
+        uint256 validAfter = block.timestamp - 1;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 nonce = keccak256("auth-bull-1");
+        (uint8 v, bytes32 r, bytes32 s) = _signUsdcReceiveAuthorization(bettorPk, bettor, address(prediction), amount, validAfter, validBefore, nonce);
+
+        uint256 bettorBalBefore = usdc.balanceOf(bettor);
+        uint256 predictionBalBefore = usdc.balanceOf(address(prediction));
+
+        vm.prank(bettor);
+        prediction.betWithAuthorization(token1, amount, uint8(BankrBetsPrediction.Position.Bull), validAfter, validBefore, nonce, v, r, s);
+
+        BankrBetsPrediction.BetInfo memory bet = prediction.getUserBet(token1, 1, bettor);
+        BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
+        assertEq(uint8(bet.position), uint8(BankrBetsPrediction.Position.Bull));
+        assertEq(bet.amount, amount);
+        assertEq(round.totalAmount, amount);
+        assertEq(round.bullAmount, amount);
+        assertEq(round.bearAmount, 0);
+        assertEq(usdc.balanceOf(bettor), bettorBalBefore - amount);
+        assertEq(usdc.balanceOf(address(prediction)), predictionBalBefore + amount);
+    }
+
+    function test_BetBearWithAuthorization() public {
+        uint256 bettorPk = 0xB0B123;
+        address bettor = vm.addr(bettorPk);
+        uint256 amount = TEN_USDC;
+
+        prediction.startRound(token1);
+        deal(BASE_USDC, bettor, 1000 * ONE_USDC);
+
+        uint256 validAfter = block.timestamp - 1;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 nonce = keccak256("auth-bear-1");
+        (uint8 v, bytes32 r, bytes32 s) = _signUsdcReceiveAuthorization(bettorPk, bettor, address(prediction), amount, validAfter, validBefore, nonce);
+
+        vm.prank(bettor);
+        prediction.betWithAuthorization(token1, amount, uint8(BankrBetsPrediction.Position.Bear), validAfter, validBefore, nonce, v, r, s);
+
+        BankrBetsPrediction.BetInfo memory bet = prediction.getUserBet(token1, 1, bettor);
+        BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
+        assertEq(uint8(bet.position), uint8(BankrBetsPrediction.Position.Bear));
+        assertEq(bet.amount, amount);
+        assertEq(round.totalAmount, amount);
+        assertEq(round.bullAmount, 0);
+        assertEq(round.bearAmount, amount);
+    }
+
+    function test_BetWithAuthorizationReplayReverts() public {
+        uint256 bettorPk = 0xCA401123;
+        address bettor = vm.addr(bettorPk);
+        uint256 amount = TEN_USDC;
+
+        prediction.startRound(token1);
+        deal(BASE_USDC, bettor, 1000 * ONE_USDC);
+
+        uint256 validAfter = block.timestamp - 1;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 nonce = keccak256("auth-replay-1");
+        (uint8 v, bytes32 r, bytes32 s) = _signUsdcReceiveAuthorization(bettorPk, bettor, address(prediction), amount, validAfter, validBefore, nonce);
+
+        vm.prank(bettor);
+        prediction.betWithAuthorization(token1, amount, uint8(BankrBetsPrediction.Position.Bull), validAfter, validBefore, nonce, v, r, s);
+
+        vm.prank(bettor);
+        vm.expectRevert();
+        prediction.betWithAuthorization(token1, amount, uint8(BankrBetsPrediction.Position.Bull), validAfter, validBefore, nonce, v, r, s);
+    }
+
+    function test_BetWithAuthorizationExpiredReverts() public {
+        uint256 bettorPk = 0x5E77123;
+        address bettor = vm.addr(bettorPk);
+        uint256 amount = TEN_USDC;
+
+        prediction.startRound(token1);
+        deal(BASE_USDC, bettor, 1000 * ONE_USDC);
+
+        uint256 validAfter = block.timestamp - 2 hours;
+        uint256 validBefore = block.timestamp - 1;
+        bytes32 nonce = keccak256("auth-expired-1");
+        (uint8 v, bytes32 r, bytes32 s) = _signUsdcReceiveAuthorization(bettorPk, bettor, address(prediction), amount, validAfter, validBefore, nonce);
+
+        vm.prank(bettor);
+        vm.expectRevert();
+        prediction.betWithAuthorization(token1, amount, uint8(BankrBetsPrediction.Position.Bull), validAfter, validBefore, nonce, v, r, s);
+    }
+
+    function test_BetWithAuthorizationInvalidPositionReverts() public {
+        uint256 bettorPk = 0x5E77124;
+        address bettor = vm.addr(bettorPk);
+        uint256 amount = TEN_USDC;
+
+        prediction.startRound(token1);
+        deal(BASE_USDC, bettor, 1000 * ONE_USDC);
+
+        uint256 validAfter = block.timestamp - 1;
+        uint256 validBefore = block.timestamp + 1 hours;
+        bytes32 nonce = keccak256("auth-invalid-position-1");
+        (uint8 v, bytes32 r, bytes32 s) = _signUsdcReceiveAuthorization(bettorPk, bettor, address(prediction), amount, validAfter, validBefore, nonce);
+
+        vm.prank(bettor);
+        vm.expectRevert(BankrBetsPrediction.InvalidPosition.selector);
+        prediction.betWithAuthorization(token1, amount, 2, validAfter, validBefore, nonce, v, r, s);
+    }
+
     function test_BetBelowMin() public {
         prediction.startRound(token1);
 
-        vm.prank(alice);
         vm.expectRevert(BankrBetsPrediction.BelowMinBet.selector);
-        prediction.betBull(token1, 100); // 0.0001 USDC
+        _betBull(alice, token1, 100); // 0.0001 USDC
     }
 
     function test_BetAboveMax() public {
         prediction.startRound(token1);
 
-        vm.prank(alice);
         vm.expectRevert(BankrBetsPrediction.ExceedsMaxBet.selector);
-        prediction.betBull(token1, 600 * ONE_USDC); // 600 > 500 USDC default max
+        _betBull(alice, token1, 600 * ONE_USDC); // 600 > 500 USDC default max
     }
 
     function test_DoubleBet() public {
         prediction.startRound(token1);
 
-        vm.prank(alice);
-        prediction.betBull(token1, TEN_USDC);
+        _betBull(alice, token1, TEN_USDC);
 
-        vm.prank(alice);
         vm.expectRevert(BankrBetsPrediction.AlreadyBet.selector);
-        prediction.betBull(token1, TEN_USDC);
+        _betBull(alice, token1, TEN_USDC);
     }
 
     function test_BetAfterLock() public {
         prediction.startRound(token1);
         vm.warp(block.timestamp + 241);
 
-        vm.prank(alice);
         vm.expectRevert(BankrBetsPrediction.RoundNotBettable.selector);
-        prediction.betBull(token1, TEN_USDC);
+        _betBull(alice, token1, TEN_USDC);
     }
 
     function test_BetInactiveToken() public {
@@ -351,17 +493,15 @@ contract BankrBetsTest is Test {
         vm.prank(marketCreator);
         oracle.deactivateMarket(token1);
 
-        vm.prank(alice);
         vm.expectRevert(BankrBetsPrediction.TokenNotEligible.selector);
-        prediction.betBull(token1, TEN_USDC);
+        _betBull(alice, token1, TEN_USDC);
     }
 
     // ========== Lock & Close Tests ==========
 
     function test_LockRound() public {
         prediction.startRound(token1);
-        vm.prank(alice);
-        prediction.betBull(token1, TEN_USDC);
+        _betBull(alice, token1, TEN_USDC);
 
         vm.warp(block.timestamp + 240);
 
@@ -494,8 +634,7 @@ contract BankrBetsTest is Test {
 
     function test_CloseRoundCancelsWhenNoWinners() public {
         prediction.startRound(token1);
-        vm.prank(alice);
-        prediction.betBull(token1, TEN_USDC); // No bear bets
+        _betBull(alice, token1, TEN_USDC); // No bear bets
 
         uint256 settlerBefore = usdc.balanceOf(settler);
         uint256 creatorBefore = usdc.balanceOf(marketCreator);
@@ -663,12 +802,9 @@ contract BankrBetsTest is Test {
     function test_MultipleWinnersProportionalPayout() public {
         prediction.startRound(token1);
 
-        vm.prank(alice);
-        prediction.betBull(token1, TEN_USDC);
-        vm.prank(carol);
-        prediction.betBull(token1, 30 * ONE_USDC);
-        vm.prank(bob);
-        prediction.betBear(token1, 60 * ONE_USDC);
+        _betBull(alice, token1, TEN_USDC);
+        _betBull(carol, token1, 30 * ONE_USDC);
+        _betBear(bob, token1, 60 * ONE_USDC);
 
         uint256 totalPool = 100 * ONE_USDC;
 
@@ -750,8 +886,7 @@ contract BankrBetsTest is Test {
 
     function test_ClaimBeforeSettlement() public {
         prediction.startRound(token1);
-        vm.prank(alice);
-        prediction.betBull(token1, TEN_USDC);
+        _betBull(alice, token1, TEN_USDC);
 
         uint256[] memory epochs = new uint256[](1);
         epochs[0] = 1;
@@ -971,10 +1106,8 @@ contract BankrBetsTest is Test {
         // Round 1
         prediction.startRound(token1);
 
-        vm.prank(alice);
-        prediction.betBull(token1, 50 * ONE_USDC);
-        vm.prank(bob);
-        prediction.betBear(token1, 50 * ONE_USDC);
+        _betBull(alice, token1, 50 * ONE_USDC);
+        _betBear(bob, token1, 50 * ONE_USDC);
 
         // Lock
         vm.warp(block.timestamp + 240);
@@ -1062,8 +1195,7 @@ contract BankrBetsTest is Test {
         _lockAndClose();
 
         prediction.startRound(token1);
-        vm.prank(alice);
-        prediction.betBull(token1, TEN_USDC);
+        _betBull(alice, token1, TEN_USDC);
 
         uint256[] memory aliceRounds = prediction.getUserRounds(token1, alice);
         assertEq(aliceRounds.length, 2);
@@ -1565,8 +1697,7 @@ contract BankrBetsTest is Test {
         // No startRound call — the first bet opens the round automatically
         assertEq(prediction.getCurrentEpoch(token1), 0);
 
-        vm.prank(alice);
-        prediction.betBull(token1, TEN_USDC);
+        _betBull(alice, token1, TEN_USDC);
 
         assertEq(prediction.getCurrentEpoch(token1), 1);
         BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
@@ -1589,8 +1720,7 @@ contract BankrBetsTest is Test {
         assertTrue(prediction.getRound(token1, 1).oracleCalled);
 
         // Next bet auto-starts round 2 without an explicit startRound call
-        vm.prank(alice);
-        prediction.betBull(token1, TEN_USDC);
+        _betBull(alice, token1, TEN_USDC);
 
         assertEq(prediction.getCurrentEpoch(token1), 2);
         BankrBetsPrediction.Round memory round2 = prediction.getRound(token1, 2);
@@ -1608,8 +1738,7 @@ contract BankrBetsTest is Test {
         assertFalse(prediction.hasActiveRound(token2));
 
         // Alice's first bet opens round 1
-        vm.prank(alice);
-        prediction.betBull(token2, TEN_USDC);
+        _betBull(alice, token2, TEN_USDC);
 
         assertEq(prediction.getCurrentEpoch(token2), 1);
         assertTrue(prediction.hasActiveRound(token2));
@@ -1777,17 +1906,14 @@ contract BankrBetsTest is Test {
         prediction.startRound(token1);
 
         // Alice bets 10 USDC — allowed (total = 10)
-        vm.prank(alice);
-        prediction.betBull(token1, TEN_USDC);
+        _betBull(alice, token1, TEN_USDC);
 
         // Bob bets 5 USDC — allowed (total = 15, exactly at cap)
-        vm.prank(bob);
-        prediction.betBear(token1, 5 * ONE_USDC);
+        _betBear(bob, token1, 5 * ONE_USDC);
 
         // Carol bets 1 USDC — rejected (total would be 16 > 15)
-        vm.prank(carol);
         vm.expectRevert(BankrBetsPrediction.ExceedsMaxRoundPool.selector);
-        prediction.betBull(token1, ONE_USDC);
+        _betBull(carol, token1, ONE_USDC);
 
         // Total is exactly at cap
         BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
@@ -1799,8 +1925,7 @@ contract BankrBetsTest is Test {
         prediction.setMaxRoundPool(TEN_USDC);
         prediction.startRound(token1);
 
-        vm.prank(alice);
-        prediction.betBull(token1, TEN_USDC);
+        _betBull(alice, token1, TEN_USDC);
 
         BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
         assertEq(round.totalAmount, TEN_USDC);
@@ -1817,10 +1942,8 @@ contract BankrBetsTest is Test {
 
         prediction.startRound(token1);
 
-        vm.prank(alice);
-        prediction.betBull(token1, 400 * ONE_USDC);
-        vm.prank(bob);
-        prediction.betBear(token1, 400 * ONE_USDC);
+        _betBull(alice, token1, 400 * ONE_USDC);
+        _betBear(bob, token1, 400 * ONE_USDC);
 
         BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
         assertEq(round.totalAmount, 800 * ONE_USDC);
