@@ -23,7 +23,8 @@ const BANKR_MAX_TOKENS = 25_000; // safety cap in case indexer reports unusually
 
 const DEX_TOKENS_ENDPOINT = "https://api.dexscreener.com/tokens/v1/base";
 const DEX_BATCH = 30; // endpoint max
-const DEX_CONCURRENCY = 12;
+const DEX_CONCURRENCY = 4; // conservative to avoid DexScreener 429s
+const DEX_DELAY_MS = 150; // small pause between concurrent waves
 const DEX_MAX_RETRIES = 3;
 
 const GECKO_BASE = "https://api.geckoterminal.com/api/v2/networks/base";
@@ -32,7 +33,7 @@ const GECKO_BATCH = 30;
 const GECKO_CONCURRENCY = 1; // strict to avoid rate limit
 const GECKO_DELAY_MS = 250;
 const GECKO_MAX_RETRIES = 2;
-const GECKO_FALLBACK_MAX_ADDRESSES = 1_200; // avoid very large fallback scans
+const GECKO_FALLBACK_MAX_ADDRESSES = 2_000; // cover tokens missed by DexScreener rate limiting
 
 const CACHE_TTL_MS = 5 * 60_000; // serve stale cache immediately and refresh in background
 const FETCH_TIMEOUT_MS = 12_000;
@@ -397,6 +398,20 @@ async function fetchDexBatch(chunkAddresses: string[]): Promise<Map<string, Pric
   return out;
 }
 
+/**
+ * GeckoTerminal relationship IDs are formatted as "<network>_<address>", e.g. "base_0xabc...".
+ * When a pool is referenced in `relationships` but not included in the `included` array
+ * (pagination gap or API inconsistency), we can still recover the pool address from the ID.
+ */
+function extractAddressFromGeckoId(id: string): string {
+  if (!id) return "";
+  for (const part of id.split("_")) {
+    const lower = part.toLowerCase();
+    if (isHexAddress(lower) || isHexBytes32(lower)) return lower;
+  }
+  return "";
+}
+
 async function fetchGeckoBatch(chunkAddresses: string[]): Promise<Map<string, PriceEnrichment>> {
   const out = new Map<string, PriceEnrichment>();
   if (chunkAddresses.length === 0) return out;
@@ -428,6 +443,9 @@ async function fetchGeckoBatch(chunkAddresses: string[]): Promise<Map<string, Pr
 
     const topPoolRef = token.relationships?.top_pools?.data?.[0];
     const pool = topPoolRef ? poolMap.get(topPoolRef.id) : undefined;
+
+    // Fallback: pool not in included array — extract address from the relationship ID string
+    const topPoolAddress = pool?.address || (topPoolRef ? extractAddressFromGeckoId(topPoolRef.id) : "");
     const pair = pool?.poolName?.includes("USDC") ? "USDC" : "WETH";
 
     out.set(addr, {
@@ -439,7 +457,7 @@ async function fetchGeckoBatch(chunkAddresses: string[]): Promise<Map<string, Pr
       volume24h: toNumber(a.volume_usd?.h24),
       change1h: pool?.change1h || 0,
       change24h: pool?.change24h || 0,
-      topPoolAddress: pool?.address || "",
+      topPoolAddress,
       deployedAt: pool?.createdAt || "",
       pair,
       priceSource: "geckoterminal",
@@ -471,6 +489,9 @@ async function enrichWithPriceData(
     const results = await Promise.all(wave.map(c => fetchDexBatch(c).catch(() => new Map())));
     for (const m of results) {
       for (const [addr, data] of m) dexMap.set(addr, data);
+    }
+    if (i + DEX_CONCURRENCY < dexChunks.length) {
+      await sleep(DEX_DELAY_MS);
     }
   }
 

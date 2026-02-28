@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { usePublicClient } from "wagmi";
 import { PoolData, useGeckoTerminalMulti } from "~~/hooks/bankrbets/useGeckoTerminal";
 import { useDeployedContractInfo, useSelectedNetwork } from "~~/hooks/scaffold-eth";
+import { contracts } from "~~/utils/scaffold-eth/contract";
 
 const ORACLE_PAGE_SIZE = 200;
 const ORACLE_MAX_PAGES = 200;
@@ -35,13 +36,24 @@ export function useMarketTokens() {
   const { data: oracleContract, isLoading: isContractLoading } = useDeployedContractInfo({
     contractName: "BankrBetsOracle",
   });
+  const configuredOracleContract = contracts?.[selectedNetwork.id]?.BankrBetsOracle as
+    | { address: `0x${string}`; abi: any[] }
+    | undefined;
+
+  // Use the static deployed config immediately on mount, while still allowing
+  // deployed contract hook data to take precedence when available.
+  const oracleAddress = oracleContract?.address || configuredOracleContract?.address;
+  const oracleAbi = oracleContract?.abi || configuredOracleContract?.abi;
 
   const { data: markets = [], isLoading: isMarketsLoading } = useQuery({
-    queryKey: ["oracle-active-markets-paged", selectedNetwork.id, oracleContract?.address],
-    enabled: !!publicClient && !!oracleContract?.address,
+    queryKey: ["oracle-active-markets-paged", selectedNetwork.id, oracleAddress],
+    enabled: !!publicClient && !!oracleAddress && !!oracleAbi,
+    staleTime: 10_000,
+    gcTime: 30 * 60_000,
+    placeholderData: previousData => previousData,
     refetchInterval: 15000,
     queryFn: async (): Promise<OracleMarketView[]> => {
-      if (!publicClient || !oracleContract) return [];
+      if (!publicClient || !oracleAddress || !oracleAbi) return [];
 
       try {
         const all: OracleMarketView[] = [];
@@ -49,8 +61,8 @@ export function useMarketTokens() {
 
         for (let i = 0; i < ORACLE_MAX_PAGES; i++) {
           const page = (await publicClient.readContract({
-            address: oracleContract.address,
-            abi: oracleContract.abi,
+            address: oracleAddress,
+            abi: oracleAbi,
             functionName: "getActiveMarketsInfoPage",
             args: [offset, BigInt(ORACLE_PAGE_SIZE)],
           } as any)) as OracleMarketView[];
@@ -65,8 +77,8 @@ export function useMarketTokens() {
       } catch {
         // Backward compatibility with older Oracle deployments.
         const all = (await publicClient.readContract({
-          address: oracleContract.address,
-          abi: oracleContract.abi,
+          address: oracleAddress,
+          abi: oracleAbi,
           functionName: "getActiveMarketsInfo",
         } as any)) as OracleMarketView[];
         return all || [];
@@ -102,7 +114,7 @@ export function useMarketTokens() {
 
   return {
     tokens,
-    isLoading: isContractLoading || isMarketsLoading,
+    isLoading: isContractLoading && isMarketsLoading,
     marketCount: markets.length,
   };
 }

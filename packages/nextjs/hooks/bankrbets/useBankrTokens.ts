@@ -9,6 +9,7 @@ export interface BankrToken {
   name: string;
   symbol: string;
   contractAddress: string;
+  poolId: string;
   imgUrl: string;
   deployedAt: string;
   creator: string;
@@ -62,6 +63,7 @@ function toBankrToken(t: EnrichedToken, id: number): BankrToken {
     name: t.name,
     symbol: t.symbol,
     contractAddress: t.address,
+    poolId: t.poolId,
     imgUrl: t.imgUrl,
     deployedAt: t.deployedAt,
     creator: "",
@@ -97,7 +99,7 @@ export function useBankrTokens() {
       return (json.tokens || []).map((t, i) => toBankrToken(t, i));
     },
     staleTime: 5 * 60_000, // match server cache TTL
-    gcTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
     refetchOnWindowFocus: false,
     refetchInterval: 5 * 60_000,
   });
