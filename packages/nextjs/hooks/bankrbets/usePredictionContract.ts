@@ -93,26 +93,8 @@ export function useClaimable(tokenAddress: string, epoch: bigint | undefined, us
  * Hook to place bets, claim winnings, and trigger refunds
  */
 export function usePredictionActions() {
-  const { writeContractAsync: writeBetBull, isPending: isBettingBull } =
-    useScaffoldWriteContract("BankrBetsPrediction");
-  const { writeContractAsync: writeBetBear, isPending: isBettingBear } =
-    useScaffoldWriteContract("BankrBetsPrediction");
   const { writeContractAsync: writeClaim, isPending: isClaiming } = useScaffoldWriteContract("BankrBetsPrediction");
   const { writeContractAsync: writeRefund, isPending: isRefunding } = useScaffoldWriteContract("BankrBetsPrediction");
-
-  const betBull = async (token: string, amount: bigint) => {
-    return writeBetBull({
-      functionName: "betBull",
-      args: [token, amount],
-    });
-  };
-
-  const betBear = async (token: string, amount: bigint) => {
-    return writeBetBear({
-      functionName: "betBear",
-      args: [token, amount],
-    });
-  };
 
   const claim = async (token: string, epochs: bigint[]) => {
     return writeClaim({
@@ -129,12 +111,8 @@ export function usePredictionActions() {
   };
 
   return {
-    betBull,
-    betBear,
     claim,
     refundRound,
-    isBettingBull,
-    isBettingBear,
     isClaiming,
     isRefunding,
   };
