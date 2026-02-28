@@ -25,7 +25,7 @@ const nextConfig: NextConfig = {
   },
 };
 
-const isIpfs = process.env.NEXT_PUBLIC_IPFS_BUILD === "true";
+const isIpfs = process.env.NEXT_PUBLIC_IPFS_BUILD === "true" && process.env.NODE_ENV === "production";
 
 if (isIpfs) {
   nextConfig.output = "export";

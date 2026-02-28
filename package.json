@@ -8,6 +8,7 @@
     ]
   },
   "scripts": {
+    "dev": "yarn workspace @se-2/nextjs dev",
     "account": "yarn foundry:account",
     "account:generate": "yarn foundry:generate",
     "account:import": "yarn foundry:account-import",
