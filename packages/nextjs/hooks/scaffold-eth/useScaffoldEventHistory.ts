@@ -176,6 +176,11 @@ export const useScaffoldEventHistory = <
       return data;
     },
     enabled: enabled && isContractAddressAndClientReady && !isPollingActive, // Disable when polling starts
+    staleTime: watch ? 0 : 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: watch ? true : false,
     initialPageParam: fromBlockValue,
     getNextPageParam: (lastPage, allPages, lastPageParam) => {
       if (!blockNumber || fromBlockValue >= blockNumber) return undefined;

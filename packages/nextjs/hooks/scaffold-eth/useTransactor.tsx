@@ -17,11 +17,17 @@ type TransactionFunc = (
  */
 const TxnNotification = ({ message, blockExplorerLink }: { message: string; blockExplorerLink?: string }) => {
   return (
-    <div className={`flex flex-col ml-1 cursor-default`}>
-      <p className="my-0">{message}</p>
+    <div className="flex flex-col gap-1 cursor-default">
+      <p className="my-0 font-semibold text-[0.95rem] leading-snug text-base-content">{message}</p>
       {blockExplorerLink && blockExplorerLink.length > 0 ? (
-        <a href={blockExplorerLink} target="_blank" rel="noreferrer" className="block link">
-          check out transaction
+        <a
+          href={blockExplorerLink}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-xs font-bold text-pg-violet hover:text-pg-violet/80 transition-colors"
+        >
+          View on explorer
+          <span aria-hidden>↗</span>
         </a>
       ) : null}
     </div>
@@ -57,7 +63,7 @@ export const useTransactor = (_walletClient?: WalletClient): TransactionFunc => 
       // Get full transaction from public client
       const publicClient = getPublicClient(wagmiConfig);
 
-      notificationId = notification.loading(<TxnNotification message="Awaiting for user confirmation" />);
+      notificationId = notification.loading(<TxnNotification message="Awaiting wallet confirmation" />);
       if (typeof tx === "function") {
         // Tx is already prepared by the caller
         const result = await tx();
@@ -72,7 +78,10 @@ export const useTransactor = (_walletClient?: WalletClient): TransactionFunc => 
       blockExplorerTxURL = chainId ? getBlockExplorerTxLink(chainId, transactionHash) : "";
 
       notificationId = notification.loading(
-        <TxnNotification message="Waiting for transaction to complete." blockExplorerLink={blockExplorerTxURL} />,
+        <TxnNotification
+          message="Transaction submitted. Waiting for confirmation"
+          blockExplorerLink={blockExplorerTxURL}
+        />,
       );
 
       transactionReceipt = await publicClient.waitForTransactionReceipt({
@@ -83,12 +92,9 @@ export const useTransactor = (_walletClient?: WalletClient): TransactionFunc => 
 
       if (transactionReceipt.status === "reverted") throw new Error("Transaction reverted");
 
-      notification.success(
-        <TxnNotification message="Transaction completed successfully!" blockExplorerLink={blockExplorerTxURL} />,
-        {
-          icon: "🎉",
-        },
-      );
+      notification.success(<TxnNotification message="Transaction confirmed" blockExplorerLink={blockExplorerTxURL} />, {
+        icon: "🎉",
+      });
 
       if (options?.onBlockConfirmation) options.onBlockConfirmation(transactionReceipt);
     } catch (error: any) {

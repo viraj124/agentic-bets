@@ -15,6 +15,19 @@ type DeployedContractData<TContractName extends ContractName> = {
   isLoading: boolean;
 };
 
+const CONTRACT_STATUS_TTL_MS = 60_000;
+type ContractStatusCacheEntry = {
+  status: ContractCodeStatus;
+  checkedAt: number;
+  inFlight?: Promise<ContractCodeStatus>;
+};
+
+/**
+ * Cache bytecode checks across hooks/components so repeated reads for the same
+ * contract don't trigger duplicate RPC calls during page load.
+ */
+const contractStatusCache = new Map<string, ContractStatusCacheEntry>();
+
 /**
  * Gets the matching contract info for the provided contract name from the contracts present in deployedContracts.ts
  * and externalContracts.ts corresponding to targetNetworks configured in scaffold.config.ts
@@ -49,35 +62,68 @@ export function useDeployedContractInfo<TContractName extends ContractName>(
   const deployedContract = contracts?.[selectedNetwork.id]?.[contractName as ContractName] as Contract<TContractName>;
   const [status, setStatus] = useState<ContractCodeStatus>(ContractCodeStatus.LOADING);
   const publicClient = usePublicClient({ chainId: selectedNetwork.id });
+  const cacheKey = deployedContract ? `${selectedNetwork.id}:${deployedContract.address.toLowerCase()}` : "";
 
   useEffect(() => {
+    let cancelled = false;
+
     const checkContractDeployment = async () => {
       try {
         if (!isMounted() || !publicClient) return;
 
         if (!deployedContract) {
-          setStatus(ContractCodeStatus.NOT_FOUND);
+          if (!cancelled) setStatus(ContractCodeStatus.NOT_FOUND);
           return;
         }
 
-        const code = await publicClient.getBytecode({
-          address: deployedContract.address,
+        const now = Date.now();
+        const cached = contractStatusCache.get(cacheKey);
+        if (cached && !cached.inFlight && now - cached.checkedAt < CONTRACT_STATUS_TTL_MS) {
+          if (!cancelled) setStatus(cached.status);
+          return;
+        }
+
+        if (cached?.inFlight) {
+          const inFlightStatus = await cached.inFlight;
+          if (!cancelled) setStatus(inFlightStatus);
+          return;
+        }
+
+        const inFlight = (async () => {
+          try {
+            const code = await publicClient.getBytecode({
+              address: deployedContract.address,
+            });
+            return code === "0x" ? ContractCodeStatus.NOT_FOUND : ContractCodeStatus.DEPLOYED;
+          } catch {
+            return ContractCodeStatus.NOT_FOUND;
+          }
+        })();
+
+        contractStatusCache.set(cacheKey, {
+          status: ContractCodeStatus.LOADING,
+          checkedAt: now,
+          inFlight,
         });
 
-        // If contract code is `0x` => no contract deployed on that address
-        if (code === "0x") {
-          setStatus(ContractCodeStatus.NOT_FOUND);
-          return;
-        }
-        setStatus(ContractCodeStatus.DEPLOYED);
+        const resolvedStatus = await inFlight;
+        contractStatusCache.set(cacheKey, {
+          status: resolvedStatus,
+          checkedAt: Date.now(),
+        });
+
+        if (!cancelled) setStatus(resolvedStatus);
       } catch (e) {
         console.error(e);
-        setStatus(ContractCodeStatus.NOT_FOUND);
+        if (!cancelled) setStatus(ContractCodeStatus.NOT_FOUND);
       }
     };
 
     checkContractDeployment();
-  }, [isMounted, contractName, deployedContract, publicClient]);
+    return () => {
+      cancelled = true;
+    };
+  }, [cacheKey, contractName, deployedContract, isMounted, publicClient]);
 
   return {
     data: status === ContractCodeStatus.DEPLOYED ? deployedContract : undefined,

@@ -83,15 +83,7 @@ export const Header = () => {
             <HeaderMenuLinks />
           </ul>
         </details>
-        <Link href="/" passHref className="hidden lg:flex items-center gap-2.5 ml-4 mr-8 shrink-0 group">
-          <div
-            className="w-8 h-8 rounded-xl bg-pg-violet border-2 border-pg-slate flex items-center justify-center shadow-pop-active group-hover:shadow-pop transition-all duration-200"
-            style={{ transitionTimingFunction: "var(--ease-bounce)" }}
-          >
-            <span className="text-white text-sm font-extrabold" style={{ fontFamily: "var(--font-heading)" }}>
-              B
-            </span>
-          </div>
+        <Link href="/" passHref className="hidden lg:flex items-center ml-4 mr-8 shrink-0">
           <span
             className="font-extrabold text-base tracking-tight text-base-content"
             style={{ fontFamily: "var(--font-heading)" }}

@@ -22,12 +22,25 @@ type NotificationOptions = {
   position?: ToastPosition;
 };
 
+const STATUS_STYLES = {
+  success: { accent: "bg-emerald-400/80", border: "border-emerald-300/50" },
+  loading: { accent: "bg-pg-violet/80", border: "border-pg-violet/40" },
+  error: { accent: "bg-rose-400/80", border: "border-rose-300/50" },
+  info: { accent: "bg-sky-400/80", border: "border-sky-300/50" },
+  warning: { accent: "bg-amber-400/80", border: "border-amber-300/60" },
+} as const;
+
 const ENUM_STATUSES = {
-  success: <CheckCircleIcon className="w-7 text-success" />,
-  loading: <span className="w-6 loading loading-spinner"></span>,
-  error: <ExclamationCircleIcon className="w-7 text-error" />,
-  info: <InformationCircleIcon className="w-7 text-info" />,
-  warning: <ExclamationTriangleIcon className="w-7 text-warning" />,
+  success: <CheckCircleIcon className="w-5 h-5 text-emerald-500" />,
+  loading: (
+    <span className="relative inline-flex h-5 w-5">
+      <span className="absolute inset-0 rounded-full border-2 border-pg-violet/30" />
+      <span className="absolute inset-0 rounded-full border-2 border-transparent border-t-pg-violet animate-spin" />
+    </span>
+  ),
+  error: <ExclamationCircleIcon className="w-5 h-5 text-rose-500" />,
+  info: <InformationCircleIcon className="w-5 h-5 text-sky-500" />,
+  warning: <ExclamationTriangleIcon className="w-5 h-5 text-amber-500" />,
 };
 
 const DEFAULT_DURATION = 3000;
@@ -46,19 +59,30 @@ const Notification = ({
   return toast.custom(
     (t: Toast) => (
       <div
-        className={`flex flex-row items-start justify-between max-w-sm rounded-xl shadow-center shadow-accent bg-base-200 p-4 transform-gpu relative transition-all duration-500 ease-in-out space-x-2
-        ${
-          position.substring(0, 3) == "top"
-            ? `hover:translate-y-1 ${t.visible ? "top-0" : "-top-96"}`
-            : `hover:-translate-y-1 ${t.visible ? "bottom-0" : "-bottom-96"}`
+        className={`relative flex w-[min(92vw,34rem)] items-start gap-3 rounded-2xl border bg-base-100/95 px-4 py-3.5 shadow-[0_18px_45px_-24px_rgba(0,0,0,0.45)] backdrop-blur-sm transition-all duration-300 ease-out ${
+          STATUS_STYLES[status].border
+        } ${
+          position.substring(0, 3) === "top"
+            ? `${t.visible ? "translate-y-0 opacity-100 scale-100" : "-translate-y-3 opacity-0 scale-95"}`
+            : `${t.visible ? "translate-y-0 opacity-100 scale-100" : "translate-y-3 opacity-0 scale-95"}`
         }`}
       >
-        <div className="leading-[0] self-center">{icon ? icon : ENUM_STATUSES[status]}</div>
-        <div className={`overflow-x-hidden break-words whitespace-pre-line ${icon ? "mt-1" : ""}`}>{content}</div>
-
-        <div className={`cursor-pointer text-lg ${icon ? "mt-1" : ""}`} onClick={() => toast.dismiss(t.id)}>
-          <XMarkIcon className="w-6 cursor-pointer" onClick={() => toast.remove(t.id)} />
+        <span className={`absolute inset-y-0 left-0 w-1.5 rounded-l-2xl ${STATUS_STYLES[status].accent}`} />
+        <div className="pl-2 pt-0.5 leading-none shrink-0">
+          {icon ? <span className="text-lg leading-none">{icon}</span> : ENUM_STATUSES[status]}
         </div>
+        <div className="flex-1 min-w-0 overflow-x-hidden break-words whitespace-pre-line text-sm leading-snug text-base-content">
+          {content}
+        </div>
+
+        <button
+          type="button"
+          className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full text-base-content/50 transition-colors hover:bg-base-200 hover:text-base-content"
+          aria-label="Dismiss notification"
+          onClick={() => toast.remove(t.id)}
+        >
+          <XMarkIcon className="w-4.5 h-4.5" />
+        </button>
       </div>
     ),
     {
