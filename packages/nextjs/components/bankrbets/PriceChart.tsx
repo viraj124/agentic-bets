@@ -38,6 +38,7 @@ export function PriceChart({
   const [chartError, setChartError] = useState<string | null>(null);
   const DOT_COLOR = "#8b5cf6";
   const [dotPos, setDotPos] = useState<{ x: number; y: number } | null>(null);
+  const chartHeight = height ?? 288;
 
   // Fetch OHLCV from GeckoTerminal
   // compact mode: 15-min candles (faster, smaller payload for mini home-page charts)
@@ -83,12 +84,32 @@ export function PriceChart({
       try {
         const { createChart, CandlestickSeries, LineSeries } = await import("lightweight-charts");
         if (cancelled || !chartContainerRef.current) return;
+        const resizeChart = () => {
+          if (!chartRef.current || !chartContainerRef.current) return;
+          const width = Math.max(
+            1,
+            Math.floor(
+              chartContainerRef.current.clientWidth || chartContainerRef.current.getBoundingClientRect().width || 1,
+            ),
+          );
+          const measuredHeight = chartContainerRef.current.clientHeight || chartHeight;
+          chartRef.current.applyOptions({ width, height: Math.max(1, Math.floor(measuredHeight)) });
+        };
+        const initialWidth = Math.max(
+          1,
+          Math.floor(
+            chartContainerRef.current.clientWidth || chartContainerRef.current.getBoundingClientRect().width || 1,
+          ),
+        );
 
         chartRef.current = createChart(chartContainerRef.current, {
+          width: initialWidth,
+          height: chartHeight,
           layout: {
             background: { color: "transparent" },
             textColor: "#9ca3af",
             fontSize: 11,
+            attributionLogo: false,
           },
           grid: {
             vertLines: { color: "rgba(156, 163, 175, 0.08)" },
@@ -128,11 +149,12 @@ export function PriceChart({
         });
 
         const observer = new ResizeObserver(() => {
-          if (!chartRef.current || !chartContainerRef.current) return;
-          chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+          resizeChart();
         });
         observer.observe(chartContainerRef.current);
         resizeObserverRef.current = observer;
+        resizeChart();
+        requestAnimationFrame(resizeChart);
       } catch {
         setChartError("Chart unavailable");
       } finally {
@@ -156,11 +178,11 @@ export function PriceChart({
         lockLineRef.current = null;
       }
     };
-  }, []);
+  }, [chartHeight]);
 
   // Update OHLCV candle data
   useEffect(() => {
-    if (!seriesRef.current || !candles || candles.length === 0) return;
+    if (!chartReady || !seriesRef.current || !candles || candles.length === 0) return;
     try {
       seriesRef.current.setData(candles);
       if (!hasFitRef.current && chartRef.current) {
@@ -171,7 +193,7 @@ export function PriceChart({
     } catch {
       setChartError("Unable to render chart data");
     }
-  }, [candles]);
+  }, [candles, chartReady]);
 
   // Live price overlay — updates on every GeckoTerminal poll (every 5s)
   useEffect(() => {
@@ -248,7 +270,7 @@ export function PriceChart({
   }, [currentPrice, lockPrice, isLocked, epoch]);
 
   return (
-    <div className="relative w-full" style={{ height: height ? `${height}px` : "18rem" }}>
+    <div className="relative w-full" style={{ height: `${chartHeight}px` }}>
       <div ref={chartContainerRef} className={`w-full h-full ${shouldShowFallback ? "pointer-events-none" : ""}`} />
 
       {/* Pulsing live price beacon */}
@@ -275,22 +297,47 @@ export function PriceChart({
       )}
 
       {shouldShowFallback && (
-        <div className="absolute inset-0 z-20 p-3 pointer-events-auto">
-          <div className="h-full w-full rounded-xl border border-pg-border bg-base-200/70 backdrop-blur-[1px] px-4 py-3 flex flex-col justify-center">
-            <p className="text-xs font-semibold text-pg-muted text-center mb-3">Price history not available</p>
-            {chartError && <p className="text-[11px] text-pg-muted/80 text-center mb-2">{chartError}</p>}
-
+        <div className="absolute inset-0 z-20 pointer-events-auto flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3 px-6 text-center">
+            <div className="w-10 h-10 rounded-2xl bg-pg-border/40 border-2 border-pg-border flex items-center justify-center">
+              <svg
+                className="w-5 h-5 text-pg-muted/40"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"
+                />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-bold text-pg-muted" style={{ fontFamily: "var(--font-heading)" }}>
+                No chart data
+              </p>
+              <p className="text-[11px] text-pg-muted/50 mt-0.5">
+                {chartError ?? "Price history not available for this pool"}
+              </p>
+            </div>
             {externalLink && (
-              <div className="flex items-center justify-center mt-1">
-                <a
-                  href={externalLink.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="pointer-events-auto text-xs font-semibold text-pg-violet hover:text-pg-violet/70 underline cursor-pointer"
-                >
-                  {externalLink.label}
-                </a>
-              </div>
+              <a
+                href={externalLink.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-pg-violet/10 border border-pg-violet/20 text-[11px] font-bold text-pg-violet hover:bg-pg-violet/20 transition-colors"
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+                  />
+                </svg>
+                {externalLink.label.replace(/^[^\s]+\s/, "")}
+              </a>
             )}
           </div>
         </div>
