@@ -7,10 +7,14 @@ import { useLeaderboard } from "~~/hooks/bankrbets/useLeaderboard";
 import { useResolvedAddresses } from "~~/hooks/bankrbets/useResolvedAddresses";
 
 const MEDALS = ["", "", ""];
+const RESOLVED_NAMES_LIMIT = 100;
 
 const LeaderboardPage: NextPage = () => {
-  const { leaderboard, isLoading } = useLeaderboard();
-  const addresses = useMemo(() => leaderboard.map(entry => entry.address), [leaderboard]);
+  const { leaderboard, isLoading } = useLeaderboard({ watch: false });
+  const addresses = useMemo(
+    () => leaderboard.slice(0, RESOLVED_NAMES_LIMIT).map(entry => entry.address),
+    [leaderboard],
+  );
   const { data: resolvedMap } = useResolvedAddresses(addresses);
 
   return (

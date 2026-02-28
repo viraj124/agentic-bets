@@ -9,14 +9,20 @@ import { useScaffoldReadContract } from "~~/hooks/scaffold-eth";
 
 const ProfilePage: NextPage = () => {
   const { address } = useAccount();
-  const { leaderboard } = useLeaderboard();
+  const { leaderboard, isLoading: isStatsLoading } = useLeaderboard({ address, watch: false });
   const { data: resolvedMap } = useResolvedAddresses(address ? [address] : []);
 
-  const { data: creatorEarnings } = useScaffoldReadContract({
+  const { data: creatorEarnings, isLoading: isEarningsLoading } = useScaffoldReadContract({
     contractName: "BankrBetsPrediction",
     functionName: "creatorEarnings",
     args: [address ?? "0x0000000000000000000000000000000000000000"],
-    query: { enabled: !!address },
+    watch: false,
+    query: {
+      enabled: !!address,
+      staleTime: 60_000,
+      gcTime: 30 * 60_000,
+      refetchOnWindowFocus: false,
+    },
   });
 
   if (!address) {
@@ -45,39 +51,40 @@ const ProfilePage: NextPage = () => {
     );
   }
 
-  const userStats = leaderboard.find(e => e.address.toLowerCase() === address.toLowerCase());
+  const userStats = leaderboard.find(entry => entry.address.toLowerCase() === address.toLowerCase());
   const earnings = creatorEarnings ? Number(creatorEarnings) / 1e6 : 0;
+  const isLoading = isStatsLoading || isEarningsLoading;
 
   const statCards = [
-    { label: "Total bets", value: userStats?.totalBets ?? "--", color: "" },
-    { label: "Wins", value: userStats?.wins ?? "--", color: "" },
-    { label: "Win rate", value: userStats ? `${userStats.winRate.toFixed(0)}%` : "--", color: "" },
+    { label: "Total bets", value: isLoading ? "…" : (userStats?.totalBets ?? "--"), color: "" },
+    { label: "Wins", value: isLoading ? "…" : (userStats?.wins ?? "--"), color: "" },
+    { label: "Win rate", value: isLoading ? "…" : userStats ? `${userStats.winRate.toFixed(0)}%` : "--", color: "" },
     {
       label: "Net P&L",
-      value: userStats ? `${userStats.netPnL >= 0 ? "+" : ""}$${userStats.netPnL.toFixed(2)}` : "--",
+      value: isLoading ? "…" : userStats ? `${userStats.netPnL >= 0 ? "+" : ""}$${userStats.netPnL.toFixed(2)}` : "--",
       color: userStats ? (userStats.netPnL >= 0 ? "text-pg-mint" : "text-pg-pink") : "",
     },
-    { label: "Creator earnings", value: earnings > 0 ? `$${earnings.toFixed(2)}` : "--", color: "text-pg-violet" },
+    {
+      label: "Creator earnings",
+      value: isLoading ? "…" : earnings > 0 ? `$${earnings.toFixed(2)}` : "--",
+      color: "text-pg-violet",
+    },
   ];
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
       {/* Header */}
-      <div className="flex items-start gap-4 mb-8">
-        <div className="w-11 h-11 rounded-2xl bg-pg-violet border-2 border-pg-slate flex items-center justify-center shadow-pop flex-shrink-0">
-          <span className="text-white text-sm font-extrabold" style={{ fontFamily: "var(--font-heading)" }}>
-            {address.slice(2, 4).toUpperCase()}
-          </span>
-        </div>
-        <div>
+      <div className="mb-8">
+        <div className="min-w-0">
           <h1
             className="text-2xl font-extrabold tracking-tight text-base-content"
             style={{ fontFamily: "var(--font-heading)" }}
           >
             Portfolio
           </h1>
-          <div className="mt-1">
-            <IdentityBadge address={address} resolved={resolvedMap.get(address.toLowerCase())} size="md" showAddress />
+          <p className="text-sm text-pg-muted">Track your bets, wins, and creator earnings</p>
+          <div className="mt-2 inline-flex bg-base-100 rounded-xl border border-pg-border px-2.5 py-1.5">
+            <IdentityBadge address={address} resolved={resolvedMap.get(address.toLowerCase())} size="md" />
           </div>
         </div>
       </div>
@@ -113,7 +120,11 @@ const ProfilePage: NextPage = () => {
           </h2>
         </div>
 
-        {userStats ? (
+        {isLoading ? (
+          <div className="py-16 text-center">
+            <span className="loading loading-spinner loading-md text-pg-violet" />
+          </div>
+        ) : userStats ? (
           <div className="p-5 space-y-3">
             <div className="flex justify-between items-center text-sm">
               <span className="text-pg-muted">Total wagered</span>
