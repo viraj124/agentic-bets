@@ -35,7 +35,7 @@ const AUTHORIZATION_WINDOW_S = 30 * 60;
 const ZERO_BYTES32 = `0x${"0".repeat(64)}` as const;
 const S_MASK_255_BITS = (1n << 255n) - 1n;
 const SMART_WALLET_NOT_SUPPORTED_MSG =
-  "This wallet is a smart account. Switch to an EOA wallet (MetaMask/Rainbow/Ledger) to place bets.";
+  "Coinbase Smart Wallet is not supported. In Coinbase Wallet, tap the account switcher and select your imported/seed-phrase wallet, or use MetaMask / Rainbow instead.";
 
 const predictionAuthorizationAbi = [
   {
@@ -442,7 +442,7 @@ export function BetPanel({
 
     if (isContractWallet) {
       return {
-        label: "Switch to EOA wallet",
+        label: "Smart Wallet not supported — connect differently",
         onClick: handleConnectAndSubmit,
         disabled: !openConnectModal,
         tone: "amber" as ActionTone,
