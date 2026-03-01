@@ -176,6 +176,20 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
         _betWithAuthorization(_token, _amount, _position == 0 ? Position.Bull : Position.Bear, _validAfter, _validBefore, _nonce, _v, _r, _s);
     }
 
+    /**
+     * @notice Place a bet using a standard ERC-20 transferFrom (requires prior USDC approval).
+     * @dev Intended for smart-wallet users (e.g. Coinbase Smart Wallet) that cannot produce
+     *      an EOA ECDSA signature for EIP-3009. Callers must approve this contract for at
+     *      least `_amount` USDC before calling. Compatible with EIP-5792 atomic batches:
+     *      batch([USDC.approve(this, amount), prediction.bet(token, amount, position)]).
+     * @param _position 0 = Bull, 1 = Bear
+     */
+    function bet(address _token, uint256 _amount, uint8 _position) external nonReentrant whenNotPaused {
+        if (_position > 1) revert InvalidPosition();
+        betToken.safeTransferFrom(msg.sender, address(this), _amount);
+        _betFor(_token, _amount, _position == 0 ? Position.Bull : Position.Bear, msg.sender);
+    }
+
     function _betWithAuthorization(address _token, uint256 _amount, Position _position, uint256 _validAfter, uint256 _validBefore, bytes32 _nonce, uint8 _v, bytes32 _r, bytes32 _s) internal {
         address bettor = msg.sender;
         IUSDCWithAuthorization(address(betToken)).receiveWithAuthorization(bettor, address(this), _amount, _validAfter, _validBefore, _nonce, _v, _r, _s);
