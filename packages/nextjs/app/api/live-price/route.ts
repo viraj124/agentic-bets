@@ -48,9 +48,14 @@ const DEXSCREENER_TOKENS_URL = "https://api.dexscreener.com/latest/dex/tokens";
 const FETCH_TIMEOUT_MS = 5000;
 const SOFT_TTL_MS = 2500;
 const DELAYED_AFTER_MS = 15000;
+const PROVIDER_COOLDOWN_MS = 45_000; // skip a provider for 45s after a 429
 
 const priceCache = new Map<string, LivePriceSnapshot>();
 const inFlight = new Map<string, Promise<LivePriceSnapshot | null>>();
+// Per-provider 429 cooldown: "gecko" | "dexscreener" → timestamp until available
+const rateLimitedUntil = new Map<string, number>();
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function toNumber(value: unknown): number {
   const n = Number(value);
@@ -69,6 +74,15 @@ function isPoolId(value: string): boolean {
   return isHexAddress(value) || isHexBytes32(value);
 }
 
+function isRateLimited(provider: string): boolean {
+  const until = rateLimitedUntil.get(provider);
+  return until !== undefined && Date.now() < until;
+}
+
+function markRateLimited(provider: string, ms = PROVIDER_COOLDOWN_MS) {
+  rateLimitedUntil.set(provider, Date.now() + ms);
+}
+
 function extractAddressFromGeckoId(id: string): string {
   if (!id) return "";
   for (const part of id.split("_")) {
@@ -78,27 +92,18 @@ function extractAddressFromGeckoId(id: string): string {
   return "";
 }
 
-async function fetchJson<T>(url: string): Promise<T | null> {
+/**
+ * One-shot fetch that surfaces the raw HTTP status so callers can detect 429s.
+ */
+async function fetchRaw(url: string): Promise<Response | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const headers: Record<string, string> = {};
-    // Optional: allow a paid CoinGecko key if present.
-    if (process.env.COINGECKO_API_KEY) {
-      headers["x-cg-pro-api-key"] = process.env.COINGECKO_API_KEY;
-    }
-
-    const res = await fetch(url, {
+    return await fetch(url, {
       signal: controller.signal,
-      headers,
       next: { revalidate: 0 },
       cache: "no-store",
     });
-    if (!res.ok) return null;
-
-    const json = (await res.json()) as any;
-    if (toNumber(json?.status?.error_code) > 0) return null;
-    return json as T;
   } catch {
     return null;
   } finally {
@@ -106,10 +111,23 @@ async function fetchJson<T>(url: string): Promise<T | null> {
   }
 }
 
+// ── Price providers ───────────────────────────────────────────────────────────
+
 async function fetchGeckoPoolPrice(poolAddress: string, tokenAddress?: string): Promise<LivePriceSnapshot | null> {
   if (!poolAddress || !isPoolId(poolAddress)) return null;
+  if (isRateLimited("gecko")) return null;
 
-  const json = await fetchJson<GeckoPoolResponse>(`${GECKO_BASE_URL}/${poolAddress}`);
+  const res = await fetchRaw(`${GECKO_BASE_URL}/${poolAddress}`);
+  if (!res) return null;
+  if (res.status === 429) {
+    markRateLimited("gecko");
+    return null;
+  }
+  if (!res.ok) return null;
+
+  const json = (await res.json()) as GeckoPoolResponse;
+  if (toNumber((json as any)?.status?.error_code) > 0) return null;
+
   const attrs = json?.data?.attributes;
   const priceUsd = toNumber(attrs?.base_token_price_usd);
   if (!(priceUsd > 0)) return null;
@@ -128,8 +146,17 @@ async function fetchGeckoTokenPoolsPrice(
   preferredPool?: string,
 ): Promise<LivePriceSnapshot | null> {
   if (!tokenAddress || !isHexAddress(tokenAddress)) return null;
+  if (isRateLimited("gecko")) return null;
 
-  const json = await fetchJson<GeckoTokenPoolsResponse>(`${GECKO_TOKENS_URL}/${tokenAddress}/pools`);
+  const res = await fetchRaw(`${GECKO_TOKENS_URL}/${tokenAddress}/pools`);
+  if (!res) return null;
+  if (res.status === 429) {
+    markRateLimited("gecko");
+    return null;
+  }
+  if (!res.ok) return null;
+
+  const json = (await res.json()) as GeckoTokenPoolsResponse;
   const pools = Array.isArray(json?.data) ? json.data : [];
   if (pools.length === 0) return null;
 
@@ -171,8 +198,17 @@ async function fetchGeckoTokenPoolsPrice(
 
 async function fetchDexScreenerPrice(tokenAddress: string, preferredPool?: string): Promise<LivePriceSnapshot | null> {
   if (!tokenAddress || !isHexAddress(tokenAddress)) return null;
+  if (isRateLimited("dexscreener")) return null;
 
-  const json = await fetchJson<DexTokenResponse>(`${DEXSCREENER_TOKENS_URL}/${tokenAddress}`);
+  const res = await fetchRaw(`${DEXSCREENER_TOKENS_URL}/${tokenAddress}`);
+  if (!res) return null;
+  if (res.status === 429) {
+    markRateLimited("dexscreener");
+    return null;
+  }
+  if (!res.ok) return null;
+
+  const json = (await res.json()) as DexTokenResponse;
   const pairs = Array.isArray(json?.pairs) ? json.pairs : [];
   if (pairs.length === 0) return null;
 
@@ -209,29 +245,50 @@ async function fetchDexScreenerPrice(tokenAddress: string, preferredPool?: strin
   };
 }
 
+// ── Provider cascade ──────────────────────────────────────────────────────────
+
+/**
+ * Fetch the best available live price using a resilient provider cascade.
+ *
+ * When GeckoTerminal is healthy: Gecko Pool → DexScreener → Gecko Token Pools
+ * When GeckoTerminal is rate-limited: DexScreener → Gecko Token Pools (last resort)
+ *
+ * Providers are called sequentially and the first successful result wins.
+ */
 async function fetchBestLivePrice(poolAddress: string, tokenAddress: string): Promise<LivePriceSnapshot | null> {
+  const geckoDown = isRateLimited("gecko");
+
   const providers: Array<() => Promise<LivePriceSnapshot | null>> = [];
 
-  if (poolAddress) {
+  if (!geckoDown && poolAddress) {
+    // Best source when available: direct pool lookup (fastest, no ambiguity)
     providers.push(() => fetchGeckoPoolPrice(poolAddress, tokenAddress || undefined));
   }
+
   if (tokenAddress) {
+    // DexScreener is always attempted — moves to first when Gecko is rate-limited
     providers.push(() => fetchDexScreenerPrice(tokenAddress, poolAddress || undefined));
+  }
+
+  if (tokenAddress) {
+    // Gecko token-pools: broader search, always worth trying as final gecko fallback
     providers.push(() => fetchGeckoTokenPoolsPrice(tokenAddress, poolAddress || undefined));
   }
 
   for (const provider of providers) {
     const snapshot = await provider();
-    if (snapshot && snapshot.priceUsd > 0) {
-      return snapshot;
-    }
+    if (snapshot && snapshot.priceUsd > 0) return snapshot;
   }
   return null;
 }
 
+// ── Cache key ─────────────────────────────────────────────────────────────────
+
 function getCacheKey(poolAddress: string, tokenAddress: string): string {
   return `${poolAddress || "-"}:${tokenAddress || "-"}`;
 }
+
+// ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -254,16 +311,12 @@ export async function GET(req: NextRequest) {
 
   if (cached && now - cached.updatedAt <= SOFT_TTL_MS) {
     return Response.json(
-      {
-        ...cached,
-        ageMs: now - cached.updatedAt,
-        isStale: false,
-        isDelayed: false,
-      },
+      { ...cached, ageMs: now - cached.updatedAt, isStale: false, isDelayed: false },
       { headers: { "Cache-Control": "no-store" } },
     );
   }
 
+  // Deduplicate concurrent requests for the same key
   let request = inFlight.get(key);
   if (!request) {
     request = fetchBestLivePrice(poolAddress, tokenAddress).finally(() => {
@@ -273,9 +326,7 @@ export async function GET(req: NextRequest) {
   }
 
   const latest = await request;
-  if (latest) {
-    priceCache.set(key, latest);
-  }
+  if (latest) priceCache.set(key, latest);
 
   const resolved = latest ?? cached ?? null;
   if (!resolved) {
@@ -284,12 +335,7 @@ export async function GET(req: NextRequest) {
 
   const ageMs = now - resolved.updatedAt;
   return Response.json(
-    {
-      ...resolved,
-      ageMs,
-      isStale: ageMs > SOFT_TTL_MS,
-      isDelayed: ageMs > DELAYED_AFTER_MS,
-    },
+    { ...resolved, ageMs, isStale: ageMs > SOFT_TTL_MS, isDelayed: ageMs > DELAYED_AFTER_MS },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

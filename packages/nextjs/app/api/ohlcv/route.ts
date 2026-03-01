@@ -16,17 +16,55 @@ interface GeckoTokenPool {
   };
 }
 
-const CACHE_TTL_MS = 5 * 60_000; // 5 minutes — mini charts don't need real-time data
-const EMPTY_RETRY_TTL_MS = 60_000; // retry empty results after 1 min (not 5)
+const CACHE_TTL_MS = 5 * 60_000; // 5 minutes
+const EMPTY_RETRY_TTL_MS = 60_000; // retry empty results after 1 min
 const RESOLVED_POOL_TTL_MS = 10 * 60_000; // cache token→bestPool for 10 min
+const PROVIDER_COOLDOWN_MS = 45_000; // skip a provider for 45s after a 429
 
 const cache = new Map<string, { ts: number; data: OhlcvCandle[] }>();
-// Separate cache: token address → best GeckoTerminal pool address
 const resolvedPoolCache = new Map<string, { pool: string; ts: number }>();
+// Per-provider 429 cooldown: "gecko" | "dexscreener" → timestamp until available
+const rateLimitedUntil = new Map<string, number>();
 
 const FETCH_TIMEOUT_MS = 8_000;
-const FETCH_RETRIES = 2;
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function isRateLimited(provider: string): boolean {
+  const until = rateLimitedUntil.get(provider);
+  return until !== undefined && Date.now() < until;
+}
+
+function markRateLimited(provider: string, ms = PROVIDER_COOLDOWN_MS) {
+  rateLimitedUntil.set(provider, Date.now() + ms);
+}
+
+function toNumber(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function isHexAddress(value: string): boolean {
+  return /^0x[a-f0-9]{40}$/.test(value);
+}
+
+function isHexBytes32(value: string): boolean {
+  return /^0x[a-f0-9]{64}$/.test(value);
+}
+
+function extractAddressFromGeckoId(id: string): string {
+  if (!id) return "";
+  for (const part of id.split("_")) {
+    const lower = part.toLowerCase();
+    if (isHexAddress(lower) || isHexBytes32(lower)) return lower;
+  }
+  return "";
+}
+
+/**
+ * Normalise raw rows [[timestamp, open, high, low, close], ...] into
+ * deduplicated, strictly-increasing OhlcvCandle[].
+ */
 function toCandles(list: number[][]): OhlcvCandle[] {
   const normalized: OhlcvCandle[] = [];
   for (const row of list) {
@@ -48,14 +86,15 @@ function toCandles(list: number[][]): OhlcvCandle[] {
   let lastTime = -1;
   for (const candle of normalized) {
     if (candle.time === lastTime && deduped.length > 0) {
-      deduped[deduped.length - 1] = candle; // keep latest entry for duplicate timestamp
+      deduped[deduped.length - 1] = candle;
       continue;
     }
     deduped.push(candle);
     lastTime = candle.time;
   }
 
-  // Some low-liquidity pools only return one candle, which can render as a blank chart.
+  // Low-liquidity pools may return a single candle → duplicate it back 5 min
+  // to prevent a blank chart.
   if (deduped.length === 1) {
     const single = deduped[0];
     deduped.unshift({ ...single, time: Math.max(0, single.time - 300) });
@@ -64,89 +103,201 @@ function toCandles(list: number[][]): OhlcvCandle[] {
   return deduped;
 }
 
-function isHexAddress(value: string): boolean {
-  return /^0x[a-f0-9]{40}$/.test(value);
-}
+// ── GeckoTerminal ─────────────────────────────────────────────────────────────
 
-function isHexBytes32(value: string): boolean {
-  return /^0x[a-f0-9]{64}$/.test(value);
-}
-
-function toNumber(value: unknown): number {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function extractAddressFromGeckoId(id: string): string {
-  if (!id) return "";
-  for (const part of id.split("_")) {
-    const lower = part.toLowerCase();
-    if (isHexAddress(lower) || isHexBytes32(lower)) return lower;
-  }
-  return "";
-}
-
-async function fetchJson<T>(url: string): Promise<T | null> {
-  for (let attempt = 0; attempt <= FETCH_RETRIES; attempt++) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    try {
-      const res = await fetch(url, { signal: controller.signal, next: { revalidate: 300 } });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as any;
-      // Gecko may return HTTP 200 with an embedded error payload.
-      if (toNumber(json?.status?.error_code) > 0) throw new Error(`Gecko error ${json.status.error_code}`);
-      return json as T;
-    } catch {
-      if (attempt === FETCH_RETRIES) return null;
-      await new Promise(r => setTimeout(r, 150 * (attempt + 1)));
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-  return null;
-}
-
-async function fetchPoolOhlcv(
+/**
+ * Fetch OHLCV from GeckoTerminal. Detects 429 and marks the provider as
+ * rate-limited so subsequent calls skip it during the cooldown window.
+ */
+async function fetchGeckoOhlcv(
   pool: string,
   aggregate: string,
   limit: string,
   currency: string,
 ): Promise<OhlcvCandle[] | null> {
+  if (isRateLimited("gecko")) return null;
+
   const url = `https://api.geckoterminal.com/api/v2/networks/base/pools/${pool}/ohlcv/minute?aggregate=${aggregate}&limit=${limit}&currency=${currency}`;
-  const json = await fetchJson<any>(url);
-  if (!json) return null;
-  const list = (json?.data?.attributes?.ohlcv_list || []) as number[][];
-  return toCandles(list);
+
+  // One-shot fetch so we can inspect the status code for 429.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { signal: controller.signal, next: { revalidate: 300 } });
+    if (res.status === 429) {
+      markRateLimited("gecko");
+      return null;
+    }
+    if (!res.ok) return null;
+    const json = (await res.json()) as any;
+    if (toNumber(json?.status?.error_code) > 0) return null;
+    const list = (json?.data?.attributes?.ohlcv_list || []) as number[][];
+    return toCandles(list);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
+// ── DexScreener ───────────────────────────────────────────────────────────────
+
+/**
+ * Fetch OHLCV candles from DexScreener's chart endpoint.
+ * Response format: TradingView-compatible parallel arrays {t, o, h, l, c, v}.
+ * Timestamps are in seconds.
+ */
+async function fetchDexScreenerOhlcv(pool: string, aggregate: string, limit: string): Promise<OhlcvCandle[] | null> {
+  if (isRateLimited("dexscreener")) return null;
+
+  const cb = Date.now();
+  const url = `https://io.dexscreener.com/dex/chart/amm/v3/base/${pool}?res=${aggregate}&cb=${cb}`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { "User-Agent": "Mozilla/5.0" },
+      next: { revalidate: 0 },
+    });
+    if (res.status === 429) {
+      markRateLimited("dexscreener");
+      return null;
+    }
+    if (!res.ok) return null;
+
+    const json = (await res.json()) as any;
+
+    // TradingView-style parallel arrays
+    const t: number[] = Array.isArray(json?.t) ? json.t : [];
+    const o: number[] = Array.isArray(json?.o) ? json.o : [];
+    const h: number[] = Array.isArray(json?.h) ? json.h : [];
+    const l: number[] = Array.isArray(json?.l) ? json.l : [];
+    const c: number[] = Array.isArray(json?.c) ? json.c : [];
+
+    if (t.length === 0) return null;
+
+    const limitN = parseInt(limit, 10) || 120;
+    // Slice to the requested limit from the end (most recent candles)
+    const start = Math.max(0, t.length - limitN);
+    const rows: number[][] = [];
+    for (let i = start; i < t.length; i++) {
+      rows.push([t[i], o[i] ?? 0, h[i] ?? 0, l[i] ?? 0, c[i] ?? 0]);
+    }
+
+    return toCandles(rows);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * Resolve the highest-volume DexScreener pair address for a given token on Base.
+ */
+async function resolveBestPoolFromDexScreener(token: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${token}`, {
+      signal: controller.signal,
+      next: { revalidate: 300 },
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as any;
+    const pairs: any[] = Array.isArray(json?.pairs) ? json.pairs : [];
+
+    let bestPair: any = null;
+    let bestScore = -1;
+    for (const pair of pairs) {
+      if ((pair?.chainId || "").toLowerCase() !== "base") continue;
+      const addr = (pair?.pairAddress || "").toLowerCase();
+      if (!isHexAddress(addr) && !isHexBytes32(addr)) continue;
+      const score = toNumber(pair?.volume?.h24) + toNumber(pair?.liquidity?.usd) * 0.1;
+      if (score > bestScore) {
+        bestScore = score;
+        bestPair = pair;
+      }
+    }
+    return bestPair ? (bestPair.pairAddress as string).toLowerCase() : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * Resolve the best pool for a token. Tries GeckoTerminal first (unless rate-limited),
+ * falls back to DexScreener.
+ */
 async function resolveBestPoolForToken(token: string): Promise<string | null> {
-  // Check cache first to avoid hitting GeckoTerminal rate limits
   const entry = resolvedPoolCache.get(token);
   if (entry && Date.now() - entry.ts < RESOLVED_POOL_TTL_MS) {
     return entry.pool || null;
   }
 
-  const url = `https://api.geckoterminal.com/api/v2/networks/base/tokens/${token}/pools`;
-  const json = await fetchJson<{ data?: GeckoTokenPool[] }>(url);
-  const pools = Array.isArray(json?.data) ? json.data : [];
-
   let bestAddress = "";
-  let bestScore = -1;
-  for (const pool of pools) {
-    const address =
-      (pool.attributes?.address || "").toLowerCase() || extractAddressFromGeckoId((pool.id || "").toLowerCase());
-    if (!isHexAddress(address) && !isHexBytes32(address)) continue;
-    const score = toNumber(pool.attributes?.volume_usd?.h24);
-    if (score > bestScore) {
-      bestAddress = address;
-      bestScore = score;
+
+  if (!isRateLimited("gecko")) {
+    const url = `https://api.geckoterminal.com/api/v2/networks/base/tokens/${token}/pools`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, { signal: controller.signal, next: { revalidate: 300 } });
+      if (res.status === 429) {
+        markRateLimited("gecko");
+      } else if (res.ok) {
+        const json = (await res.json()) as { data?: GeckoTokenPool[] };
+        const pools = Array.isArray(json?.data) ? json.data : [];
+        let bestScore = -1;
+        for (const pool of pools) {
+          const address =
+            (pool.attributes?.address || "").toLowerCase() || extractAddressFromGeckoId((pool.id || "").toLowerCase());
+          if (!isHexAddress(address) && !isHexBytes32(address)) continue;
+          const score = toNumber(pool.attributes?.volume_usd?.h24);
+          if (score > bestScore) {
+            bestAddress = address;
+            bestScore = score;
+          }
+        }
+      }
+    } catch {
+      // ignore
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
-  // Cache even empty results to avoid hammering GeckoTerminal for unknown tokens
+  // Fallback to DexScreener if Gecko gave us nothing
+  if (!bestAddress) {
+    bestAddress = (await resolveBestPoolFromDexScreener(token)) || "";
+  }
+
   resolvedPoolCache.set(token, { pool: bestAddress, ts: Date.now() });
   return bestAddress || null;
+}
+
+// ── Route handler ─────────────────────────────────────────────────────────────
+
+/**
+ * Try to get candles for a specific pool using Gecko → DexScreener fallback.
+ */
+async function fetchCandlesForPool(
+  pool: string,
+  aggregate: string,
+  limit: string,
+  currency: string,
+): Promise<OhlcvCandle[] | null> {
+  const geckoCandles = await fetchGeckoOhlcv(pool, aggregate, limit, currency);
+  if (geckoCandles && geckoCandles.length > 0) return geckoCandles;
+
+  const dexCandles = await fetchDexScreenerOhlcv(pool, aggregate, limit);
+  if (dexCandles && dexCandles.length > 0) return dexCandles;
+
+  return geckoCandles; // null or []
 }
 
 export async function GET(req: NextRequest) {
@@ -179,23 +330,26 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  let candles = await fetchPoolOhlcv(pool, aggregate, limit, currency);
-  let resolvedPool: string | null = null;
+  // ── Fetch candles (Gecko → DexScreener, then pool resolution fallback) ──
 
-  // Fallback: resolve the token's best pool and retry when pool input has no candles/error.
+  let candles = await fetchCandlesForPool(pool, aggregate, limit, currency);
+
+  // Pool resolution fallback: when pool has no candles, find the best pool
+  // for this token and retry both providers with it.
   if ((candles === null || candles.length === 0) && token && isHexAddress(token)) {
-    resolvedPool = await resolveBestPoolForToken(token);
+    const resolvedPool = await resolveBestPoolForToken(token);
     if (resolvedPool && resolvedPool !== pool) {
-      candles = await fetchPoolOhlcv(resolvedPool, aggregate, limit, currency);
-      // Also warm the cache under the resolved pool key
-      if (candles && candles.length > 0) {
+      const resolvedCandles = await fetchCandlesForPool(resolvedPool, aggregate, limit, currency);
+      if (resolvedCandles && resolvedCandles.length > 0) {
+        candles = resolvedCandles;
+        // Warm the cache under the resolved pool key too
         const resolvedKey = `${resolvedPool}-${token}-${aggregate}-${limit}-${currency}`;
         cache.set(resolvedKey, { ts: Date.now(), data: candles });
       }
     }
   }
 
-  // Provider failure: return stale cache if available; do not poison cache with empty transient response.
+  // Provider failure: return stale cache rather than an empty/error response
   if (candles === null) {
     if (cached) {
       return Response.json(cached.data, {
@@ -205,13 +359,8 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: "Upstream chart provider unavailable" }, { status: 503 });
   }
 
-  // Only cache non-empty results — empty arrays must not block retries for 5 minutes
-  if (candles.length > 0) {
-    cache.set(cacheKey, { ts: Date.now(), data: candles });
-  } else {
-    // Store empty with current timestamp so EMPTY_RETRY_TTL_MS applies on next request
-    cache.set(cacheKey, { ts: Date.now(), data: [] });
-  }
+  // Cache — empty arrays use EMPTY_RETRY_TTL so we retry sooner
+  cache.set(cacheKey, { ts: Date.now(), data: candles });
 
   return Response.json(candles, {
     headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" },
