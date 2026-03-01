@@ -165,6 +165,21 @@ contract BankrBetsTest is Test {
         _betWithAuthorization(bettor, token, amount, BankrBetsPrediction.Position.Bear);
     }
 
+    // Helpers for the transferFrom (smart-wallet) path
+    function _betBullTF(address bettor, address token, uint256 amount) internal {
+        vm.startPrank(bettor);
+        IERC20(BASE_USDC).approve(address(prediction), amount);
+        prediction.bet(token, amount, 0);
+        vm.stopPrank();
+    }
+
+    function _betBearTF(address bettor, address token, uint256 amount) internal {
+        vm.startPrank(bettor);
+        IERC20(BASE_USDC).approve(address(prediction), amount);
+        prediction.bet(token, amount, 1);
+        vm.stopPrank();
+    }
+
     // ========== Oracle Tests ==========
 
     function test_OracleSetup() public view {
@@ -1942,10 +1957,123 @@ contract BankrBetsTest is Test {
 
         prediction.startRound(token1);
 
+
         _betBull(alice, token1, 400 * ONE_USDC);
         _betBear(bob, token1, 400 * ONE_USDC);
 
         BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
         assertEq(round.totalAmount, 800 * ONE_USDC);
+    }
+
+    // ========== bet() transferFrom (Smart Wallet) Tests ==========
+
+    function test_BetBullTransferFrom() public {
+        prediction.startRound(token1);
+        _betBullTF(alice, token1, TEN_USDC);
+
+        BankrBetsPrediction.BetInfo memory bet = prediction.getUserBet(token1, 1, alice);
+        assertEq(uint8(bet.position), uint8(BankrBetsPrediction.Position.Bull));
+        assertEq(bet.amount, TEN_USDC);
+
+        BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
+        assertEq(round.totalAmount, TEN_USDC);
+        assertEq(round.bullAmount, TEN_USDC);
+        assertEq(IERC20(BASE_USDC).balanceOf(address(prediction)), TEN_USDC);
+    }
+
+    function test_BetBearTransferFrom() public {
+        prediction.startRound(token1);
+        _betBearTF(bob, token1, TEN_USDC);
+
+        BankrBetsPrediction.BetInfo memory bet = prediction.getUserBet(token1, 1, bob);
+        assertEq(uint8(bet.position), uint8(BankrBetsPrediction.Position.Bear));
+        assertEq(bet.amount, TEN_USDC);
+
+        BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
+        assertEq(round.totalAmount, TEN_USDC);
+        assertEq(round.bearAmount, TEN_USDC);
+    }
+
+    function test_BetInvalidPositionTransferFrom() public {
+        prediction.startRound(token1);
+        vm.startPrank(alice);
+        IERC20(BASE_USDC).approve(address(prediction), TEN_USDC);
+        vm.expectRevert(BankrBetsPrediction.InvalidPosition.selector);
+        prediction.bet(token1, TEN_USDC, 2);
+        vm.stopPrank();
+    }
+
+    function test_BetBelowMinTransferFrom() public {
+        prediction.startRound(token1);
+        vm.startPrank(alice);
+        IERC20(BASE_USDC).approve(address(prediction), 100);
+        vm.expectRevert(BankrBetsPrediction.BelowMinBet.selector);
+        prediction.bet(token1, 100, 0);
+        vm.stopPrank();
+    }
+
+    function test_DoubleBetTransferFrom() public {
+        prediction.startRound(token1);
+        _betBullTF(alice, token1, TEN_USDC);
+
+        vm.startPrank(alice);
+        IERC20(BASE_USDC).approve(address(prediction), TEN_USDC);
+        vm.expectRevert(BankrBetsPrediction.AlreadyBet.selector);
+        prediction.bet(token1, TEN_USDC, 0);
+        vm.stopPrank();
+    }
+
+    function test_BetTransferFromNoApprovalReverts() public {
+        prediction.startRound(token1);
+        vm.prank(alice);
+        vm.expectRevert();
+        prediction.bet(token1, TEN_USDC, 0);
+    }
+
+    function test_BetTransferFromAfterLockReverts() public {
+        prediction.startRound(token1);
+        vm.warp(block.timestamp + 241);
+        vm.startPrank(alice);
+        IERC20(BASE_USDC).approve(address(prediction), TEN_USDC);
+        vm.expectRevert(BankrBetsPrediction.RoundNotBettable.selector);
+        prediction.bet(token1, TEN_USDC, 0);
+        vm.stopPrank();
+    }
+
+    function test_BetTransferFromFirstBetStartsRound() public {
+        // No startRound — transferFrom bet should auto-start the round
+        _betBullTF(alice, token1, TEN_USDC);
+        assertEq(prediction.getCurrentEpoch(token1), 1);
+        BankrBetsPrediction.BetInfo memory bet = prediction.getUserBet(token1, 1, alice);
+        assertEq(bet.amount, TEN_USDC);
+    }
+
+    function test_MixedPathsBothContributeToSamePool() public {
+        // Alice bets via EIP-3009 (EOA), Bob via transferFrom (smart wallet)
+        prediction.startRound(token1);
+        _betBull(alice, token1, TEN_USDC);
+        _betBearTF(bob, token1, TEN_USDC);
+
+        BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
+        assertEq(round.totalAmount, 2 * TEN_USDC);
+        assertEq(round.bullAmount, TEN_USDC);
+        assertEq(round.bearAmount, TEN_USDC);
+        assertEq(IERC20(BASE_USDC).balanceOf(address(prediction)), 2 * TEN_USDC);
+    }
+
+    function test_MixedPathsWinnerClaimsCorrectly() public {
+        prediction.startRound(token1);
+        _betBull(alice, token1, TEN_USDC);
+        _betBearTF(bob, token1, TEN_USDC);
+        _lockAndClose();
+
+        // Alice is bull and wins (price went up in mock)
+        uint256 aliceBefore = IERC20(BASE_USDC).balanceOf(alice);
+        uint256[] memory epochs = new uint256[](1);
+        epochs[0] = 1;
+        vm.prank(alice);
+        prediction.claim(token1, epochs);
+        uint256 aliceAfter = IERC20(BASE_USDC).balanceOf(alice);
+        assertGt(aliceAfter, aliceBefore);
     }
 }
