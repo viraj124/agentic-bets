@@ -496,6 +496,17 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "bet",
+          inputs: [
+            { name: "_token", type: "address", internalType: "address" },
+            { name: "_amount", type: "uint256", internalType: "uint256" },
+            { name: "_position", type: "uint8", internalType: "uint8" },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
           name: "betWithAuthorization",
           inputs: [
             { name: "_token", type: "address", internalType: "address" },

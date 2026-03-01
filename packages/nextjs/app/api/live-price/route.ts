@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 
 type LivePriceSnapshot = {
   priceUsd: number;
-  source: "gecko-pool" | "dexscreener-token" | "gecko-token-pools";
+  source: "gecko-pool" | "dexscreener-token" | "gecko-token-pools" | "zerox-price";
   updatedAt: number;
   poolAddress?: string;
   tokenAddress?: string;
@@ -41,18 +41,31 @@ type DexTokenResponse = {
 type GeckoTokenPool = NonNullable<GeckoTokenPoolsResponse["data"]>[number];
 type DexTokenPair = NonNullable<DexTokenResponse["pairs"]>[number];
 
+type ZeroXPriceResponse = {
+  price?: string | number;
+  buyAmount?: string | number;
+  sellAmount?: string | number;
+  liquidityAvailable?: boolean;
+};
+
 const GECKO_BASE_URL = "https://api.geckoterminal.com/api/v2/networks/base/pools";
 const GECKO_TOKENS_URL = "https://api.geckoterminal.com/api/v2/networks/base/tokens";
 const DEXSCREENER_TOKENS_URL = "https://api.dexscreener.com/latest/dex/tokens";
+const ZEROX_BASE_URL = "https://api.0x.org";
+const ZEROX_CHAIN_ID = "8453"; // Base mainnet
+const USDC_BASE = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+const BANKR_SELL_AMOUNT_18_DECIMALS = "1000000000000000000"; // 1 token @ 18 decimals
 
 const FETCH_TIMEOUT_MS = 5000;
 const SOFT_TTL_MS = 2500;
 const DELAYED_AFTER_MS = 15000;
 const PROVIDER_COOLDOWN_MS = 45_000; // skip a provider for 45s after a 429
+const USDC_DECIMALS = 6;
+const OX_API_KEY = process.env["0X_API_KEY"] ?? "";
 
 const priceCache = new Map<string, LivePriceSnapshot>();
 const inFlight = new Map<string, Promise<LivePriceSnapshot | null>>();
-// Per-provider 429 cooldown: "gecko" | "dexscreener" → timestamp until available
+// Per-provider 429 cooldown: "gecko" | "dexscreener" | "zerox" → timestamp until available
 const rateLimitedUntil = new Map<string, number>();
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -60,6 +73,19 @@ const rateLimitedUntil = new Map<string, number>();
 function toNumber(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
+}
+
+function toPositiveBigInt(value: unknown): bigint {
+  if (typeof value === "bigint") return value > 0n ? value : 0n;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value <= 0) return 0n;
+    return BigInt(Math.floor(value));
+  }
+  if (typeof value === "string" && /^\d+$/.test(value)) {
+    const n = BigInt(value);
+    return n > 0n ? n : 0n;
+  }
+  return 0n;
 }
 
 function isHexAddress(value: string): boolean {
@@ -95,11 +121,12 @@ function extractAddressFromGeckoId(id: string): string {
 /**
  * One-shot fetch that surfaces the raw HTTP status so callers can detect 429s.
  */
-async function fetchRaw(url: string): Promise<Response | null> {
+async function fetchRaw(url: string, init?: RequestInit): Promise<Response | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     return await fetch(url, {
+      ...init,
       signal: controller.signal,
       next: { revalidate: 0 },
       cache: "no-store",
@@ -245,13 +272,74 @@ async function fetchDexScreenerPrice(tokenAddress: string, preferredPool?: strin
   };
 }
 
+/**
+ * Walletchan-style 0x price lookup (Swap API v2 allowance-holder endpoint).
+ *
+ * This route is an additional fallback only. We quote TOKEN -> USDC for 1 token
+ * using 18 decimals, which matches Bankr/Clanker token defaults.
+ */
+async function fetchZeroXPrice(tokenAddress: string): Promise<LivePriceSnapshot | null> {
+  if (!tokenAddress || !isHexAddress(tokenAddress)) return null;
+  if (!OX_API_KEY) return null;
+  if (isRateLimited("zerox")) return null;
+
+  const params = new URLSearchParams({
+    chainId: ZEROX_CHAIN_ID,
+    sellToken: tokenAddress,
+    buyToken: USDC_BASE,
+    sellAmount: BANKR_SELL_AMOUNT_18_DECIMALS,
+  });
+
+  const res = await fetchRaw(`${ZEROX_BASE_URL}/swap/allowance-holder/price?${params.toString()}`, {
+    headers: {
+      "0x-api-key": OX_API_KEY,
+      "0x-version": "v2",
+    },
+  });
+  if (!res) return null;
+  if (res.status === 429) {
+    markRateLimited("zerox");
+    return null;
+  }
+  if (!res.ok) return null;
+
+  const json = (await res.json()) as ZeroXPriceResponse;
+  if (json.liquidityAvailable === false) return null;
+
+  const directPriceUsd = toNumber(json.price);
+  if (directPriceUsd > 0) {
+    return {
+      priceUsd: directPriceUsd,
+      source: "zerox-price",
+      updatedAt: Date.now(),
+      tokenAddress,
+    };
+  }
+
+  const buyAmountRaw = toPositiveBigInt(json.buyAmount);
+  const sellAmountRaw = toPositiveBigInt(json.sellAmount || BANKR_SELL_AMOUNT_18_DECIMALS);
+  if (!(buyAmountRaw > 0n) || !(sellAmountRaw > 0n)) return null;
+
+  const normalizedSell = Number(sellAmountRaw) / 10 ** 18;
+  const normalizedBuyUsdc = Number(buyAmountRaw) / 10 ** USDC_DECIMALS;
+  const priceUsd = normalizedBuyUsdc / normalizedSell;
+  if (!(priceUsd > 0)) return null;
+
+  return {
+    priceUsd,
+    source: "zerox-price",
+    updatedAt: Date.now(),
+    tokenAddress,
+  };
+}
+
 // ── Provider cascade ──────────────────────────────────────────────────────────
 
 /**
  * Fetch the best available live price using a resilient provider cascade.
  *
- * When GeckoTerminal is healthy: Gecko Pool → DexScreener → Gecko Token Pools
- * When GeckoTerminal is rate-limited: DexScreener → Gecko Token Pools (last resort)
+ * When GeckoTerminal is healthy: Gecko Pool → DexScreener → 0x → Gecko Token Pools
+ * When GeckoTerminal is rate-limited: DexScreener → 0x (then Gecko if cooldown clears)
  *
  * Providers are called sequentially and the first successful result wins.
  */
@@ -268,6 +356,11 @@ async function fetchBestLivePrice(poolAddress: string, tokenAddress: string): Pr
   if (tokenAddress) {
     // DexScreener is always attempted — moves to first when Gecko is rate-limited
     providers.push(() => fetchDexScreenerPrice(tokenAddress, poolAddress || undefined));
+  }
+
+  if (tokenAddress) {
+    // 0x quote endpoint covers many routable pools and helps during Gecko/Dex outages.
+    providers.push(() => fetchZeroXPrice(tokenAddress));
   }
 
   if (tokenAddress) {

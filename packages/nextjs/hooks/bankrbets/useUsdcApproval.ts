@@ -53,7 +53,10 @@ export function useUsdcApproval(requiredAmount: bigint) {
   });
 
   const needsApproval = useMemo(() => {
-    if (requiredAmount <= 0n || allowance === undefined) return false;
+    if (requiredAmount <= 0n) return false;
+    // Conservative default: while allowance is loading/unknown, require approval.
+    // Prevents a transferFrom bet from skipping approve on first render.
+    if (allowance === undefined) return true;
     return allowance < requiredAmount;
   }, [allowance, requiredAmount]);
 

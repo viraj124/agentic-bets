@@ -4,9 +4,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { RoundTimer } from "./RoundTimer";
 import { ShareButton } from "./ShareButton";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { formatUnits, parseErc6492Signature, parseUnits, toHex } from "viem";
+import { erc20Abi, formatUnits, parseErc6492Signature, parseUnits, toHex } from "viem";
 import { base } from "viem/chains";
-import { useAccount, usePublicClient, useSignTypedData, useSwitchChain, useWriteContract } from "wagmi";
+import {
+  useAccount,
+  useCapabilities,
+  usePublicClient,
+  useSignTypedData,
+  useSwitchChain,
+  useWriteContract,
+} from "wagmi";
+import { useWriteContracts } from "wagmi/experimental";
 import {
   useClaimable,
   usePredictionActions,
@@ -16,7 +24,7 @@ import {
 } from "~~/hooks/bankrbets/usePredictionContract";
 import { useUsdcApproval } from "~~/hooks/bankrbets/useUsdcApproval";
 import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
-import { getWalletActionErrorMessage, notification } from "~~/utils/scaffold-eth";
+import { getWalletActionErrorMessage, isUserRejectedRequestError, notification } from "~~/utils/scaffold-eth";
 
 interface BetPanelProps {
   tokenAddress: string;
@@ -34,10 +42,20 @@ const REFUND_GRACE_PERIOD_S = 60 * 60;
 const AUTHORIZATION_WINDOW_S = 30 * 60;
 const ZERO_BYTES32 = `0x${"0".repeat(64)}` as const;
 const S_MASK_255_BITS = (1n << 255n) - 1n;
-const SMART_WALLET_NOT_SUPPORTED_MSG =
-  "Coinbase Smart Wallet is not supported. In Coinbase Wallet, tap the account switcher and select your imported/seed-phrase wallet, or use MetaMask / Rainbow instead.";
+const SMART_WALLET_SIGNATURE_ERROR = "SMART_WALLET_SIGNATURE";
 
-const predictionAuthorizationAbi = [
+const predictionBetAbi = [
+  {
+    type: "function",
+    name: "bet",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "_token", type: "address" },
+      { name: "_amount", type: "uint256" },
+      { name: "_position", type: "uint8" },
+    ],
+    outputs: [],
+  },
   {
     type: "function",
     name: "betWithAuthorization",
@@ -70,7 +88,7 @@ function parseAuthorizationSignatureParts(signature: `0x${string}`): {
   // USDC EIP-3009 receiveWithAuthorization only supports EOA ECDSA signatures.
   const erc6492 = parseErc6492Signature(signature);
   if ("address" in erc6492) {
-    throw new Error(SMART_WALLET_NOT_SUPPORTED_MSG);
+    throw new Error(SMART_WALLET_SIGNATURE_ERROR);
   }
 
   const unwrapped = erc6492.signature as `0x${string}`;
@@ -123,9 +141,19 @@ export function BetPanel({
   const { switchChainAsync, isPending: isSwitching } = useSwitchChain();
   const { openConnectModal } = useConnectModal();
   const publicClient = usePublicClient({ chainId: base.id });
+  const { data: walletCapabilities } = useCapabilities({
+    account: address,
+    chainId: base.id,
+    query: {
+      enabled: Boolean(address && chainId === base.id),
+      retry: false,
+      staleTime: 30_000,
+    },
+  });
   const { data: predictionContract } = useDeployedContractInfo("BankrBetsPrediction");
   const { signTypedDataAsync, isPending: isSigningAuthorization } = useSignTypedData();
-  const { writeContractAsync: writeAuthorizedBet, isPending: isSubmittingAuthorizedBet } = useWriteContract();
+  const { writeContractAsync, isPending: isSubmittingWriteContract } = useWriteContract();
+  const { writeContractsAsync, isPending: isSubmittingBatchedCalls } = useWriteContracts();
   const [amount, setAmount] = useState("");
   const [direction, setDirection] = useState<"bull" | "bear">("bull");
   const [submitAfterConnect, setSubmitAfterConnect] = useState(false);
@@ -150,7 +178,7 @@ export function BetPanel({
     }
   }, [amount]);
 
-  const { hasBalance, balance, usdcAddress } = useUsdcApproval(betAmountRaw);
+  const { hasBalance, balance, needsApproval, usdcAddress } = useUsdcApproval(betAmountRaw);
 
   const isWrongNetwork = address && chainId !== base.id;
   const isLocked = currentRound ? currentRound.locked : false;
@@ -176,7 +204,14 @@ export function BetPanel({
   const bullPercent = totalPool > 0 ? (bullPool / totalPool) * 100 : 50;
   const bearPercent = totalPool > 0 ? (bearPool / totalPool) * 100 : 50;
 
-  const isBetting = isSigningAuthorization || isSubmittingAuthorizedBet;
+  const isSmartWallet = useMemo(
+    () =>
+      isContractWallet || connector?.id === "baseAccount" || connector?.id === "safe" || connector?.id === "safeWallet",
+    [connector?.id, isContractWallet],
+  );
+  const atomicStatus = (walletCapabilities as any)?.atomic?.status as "supported" | "ready" | "unsupported" | undefined;
+  const supportsAtomicBatch = atomicStatus === "supported" || atomicStatus === "ready";
+  const isBetting = isSigningAuthorization || isSubmittingWriteContract || isSubmittingBatchedCalls;
   const normalizedAmount = amount.trim();
   const hasAmountInput = normalizedAmount.length > 0;
   const isAmountValid = betAmountRaw > 0n;
@@ -234,13 +269,63 @@ export function BetPanel({
     };
   }, [address, connector?.id, publicClient]);
 
-  const handleBet = useCallback(async () => {
-    if (!address || !tokenAddress || !predictionContract?.address || !usdcAddress || betAmountRaw <= 0n) {
+  const placeTransferFromBet = useCallback(async () => {
+    if (!address || !tokenAddress || !predictionContract?.address || !usdcAddress || betAmountRaw <= 0n) return;
+
+    const position = direction === "bull" ? 0 : 1;
+    const approveContract = {
+      address: usdcAddress,
+      abi: erc20Abi,
+      functionName: "approve" as const,
+      args: [predictionContract.address, betAmountRaw] as const,
+    };
+    const betContract = {
+      address: predictionContract.address,
+      abi: predictionBetAbi,
+      functionName: "bet" as const,
+      args: [tokenAddress, betAmountRaw, position] as const,
+    };
+
+    // First attempt: EIP-5792 batch for single wallet confirmation UX.
+    try {
+      await writeContractsAsync({
+        chainId: base.id,
+        contracts: needsApproval ? [approveContract, betContract] : [betContract],
+      });
+      setAmount("");
+      setDirection("bull");
       return;
+    } catch (batchError) {
+      // User explicitly rejected the wallet prompt — do not continue with fallback.
+      if (isUserRejectedRequestError(batchError)) throw batchError;
     }
 
-    if (isContractWallet) {
-      notification.error(SMART_WALLET_NOT_SUPPORTED_MSG);
+    // Fallback: wallets without sendCalls support (or batch failures).
+    if (needsApproval) {
+      const approveHash = await writeContractAsync(approveContract);
+      if (publicClient && approveHash) {
+        await publicClient.waitForTransactionReceipt({ hash: approveHash });
+      }
+    }
+
+    await writeContractAsync(betContract);
+    setAmount("");
+    setDirection("bull");
+  }, [
+    address,
+    betAmountRaw,
+    direction,
+    needsApproval,
+    predictionContract?.address,
+    publicClient,
+    tokenAddress,
+    usdcAddress,
+    writeContractAsync,
+    writeContractsAsync,
+  ]);
+
+  const handleBet = useCallback(async () => {
+    if (!address || !tokenAddress || !predictionContract?.address || !usdcAddress || betAmountRaw <= 0n) {
       return;
     }
 
@@ -257,6 +342,23 @@ export function BetPanel({
             networkName: base.name,
           }),
         );
+      }
+      return;
+    }
+
+    // Smart-wallet flow: approve + bet (batched when possible).
+    if (isSmartWallet) {
+      try {
+        await placeTransferFromBet();
+      } catch (e) {
+        notification.error(
+          getWalletActionErrorMessage(e, {
+            actionLabel: "Bet",
+            networkName: base.name,
+            fallback: "Unable to place bet",
+          }),
+        );
+        console.error("Smart-wallet bet failed:", e);
       }
       return;
     }
@@ -300,15 +402,35 @@ export function BetPanel({
 
       const { v, r, s } = parseAuthorizationSignatureParts(signature);
       const position = direction === "bull" ? 0 : 1;
-      await writeAuthorizedBet({
+      await writeContractAsync({
         address: predictionContract.address,
-        abi: predictionAuthorizationAbi,
+        abi: predictionBetAbi,
         functionName: "betWithAuthorization",
         args: [tokenAddress, betAmountRaw, position, validAfter, validBefore, nonce, v, r, s],
       });
       setAmount("");
       setDirection("bull");
     } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : "";
+      // Counterfactual AA wallets may be misdetected as EOAs by getCode() === 0x.
+      // If signature reveals AA/6492 format, immediately fall back to transferFrom path.
+      if (errorMessage === SMART_WALLET_SIGNATURE_ERROR) {
+        try {
+          await placeTransferFromBet();
+          return;
+        } catch (fallbackError) {
+          notification.error(
+            getWalletActionErrorMessage(fallbackError, {
+              actionLabel: "Bet",
+              networkName: base.name,
+              fallback: "Unable to place bet",
+            }),
+          );
+          console.error("Smart-wallet fallback bet failed:", fallbackError);
+          return;
+        }
+      }
+
       notification.error(
         getWalletActionErrorMessage(e, {
           actionLabel: "Bet",
@@ -323,13 +445,14 @@ export function BetPanel({
     betAmountRaw,
     chainId,
     direction,
-    isContractWallet,
+    isSmartWallet,
+    placeTransferFromBet,
     switchChainAsync,
     predictionContract?.address,
     signTypedDataAsync,
     tokenAddress,
     usdcAddress,
-    writeAuthorizedBet,
+    writeContractAsync,
   ]);
 
   const handleClaim = useCallback(async () => {
@@ -386,11 +509,6 @@ export function BetPanel({
   useEffect(() => {
     if (!submitAfterConnect || !address) return;
     if (isWrongNetwork || isSwitching || isBetting || isCheckingWalletType) return;
-    if (isContractWallet) {
-      setSubmitAfterConnect(false);
-      notification.error(SMART_WALLET_NOT_SUPPORTED_MSG);
-      return;
-    }
     if (!isAmountValid || isBelowMinimum || isBalanceInsufficient) return;
 
     setSubmitAfterConnect(false);
@@ -403,7 +521,6 @@ export function BetPanel({
     isBelowMinimum,
     isBetting,
     isCheckingWalletType,
-    isContractWallet,
     isSwitching,
     isWrongNetwork,
     submitAfterConnect,
@@ -436,16 +553,6 @@ export function BetPanel({
         label: "Checking wallet...",
         disabled: true,
         tone: "neutral" as ActionTone,
-        loading: false,
-      };
-    }
-
-    if (isContractWallet) {
-      return {
-        label: "Smart Wallet not supported — connect differently",
-        onClick: handleConnectAndSubmit,
-        disabled: !openConnectModal,
-        tone: "amber" as ActionTone,
         loading: false,
       };
     }
@@ -487,6 +594,21 @@ export function BetPanel({
     }
 
     if (isBetting) {
+      if (isSmartWallet) {
+        return {
+          label: isSubmittingBatchedCalls
+            ? needsApproval
+              ? "Confirm approve + bet..."
+              : "Confirm bet..."
+            : isSubmittingWriteContract
+              ? "Confirm transaction..."
+              : "Placing bet...",
+          disabled: true,
+          tone: direction === "bull" ? ("mint" as ActionTone) : ("pink" as ActionTone),
+          loading: true,
+        };
+      }
+
       return {
         label: isSigningAuthorization ? "Sign USDC authorization..." : "Placing bet...",
         disabled: true,
@@ -496,7 +618,7 @@ export function BetPanel({
     }
 
     return {
-      label: `Bet ${direction === "bull" ? "↑ UP" : "↓ DOWN"}${hasAmountInput ? ` · $${normalizedAmount}` : ""}`,
+      label: `${isSmartWallet && needsApproval ? (supportsAtomicBatch ? "Approve + " : "Approve then ") : ""}Bet ${direction === "bull" ? "↑ UP" : "↓ DOWN"}${hasAmountInput ? ` · $${normalizedAmount}` : ""}`,
       onClick: handleBet,
       disabled: false,
       tone: direction === "bull" ? ("mint" as ActionTone) : ("pink" as ActionTone),
@@ -513,8 +635,12 @@ export function BetPanel({
     isBelowMinimum,
     isBetting,
     isCheckingWalletType,
-    isContractWallet,
+    isSmartWallet,
+    supportsAtomicBatch,
     isSigningAuthorization,
+    isSubmittingBatchedCalls,
+    isSubmittingWriteContract,
+    needsApproval,
     isSwitching,
     isWrongNetwork,
     normalizedAmount,

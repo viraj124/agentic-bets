@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 export interface LivePriceData {
   priceUsd: number;
-  source: "gecko-pool" | "dexscreener-token" | "gecko-token-pools";
+  source: "gecko-pool" | "dexscreener-token" | "gecko-token-pools" | "zerox-price";
   updatedAt: number;
   ageMs: number;
   isStale: boolean;
