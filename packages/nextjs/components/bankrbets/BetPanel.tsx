@@ -4,9 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { RoundTimer } from "./RoundTimer";
 import { ShareButton } from "./ShareButton";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { formatUnits, parseSignature, parseUnits, toHex } from "viem";
+import { formatUnits, parseErc6492Signature, parseUnits, toHex } from "viem";
 import { base } from "viem/chains";
-import { useAccount, useSignTypedData, useSwitchChain, useWriteContract } from "wagmi";
+import { useAccount, usePublicClient, useSignTypedData, useSwitchChain, useWriteContract } from "wagmi";
 import {
   useClaimable,
   usePredictionActions,
@@ -32,6 +32,10 @@ const USDC_DECIMALS = 6;
 const MIN_BET_AMOUNT_RAW = 1_000_000n; // 1 USDC with 6 decimals
 const REFUND_GRACE_PERIOD_S = 60 * 60;
 const AUTHORIZATION_WINDOW_S = 30 * 60;
+const ZERO_BYTES32 = `0x${"0".repeat(64)}` as const;
+const S_MASK_255_BITS = (1n << 255n) - 1n;
+const SMART_WALLET_NOT_SUPPORTED_MSG =
+  "This wallet is a smart account. Switch to an EOA wallet (MetaMask/Rainbow/Ledger) to place bets.";
 
 const predictionAuthorizationAbi = [
   {
@@ -53,6 +57,59 @@ const predictionAuthorizationAbi = [
   },
 ] as const;
 
+function parseAuthorizationSignatureParts(signature: `0x${string}`): {
+  v: number;
+  r: `0x${string}`;
+  s: `0x${string}`;
+} {
+  if (!signature || signature === "0x") {
+    throw new Error("Wallet returned an empty signature. Please retry.");
+  }
+
+  // ERC-6492 wrapper indicates an AA/smart-account style signature.
+  // USDC EIP-3009 receiveWithAuthorization only supports EOA ECDSA signatures.
+  const erc6492 = parseErc6492Signature(signature);
+  if ("address" in erc6492) {
+    throw new Error(SMART_WALLET_NOT_SUPPORTED_MSG);
+  }
+
+  const unwrapped = erc6492.signature as `0x${string}`;
+  const hex = unwrapped.slice(2);
+
+  // Standard 65-byte signature: r(32) + s(32) + v(1)
+  if (hex.length === 130) {
+    const r = `0x${hex.slice(0, 64)}` as `0x${string}`;
+    const s = `0x${hex.slice(64, 128)}` as `0x${string}`;
+    const vRaw = Number.parseInt(hex.slice(128, 130), 16);
+    const v = vRaw === 0 || vRaw === 1 ? vRaw + 27 : vRaw;
+
+    if (r === ZERO_BYTES32 || s === ZERO_BYTES32 || (v !== 27 && v !== 28)) {
+      throw new Error("Wallet returned an invalid signature. Please retry.");
+    }
+
+    return { v, r, s };
+  }
+
+  // Compact 64-byte signature (EIP-2098): r(32) + yParityAndS(32)
+  if (hex.length === 128) {
+    const r = `0x${hex.slice(0, 64)}` as `0x${string}`;
+    const yParityAndS = BigInt(`0x${hex.slice(64, 128)}`);
+    const yParity = Number((yParityAndS >> 255n) & 1n);
+    const sValue = yParityAndS & S_MASK_255_BITS;
+    const s = toHex(sValue, { size: 32 }) as `0x${string}`;
+    const v = yParity === 0 ? 27 : 28;
+
+    if (r === ZERO_BYTES32 || s === ZERO_BYTES32) {
+      throw new Error("Wallet returned an invalid signature. Please retry.");
+    }
+
+    return { v, r, s };
+  }
+
+  // EIP-3009 authorization requires a raw ECDSA signature (EOA).
+  throw new Error("Unsupported signature format. Use an EOA wallet to place bets.");
+}
+
 export function BetPanel({
   tokenAddress,
   tokenSymbol,
@@ -62,15 +119,18 @@ export function BetPanel({
   round,
   isActive,
 }: BetPanelProps) {
-  const { address, chainId } = useAccount();
+  const { address, chainId, connector } = useAccount();
   const { switchChainAsync, isPending: isSwitching } = useSwitchChain();
   const { openConnectModal } = useConnectModal();
+  const publicClient = usePublicClient({ chainId: base.id });
   const { data: predictionContract } = useDeployedContractInfo("BankrBetsPrediction");
   const { signTypedDataAsync, isPending: isSigningAuthorization } = useSignTypedData();
   const { writeContractAsync: writeAuthorizedBet, isPending: isSubmittingAuthorizedBet } = useWriteContract();
   const [amount, setAmount] = useState("");
   const [direction, setDirection] = useState<"bull" | "bear">("bull");
   const [submitAfterConnect, setSubmitAfterConnect] = useState(false);
+  const [isContractWallet, setIsContractWallet] = useState(false);
+  const [isCheckingWalletType, setIsCheckingWalletType] = useState(false);
 
   const currentEpoch = epoch;
   const currentRound = round;
@@ -128,8 +188,59 @@ export function BetPanel({
     return formatted.includes(".") ? formatted.replace(/\.?0+$/, "") : formatted;
   }, [balance]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkWalletType = async () => {
+      if (!address || !publicClient) {
+        if (!cancelled) {
+          setIsContractWallet(false);
+          setIsCheckingWalletType(false);
+        }
+        return;
+      }
+
+      // baseAccount is Coinbase Smart Wallet — it always signs with a passkey (P256/WebAuthn),
+      // which is incompatible with EIP-3009 receiveWithAuthorization. Skip the on-chain
+      // code check and immediately mark it as a contract wallet.
+      if (connector?.id === "baseAccount") {
+        if (!cancelled) {
+          setIsContractWallet(true);
+          setIsCheckingWalletType(false);
+        }
+        return;
+      }
+
+      setIsCheckingWalletType(true);
+      try {
+        const code = await publicClient.getCode({ address });
+        if (cancelled) return;
+        setIsContractWallet(Boolean(code && code !== "0x"));
+      } catch {
+        if (!cancelled) {
+          // If lookup fails, do not block user flow.
+          setIsContractWallet(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsCheckingWalletType(false);
+        }
+      }
+    };
+
+    void checkWalletType();
+    return () => {
+      cancelled = true;
+    };
+  }, [address, connector?.id, publicClient]);
+
   const handleBet = useCallback(async () => {
     if (!address || !tokenAddress || !predictionContract?.address || !usdcAddress || betAmountRaw <= 0n) {
+      return;
+    }
+
+    if (isContractWallet) {
+      notification.error(SMART_WALLET_NOT_SUPPORTED_MSG);
       return;
     }
 
@@ -187,17 +298,13 @@ export function BetPanel({
         },
       });
 
-      const { v, r, s } = parseSignature(signature);
-      if (v === undefined || !r || !s) {
-        throw new Error("Invalid USDC authorization signature");
-      }
-      const vAsNumber = Number(v);
+      const { v, r, s } = parseAuthorizationSignatureParts(signature);
       const position = direction === "bull" ? 0 : 1;
       await writeAuthorizedBet({
         address: predictionContract.address,
         abi: predictionAuthorizationAbi,
         functionName: "betWithAuthorization",
-        args: [tokenAddress, betAmountRaw, position, validAfter, validBefore, nonce, vAsNumber, r, s],
+        args: [tokenAddress, betAmountRaw, position, validAfter, validBefore, nonce, v, r, s],
       });
       setAmount("");
       setDirection("bull");
@@ -216,6 +323,7 @@ export function BetPanel({
     betAmountRaw,
     chainId,
     direction,
+    isContractWallet,
     switchChainAsync,
     predictionContract?.address,
     signTypedDataAsync,
@@ -277,7 +385,12 @@ export function BetPanel({
 
   useEffect(() => {
     if (!submitAfterConnect || !address) return;
-    if (isWrongNetwork || isSwitching || isBetting) return;
+    if (isWrongNetwork || isSwitching || isBetting || isCheckingWalletType) return;
+    if (isContractWallet) {
+      setSubmitAfterConnect(false);
+      notification.error(SMART_WALLET_NOT_SUPPORTED_MSG);
+      return;
+    }
     if (!isAmountValid || isBelowMinimum || isBalanceInsufficient) return;
 
     setSubmitAfterConnect(false);
@@ -289,6 +402,8 @@ export function BetPanel({
     isBalanceInsufficient,
     isBelowMinimum,
     isBetting,
+    isCheckingWalletType,
+    isContractWallet,
     isSwitching,
     isWrongNetwork,
     submitAfterConnect,
@@ -313,6 +428,25 @@ export function BetPanel({
         disabled: isSwitching,
         tone: "amber" as ActionTone,
         loading: isSwitching,
+      };
+    }
+
+    if (isCheckingWalletType) {
+      return {
+        label: "Checking wallet...",
+        disabled: true,
+        tone: "neutral" as ActionTone,
+        loading: false,
+      };
+    }
+
+    if (isContractWallet) {
+      return {
+        label: "Switch to EOA wallet",
+        onClick: handleConnectAndSubmit,
+        disabled: !openConnectModal,
+        tone: "amber" as ActionTone,
+        loading: false,
       };
     }
 
@@ -378,6 +512,8 @@ export function BetPanel({
     isBalanceInsufficient,
     isBelowMinimum,
     isBetting,
+    isCheckingWalletType,
+    isContractWallet,
     isSigningAuthorization,
     isSwitching,
     isWrongNetwork,

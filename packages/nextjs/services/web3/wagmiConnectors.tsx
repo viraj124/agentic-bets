@@ -14,6 +14,11 @@ import scaffoldConfig from "~~/scaffold.config";
 
 const { onlyLocalBurnerWallet, targetNetworks } = scaffoldConfig;
 
+// EIP-3009 receiveWithAuthorization requires a standard secp256k1 ECDSA signature.
+// Coinbase Smart Wallet signs with passkeys (P256/WebAuthn) which are incompatible.
+// Force EOA mode so Coinbase Wallet users always sign with their regular private key.
+coinbaseWallet.preference = "eoaOnly";
+
 const wallets = [
   metaMaskWallet,
   walletConnectWallet,
