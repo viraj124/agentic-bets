@@ -1,15 +1,44 @@
 "use client";
 
+import { useMemo } from "react";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import type { NextPage } from "next";
 import { useAccount } from "wagmi";
 import { IdentityBadge } from "~~/components/bankrbets/IdentityBadge";
-import { useLeaderboard } from "~~/hooks/bankrbets/useLeaderboard";
 import { useResolvedAddresses } from "~~/hooks/bankrbets/useResolvedAddresses";
 import { useScaffoldReadContract } from "~~/hooks/scaffold-eth";
 
+interface UserStats {
+  address: string;
+  totalBets: number;
+  totalWagered: number;
+  totalWon: number;
+  netPnL: number;
+  wins: number;
+  winRate: number;
+}
+
+function useUserStats(address: string | undefined) {
+  return useQuery<UserStats | null>({
+    queryKey: ["user-stats", address?.toLowerCase()],
+    queryFn: async () => {
+      if (!address) return null;
+      const res = await fetch(`/api/user-stats?address=${address}`);
+      if (!res.ok) return null;
+      const json = await res.json();
+      return (json.stats as UserStats) ?? null;
+    },
+    enabled: !!address,
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
 const ProfilePage: NextPage = () => {
   const { address } = useAccount();
-  const { leaderboard, isLoading: isStatsLoading } = useLeaderboard({ address, watch: false });
+  const { data: userStats, isLoading: isStatsLoading } = useUserStats(address);
   const { data: resolvedMap } = useResolvedAddresses(address ? [address] : []);
 
   const { data: creatorEarnings, isLoading: isEarningsLoading } = useScaffoldReadContract({
@@ -24,6 +53,37 @@ const ProfilePage: NextPage = () => {
       refetchOnWindowFocus: false,
     },
   });
+
+  const earnings = creatorEarnings ? Number(creatorEarnings) / 1e6 : 0;
+  const isLoading = isStatsLoading || isEarningsLoading;
+  const hasBets = !!(userStats && userStats.totalBets > 0);
+
+  const statCards = useMemo(
+    () => [
+      { label: "Total bets", value: isLoading ? "…" : hasBets ? String(userStats!.totalBets) : "--", color: "" },
+      { label: "Wins", value: isLoading ? "…" : hasBets ? String(userStats!.wins) : "--", color: "" },
+      {
+        label: "Win rate",
+        value: isLoading ? "…" : hasBets ? `${userStats!.winRate.toFixed(0)}%` : "--",
+        color: "",
+      },
+      {
+        label: "Net P&L",
+        value: isLoading
+          ? "…"
+          : hasBets
+            ? `${userStats!.netPnL >= 0 ? "+" : ""}$${userStats!.netPnL.toFixed(2)}`
+            : "--",
+        color: hasBets ? (userStats!.netPnL >= 0 ? "text-pg-mint" : "text-pg-pink") : "",
+      },
+      {
+        label: "Creator earnings",
+        value: isLoading ? "…" : earnings > 0 ? `$${earnings.toFixed(2)}` : "--",
+        color: "text-pg-violet",
+      },
+    ],
+    [isLoading, hasBets, userStats, earnings],
+  );
 
   if (!address) {
     return (
@@ -50,26 +110,6 @@ const ProfilePage: NextPage = () => {
       </div>
     );
   }
-
-  const userStats = leaderboard.find(entry => entry.address.toLowerCase() === address.toLowerCase());
-  const earnings = creatorEarnings ? Number(creatorEarnings) / 1e6 : 0;
-  const isLoading = isStatsLoading || isEarningsLoading;
-
-  const statCards = [
-    { label: "Total bets", value: isLoading ? "…" : (userStats?.totalBets ?? "--"), color: "" },
-    { label: "Wins", value: isLoading ? "…" : (userStats?.wins ?? "--"), color: "" },
-    { label: "Win rate", value: isLoading ? "…" : userStats ? `${userStats.winRate.toFixed(0)}%` : "--", color: "" },
-    {
-      label: "Net P&L",
-      value: isLoading ? "…" : userStats ? `${userStats.netPnL >= 0 ? "+" : ""}$${userStats.netPnL.toFixed(2)}` : "--",
-      color: userStats ? (userStats.netPnL >= 0 ? "text-pg-mint" : "text-pg-pink") : "",
-    },
-    {
-      label: "Creator earnings",
-      value: isLoading ? "…" : earnings > 0 ? `$${earnings.toFixed(2)}` : "--",
-      color: "text-pg-violet",
-    },
-  ];
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
@@ -124,7 +164,7 @@ const ProfilePage: NextPage = () => {
           <div className="py-16 text-center">
             <span className="loading loading-spinner loading-md text-pg-violet" />
           </div>
-        ) : userStats ? (
+        ) : hasBets ? (
           <div className="p-5 space-y-3">
             <div className="flex justify-between items-center text-sm">
               <span className="text-pg-muted">Total wagered</span>
@@ -151,6 +191,9 @@ const ProfilePage: NextPage = () => {
           <div className="py-16 text-center">
             <p className="text-sm text-pg-muted font-medium">No bets placed yet</p>
             <p className="text-xs text-pg-muted/60 mt-1">Your history will appear here after placing bets</p>
+            <Link href="/" className="inline-block mt-4 btn-outline-geo text-xs px-5 py-2">
+              Browse markets
+            </Link>
           </div>
         )}
       </div>

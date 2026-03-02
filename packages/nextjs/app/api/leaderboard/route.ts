@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
 import { type AbiEvent, createPublicClient, http, parseAbiItem } from "viem";
 import { base } from "viem/chains";
+import deployedContracts from "~~/contracts/deployedContracts";
 
 export const maxDuration = 60;
 
 // ── Config ────────────────────────────────────────────────────────────
 
-const CONTRACT_ADDRESS = "0x3469E0EAc359E3F7e05E909861b6eDc3Be3bda65" as const;
-const DEPLOY_BLOCK = 42_652_499n;
+const TARGET_CHAIN_ID = base.id;
+const CONTRACT_ADDRESS = deployedContracts[TARGET_CHAIN_ID]?.BankrBetsPrediction?.address as `0x${string}` | undefined;
+const DEPLOY_BLOCK = BigInt(process.env.BANKRBETS_PREDICTION_DEPLOY_BLOCK || "42823800");
 const CACHE_TTL_MS = 2 * 60_000; // 2 minutes
-const BLOCK_CHUNK = 50_000n; // Alchemy getLogs limit per request
+const BLOCK_CHUNK = 50_000n;
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -52,45 +54,50 @@ const CLAIM_ABI = parseAbiItem(
 // ── Helpers ───────────────────────────────────────────────────────────
 
 function makeClient() {
-  const alchemyKey = process.env.ALCHEMY_API_KEY;
-  const rpcUrl = alchemyKey ? `https://base-mainnet.g.alchemy.com/v2/${alchemyKey}` : "https://mainnet.base.org";
-
+  // Alchemy Free tier restricts eth_getLogs to a 10-block range, which breaks
+  // all event scanning. Use LOGS_RPC_URL (defaults to the public Base RPC) for
+  // any endpoint that fetches logs. Upgrade to Alchemy PAYG or set LOGS_RPC_URL
+  // to a provider with no range restrictions for higher throughput.
+  const rpcUrl = process.env.LOGS_RPC_URL || "https://base-rpc.publicnode.com";
   return createPublicClient({ chain: base, transport: http(rpcUrl) });
 }
 
 async function fetchAllLogs(
   client: ReturnType<typeof makeClient>,
+  contractAddress: `0x${string}`,
   eventAbi: AbiEvent,
   fromBlock: bigint,
   toBlock: bigint,
 ): Promise<Array<{ args: Record<string, unknown> }>> {
-  const all: Array<{ args: Record<string, unknown> }> = [];
-
+  // Build chunk list then fetch all chunks in parallel for maximum speed
+  const chunks: Array<{ from: bigint; to: bigint }> = [];
   for (let from = fromBlock; from <= toBlock; from += BLOCK_CHUNK) {
     const to = from + BLOCK_CHUNK - 1n < toBlock ? from + BLOCK_CHUNK - 1n : toBlock;
-    const logs = await client.getLogs({
-      address: CONTRACT_ADDRESS,
-      event: eventAbi,
-      fromBlock: from,
-      toBlock: to,
-    });
-    all.push(...(logs as Array<{ args: Record<string, unknown> }>));
+    chunks.push({ from, to });
   }
 
-  return all;
+  const results = await Promise.all(
+    chunks.map(({ from, to }) =>
+      client.getLogs({ address: contractAddress, event: eventAbi, fromBlock: from, toBlock: to }),
+    ),
+  );
+
+  return results.flat() as Array<{ args: Record<string, unknown> }>;
 }
 
 // ── Leaderboard computation ───────────────────────────────────────────
 
 async function buildLeaderboard(): Promise<LeaderboardEntry[]> {
+  if (!CONTRACT_ADDRESS) return [];
+
   const client = makeClient();
   const toBlock = await client.getBlockNumber();
   const fromBlock = DEPLOY_BLOCK;
 
   const [bullLogs, bearLogs, claimLogs] = await Promise.all([
-    fetchAllLogs(client, BET_BULL_ABI, fromBlock, toBlock),
-    fetchAllLogs(client, BET_BEAR_ABI, fromBlock, toBlock),
-    fetchAllLogs(client, CLAIM_ABI, fromBlock, toBlock),
+    fetchAllLogs(client, CONTRACT_ADDRESS, BET_BULL_ABI, fromBlock, toBlock),
+    fetchAllLogs(client, CONTRACT_ADDRESS, BET_BEAR_ABI, fromBlock, toBlock),
+    fetchAllLogs(client, CONTRACT_ADDRESS, CLAIM_ABI, fromBlock, toBlock),
   ]);
 
   const statsMap = new Map<string, { bets: number; wagered: number; won: number; wins: number }>();
