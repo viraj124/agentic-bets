@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   8453: {
     BankrBetsOracle: {
-      address: "0x7720E87acFEb0c7Fe3554cF18C5Ef47A8e12eaA4",
+      address: "0x5bd625AaEaFA824031B57Cd7CA905D389ddF9257",
       abi: [
         {
           type: "constructor",
@@ -449,7 +449,7 @@ const deployedContracts = {
       ] as const,
     },
     BankrBetsPrediction: {
-      address: "0x01fD7d89C9415B1b52980A8FF44F0c3f1F3A74F6",
+      address: "0x1B342ec6fd99CFA929F4C020007D8b22eDE4c162",
       abi: [
         {
           type: "constructor",

@@ -247,55 +247,92 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
           </div>
 
           {/* Round pool stats */}
-          {isActive && round && (
-            <div className="bg-base-100 rounded-2xl border-2 border-pg-border p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span
-                  className="text-[10px] text-pg-muted uppercase tracking-wider font-bold"
-                  style={{ fontFamily: "var(--font-heading)" }}
-                >
-                  Round #{epoch?.toString()} Pool
-                </span>
-                <span className="text-xs font-bold text-base-content font-mono">
-                  ${(Number(round.totalAmount) / 1e6).toFixed(2)} total
-                </span>
-              </div>
-              <div className="flex gap-3">
-                <div className="flex-1 bg-pg-mint/10 border border-pg-mint/20 rounded-xl px-3 py-2.5">
-                  <p className="text-[10px] text-pg-mint font-bold uppercase tracking-wider mb-1">↑ UP</p>
-                  <p className="text-sm font-extrabold text-base-content font-mono">
-                    ${(Number(round.bullAmount) / 1e6).toFixed(2)}
-                  </p>
-                  <p className="text-[10px] text-pg-muted mt-0.5">
-                    {round.totalAmount > 0n
-                      ? ((Number(round.bullAmount) / Number(round.totalAmount)) * 100).toFixed(0)
-                      : 50}
-                    %
-                  </p>
+          {isActive &&
+            round &&
+            (() => {
+              const isSettled = round.oracleCalled;
+              const isCancelled = round.cancelled;
+              const upWon = isSettled && !isCancelled && round.closePrice > round.lockPrice;
+              const downWon = isSettled && !isCancelled && round.closePrice < round.lockPrice;
+              const closePriceNum = Number(round.closePrice) / 1e18;
+              const lockPriceNum = Number(round.lockPrice) / 1e18;
+
+              return (
+                <div className="bg-base-100 rounded-2xl border-2 border-pg-border p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span
+                      className="text-[10px] text-pg-muted uppercase tracking-wider font-bold"
+                      style={{ fontFamily: "var(--font-heading)" }}
+                    >
+                      Round #{epoch?.toString()} Pool
+                    </span>
+                    <span className="text-xs font-bold text-base-content font-mono">
+                      ${(Number(round.totalAmount) / 1e6).toFixed(2)} total
+                    </span>
+                  </div>
+
+                  {/* Winner banner */}
+                  {isSettled && !isCancelled && (upWon || downWon) && (
+                    <div
+                      className={`mb-3 rounded-xl px-3 py-2 flex items-center justify-between ${upWon ? "bg-pg-mint/15 border border-pg-mint/30" : "bg-pg-pink/15 border border-pg-pink/30"}`}
+                    >
+                      <span className={`text-xs font-extrabold ${upWon ? "text-pg-mint" : "text-pg-pink"}`}>
+                        {upWon ? "↑ UP WON" : "↓ DOWN WON"}
+                      </span>
+                      {lockPriceNum > 0 && closePriceNum > 0 && (
+                        <span className="text-[10px] text-pg-muted font-mono">
+                          ${lockPriceNum.toFixed(5)} → ${closePriceNum.toFixed(5)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {isSettled && isCancelled && (
+                    <div className="mb-3 rounded-xl px-3 py-2 bg-pg-amber/10 border border-pg-amber/30">
+                      <span className="text-xs font-extrabold text-pg-amber">Round Cancelled — Refunds Available</span>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <div
+                      className={`flex-1 rounded-xl px-3 py-2.5 transition-all ${upWon ? "bg-pg-mint/20 border-2 border-pg-mint/60" : "bg-pg-mint/10 border border-pg-mint/20"}`}
+                    >
+                      <p className="text-[10px] text-pg-mint font-bold uppercase tracking-wider mb-1">↑ UP</p>
+                      <p className="text-sm font-extrabold text-base-content font-mono">
+                        ${(Number(round.bullAmount) / 1e6).toFixed(2)}
+                      </p>
+                      <p className="text-[10px] text-pg-muted mt-0.5">
+                        {round.totalAmount > 0n
+                          ? ((Number(round.bullAmount) / Number(round.totalAmount)) * 100).toFixed(0)
+                          : 50}
+                        %
+                      </p>
+                    </div>
+                    <div
+                      className={`flex-1 rounded-xl px-3 py-2.5 transition-all ${downWon ? "bg-pg-pink/20 border-2 border-pg-pink/60" : "bg-pg-pink/10 border border-pg-pink/20"}`}
+                    >
+                      <p className="text-[10px] text-pg-pink font-bold uppercase tracking-wider mb-1">↓ DOWN</p>
+                      <p className="text-sm font-extrabold text-base-content font-mono">
+                        ${(Number(round.bearAmount) / 1e6).toFixed(2)}
+                      </p>
+                      <p className="text-[10px] text-pg-muted mt-0.5">
+                        {round.totalAmount > 0n
+                          ? ((Number(round.bearAmount) / Number(round.totalAmount)) * 100).toFixed(0)
+                          : 50}
+                        %
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 w-full h-1.5 bg-pg-pink/20 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-pg-mint rounded-full transition-all duration-500"
+                      style={{
+                        width: `${round.totalAmount > 0n ? (Number(round.bullAmount) / Number(round.totalAmount)) * 100 : 50}%`,
+                      }}
+                    />
+                  </div>
                 </div>
-                <div className="flex-1 bg-pg-pink/10 border border-pg-pink/20 rounded-xl px-3 py-2.5">
-                  <p className="text-[10px] text-pg-pink font-bold uppercase tracking-wider mb-1">↓ DOWN</p>
-                  <p className="text-sm font-extrabold text-base-content font-mono">
-                    ${(Number(round.bearAmount) / 1e6).toFixed(2)}
-                  </p>
-                  <p className="text-[10px] text-pg-muted mt-0.5">
-                    {round.totalAmount > 0n
-                      ? ((Number(round.bearAmount) / Number(round.totalAmount)) * 100).toFixed(0)
-                      : 50}
-                    %
-                  </p>
-                </div>
-              </div>
-              <div className="mt-3 w-full h-1.5 bg-pg-pink/20 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-pg-mint rounded-full transition-all duration-500"
-                  style={{
-                    width: `${round.totalAmount > 0n ? (Number(round.bullAmount) / Number(round.totalAmount)) * 100 : 50}%`,
-                  }}
-                />
-              </div>
-            </div>
-          )}
+              );
+            })()}
         </div>
 
         {/* Right column: Bet panel + Market info */}
@@ -338,39 +375,89 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
                     2.1%
                   </span>
                 </div>
-                <div className="pt-2 mt-2 border-t-2 border-pg-border/50 flex justify-between text-[11px] text-pg-muted/70">
-                  <span>Breakdown</span>
-                  <span>1.5% treasury + 0.5% creator + 0.1% settler</span>
+                <div className="pt-2.5 mt-0.5 border-t-2 border-pg-border/50">
+                  <p className="text-[10px] text-pg-muted/60 uppercase tracking-wider font-bold mb-2">Fee breakdown</p>
+                  <div className="flex gap-1.5">
+                    <div className="flex-1 rounded-lg bg-pg-violet/8 border border-pg-violet/20 px-2 py-1.5 text-center">
+                      <p className="text-[11px] font-extrabold text-pg-violet">1.5%</p>
+                      <p className="text-[9px] text-pg-muted/60 mt-0.5 uppercase tracking-wide">Treasury</p>
+                    </div>
+                    <div className="flex-1 rounded-lg bg-pg-mint/8 border border-pg-mint/20 px-2 py-1.5 text-center">
+                      <p className="text-[11px] font-extrabold text-pg-mint">0.5%</p>
+                      <p className="text-[9px] text-pg-muted/60 mt-0.5 uppercase tracking-wide">Creator</p>
+                    </div>
+                    <div className="flex-1 rounded-lg bg-pg-amber/8 border border-pg-amber/20 px-2 py-1.5 text-center">
+                      <p className="text-[11px] font-extrabold text-pg-amber">0.1%</p>
+                      <p className="text-[9px] text-pg-muted/60 mt-0.5 uppercase tracking-wide">Settler</p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
           {/* Creator earnings */}
-          {hasCreator && (
-            <div className="bg-base-100 rounded-2xl border-2 border-pg-border p-4">
-              <h4
-                className="text-[10px] text-pg-muted uppercase tracking-wider font-bold mb-3"
-                style={{ fontFamily: "var(--font-heading)" }}
-              >
-                {isCreator ? "Your creator earnings" : "Creator earnings"}
-              </h4>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xl font-extrabold text-pg-mint font-mono">${earningsFormatted}</p>
-                  <p className="text-[10px] text-pg-muted/60 mt-0.5">0.5% of every settled round pool</p>
+          {hasCreator &&
+            (() => {
+              const pendingFee =
+                round && isLocked && !round.oracleCalled && round.totalAmount > 0n
+                  ? Number((round.totalAmount * 50n) / 10000n) / 1e6
+                  : null;
+
+              return (
+                <div className="bg-base-100 rounded-2xl border-2 border-pg-border p-4">
+                  <h4
+                    className="text-[10px] text-pg-muted uppercase tracking-wider font-bold mb-3"
+                    style={{ fontFamily: "var(--font-heading)" }}
+                  >
+                    {isCreator ? "Your creator earnings" : "Creator earnings"}
+                  </h4>
+
+                  {pendingFee !== null ? (
+                    /* Locked round — show pending payout prominently */
+                    <div className="space-y-3">
+                      <div className="rounded-xl bg-pg-mint/10 border border-pg-mint/25 px-3 py-2.5 flex items-center justify-between">
+                        <div>
+                          <p className="text-[10px] text-pg-mint font-bold uppercase tracking-wider mb-0.5">
+                            Pending this round
+                          </p>
+                          <p className="text-xl font-extrabold text-pg-mint font-mono">
+                            ${pendingFee.toFixed(pendingFee < 0.01 ? 4 : 2)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] text-pg-muted/60">0.5% of</p>
+                          <p className="text-xs font-bold text-base-content font-mono">
+                            ${(Number(round!.totalAmount) / 1e6).toFixed(2)} pool
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-pg-muted/60">Lifetime total</span>
+                        <span className="font-bold text-base-content font-mono">${earningsFormatted}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    /* No locked round — show lifetime total */
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xl font-extrabold text-pg-mint font-mono">${earningsFormatted}</p>
+                        <p className="text-[10px] text-pg-muted/60 mt-0.5">Lifetime total · auto-paid at settlement</p>
+                      </div>
+                      <div className="w-10 h-10 rounded-xl bg-pg-mint/10 border-2 border-pg-mint/20 flex items-center justify-center flex-shrink-0">
+                        <span className="text-pg-mint font-extrabold text-sm">$</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {!isCreator && creator && (
+                    <p className="text-[10px] text-pg-muted/50 font-mono mt-2">
+                      {creator.slice(0, 8)}...{creator.slice(-6)}
+                    </p>
+                  )}
                 </div>
-                <div className="w-10 h-10 rounded-xl bg-pg-mint/10 border-2 border-pg-mint/20 flex items-center justify-center flex-shrink-0">
-                  <span className="text-pg-mint font-extrabold text-sm">$</span>
-                </div>
-              </div>
-              {!isCreator && creator && (
-                <p className="text-[10px] text-pg-muted/50 font-mono mt-2">
-                  {creator.slice(0, 8)}...{creator.slice(-6)}
-                </p>
-              )}
-            </div>
-          )}
+              );
+            })()}
         </div>
       </div>
     </div>

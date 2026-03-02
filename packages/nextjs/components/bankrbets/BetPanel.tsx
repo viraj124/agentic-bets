@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { RoundTimer } from "./RoundTimer";
 import { ShareButton } from "./ShareButton";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useQueryClient } from "@tanstack/react-query";
 import { erc20Abi, formatUnits, parseErc6492Signature, parseUnits, toHex } from "viem";
 import { base } from "viem/chains";
 import {
@@ -137,6 +138,7 @@ export function BetPanel({
   round,
   isActive,
 }: BetPanelProps) {
+  const queryClient = useQueryClient();
   const { address, chainId, connector } = useAccount();
   const { switchChainAsync, isPending: isSwitching } = useSwitchChain();
   const { openConnectModal } = useConnectModal();
@@ -184,7 +186,7 @@ export function BetPanel({
   const isLocked = currentRound ? currentRound.locked : false;
   const lockTimestamp = currentRound ? Number(currentRound.lockTimestamp) : 0;
   const closeTimestamp = currentRound ? Number(currentRound.closeTimestamp) : 0;
-  const hasBet = userBet && userBet.amount > 0n;
+  const hasBet = Boolean(userBet && userBet.amount > 0n);
   const isBettingOpen =
     currentIsActive && currentRound && !isLocked && Math.floor(Date.now() / 1000) < Number(currentRound.lockTimestamp);
   const now = Math.floor(Date.now() / 1000);
@@ -203,6 +205,42 @@ export function BetPanel({
   const bearPool = currentRound ? Number(currentRound.bearAmount) / 1e6 : 0;
   const bullPercent = totalPool > 0 ? (bullPool / totalPool) * 100 : 50;
   const bearPercent = totalPool > 0 ? (bearPool / totalPool) * 100 : 50;
+  const claimAmountRaw = useMemo(() => {
+    if (!currentRound || !userBet || userBet.amount <= 0n || !currentRound.oracleCalled) return 0n;
+    if (currentRound.cancelled) return userBet.amount;
+
+    const upWon = currentRound.closePrice > currentRound.lockPrice;
+    const won = (upWon && userBet.position === 0) || (!upWon && userBet.position === 1);
+    if (!won || currentRound.rewardBaseCalAmount === 0n) return 0n;
+
+    return (userBet.amount * currentRound.rewardAmount) / currentRound.rewardBaseCalAmount;
+  }, [currentRound, userBet]);
+  const claimAmountDisplay = useMemo(() => {
+    if (claimAmountRaw <= 0n) return null;
+    const value = Number(formatUnits(claimAmountRaw, USDC_DECIMALS));
+    if (Number.isNaN(value)) return null;
+    return value.toFixed(value < 0.01 ? 4 : 2);
+  }, [claimAmountRaw]);
+  const hasClaimed = Boolean(userBet?.claimed);
+  const didWin = useMemo(() => {
+    if (!currentRound?.oracleCalled || roundCancelled || !userBet || !hasBet) return false;
+    const upWon = currentRound.closePrice > currentRound.lockPrice;
+    return (upWon && userBet.position === 0) || (!upWon && userBet.position === 1);
+  }, [currentRound?.closePrice, currentRound?.lockPrice, currentRound?.oracleCalled, hasBet, roundCancelled, userBet]);
+  const roundOutcome = useMemo<
+    "pending" | "won" | "lost" | "refund" | "refunded" | "claimed" | "cancelled" | "settled"
+  >(() => {
+    if (!currentRound?.oracleCalled) return "pending";
+    if (roundCancelled) {
+      if (!hasBet) return "cancelled";
+      return hasClaimed ? "refunded" : "refund";
+    }
+    if (hasBet) {
+      if (didWin) return hasClaimed ? "claimed" : "won";
+      return "lost";
+    }
+    return "settled";
+  }, [currentRound?.oracleCalled, didWin, hasBet, hasClaimed, roundCancelled]);
 
   const isSmartWallet = useMemo(
     () =>
@@ -286,21 +324,27 @@ export function BetPanel({
       args: [tokenAddress, betAmountRaw, position] as const,
     };
 
-    // First attempt: EIP-5792 batch for single wallet confirmation UX.
-    try {
-      await writeContractsAsync({
-        chainId: base.id,
-        contracts: needsApproval ? [approveContract, betContract] : [betContract],
-      });
-      setAmount("");
-      setDirection("bull");
-      return;
-    } catch (batchError) {
-      // User explicitly rejected the wallet prompt — do not continue with fallback.
-      if (isUserRejectedRequestError(batchError)) throw batchError;
+    // EIP-5792 batch gives single-confirmation UX, but the bundler simulation
+    // breaks when bet() needs to auto-start a round (cross-call storage writes
+    // are not correctly persisted in the UserOperation simulation pass).
+    // Skip the batch entirely when there is no active round yet.
+    if (!canBetToStart) {
+      try {
+        await writeContractsAsync({
+          chainId: base.id,
+          contracts: needsApproval ? [approveContract, betContract] : [betContract],
+        });
+        setAmount("");
+        setDirection("bull");
+        return;
+      } catch (batchError) {
+        // User explicitly rejected the wallet prompt — do not continue with fallback.
+        if (isUserRejectedRequestError(batchError)) throw batchError;
+      }
     }
 
-    // Fallback: wallets without sendCalls support (or batch failures).
+    // Sequential path: used when canBetToStart is true (round auto-start needed)
+    // or as a fallback after a batch failure.
     if (needsApproval) {
       const approveHash = await writeContractAsync(approveContract);
       if (publicClient && approveHash) {
@@ -314,6 +358,7 @@ export function BetPanel({
   }, [
     address,
     betAmountRaw,
+    canBetToStart,
     direction,
     needsApproval,
     predictionContract?.address,
@@ -458,11 +503,15 @@ export function BetPanel({
   const handleClaim = useCallback(async () => {
     if (!currentEpoch) return;
     try {
-      await claim(tokenAddress, [currentEpoch]);
+      const hash = await claim(tokenAddress, [currentEpoch]);
+      if (hash && publicClient) {
+        await publicClient.waitForTransactionReceipt({ hash });
+      }
+      await queryClient.invalidateQueries();
     } catch (e) {
       console.error("Claim failed:", e);
     }
-  }, [currentEpoch, tokenAddress, claim]);
+  }, [claim, currentEpoch, publicClient, queryClient, tokenAddress]);
 
   const handleRefundTrigger = useCallback(async () => {
     if (!currentEpoch) return;
@@ -475,12 +524,15 @@ export function BetPanel({
 
   const handleSettle = useCallback(async () => {
     try {
-      if (isLockable) await lockRound(tokenAddress);
-      else if (isClosable) await closeRound(tokenAddress);
+      const hash = isLockable ? await lockRound(tokenAddress) : await closeRound(tokenAddress);
+      if (hash && publicClient) {
+        await publicClient.waitForTransactionReceipt({ hash });
+        await queryClient.invalidateQueries();
+      }
     } catch (e) {
       console.error("Settlement failed:", e);
     }
-  }, [isLockable, isClosable, tokenAddress, lockRound, closeRound]);
+  }, [isLockable, isClosable, tokenAddress, lockRound, closeRound, publicClient, queryClient]);
 
   const handleSetMaxAmount = useCallback(() => {
     setAmount(maxBetAmountInput);
@@ -618,7 +670,7 @@ export function BetPanel({
     }
 
     return {
-      label: `${isSmartWallet && needsApproval ? (supportsAtomicBatch ? "Approve + " : "Approve then ") : ""}Bet ${direction === "bull" ? "↑ UP" : "↓ DOWN"}${hasAmountInput ? ` · $${normalizedAmount}` : ""}`,
+      label: `${isSmartWallet && needsApproval ? (!canBetToStart && supportsAtomicBatch ? "Approve + " : "Approve then ") : ""}Bet ${direction === "bull" ? "↑ UP" : "↓ DOWN"}${hasAmountInput ? ` · $${normalizedAmount}` : ""}`,
       onClick: handleBet,
       disabled: false,
       tone: direction === "bull" ? ("mint" as ActionTone) : ("pink" as ActionTone),
@@ -626,6 +678,7 @@ export function BetPanel({
     };
   }, [
     address,
+    canBetToStart,
     direction,
     handleBet,
     handleConnectAndSubmit,
@@ -703,7 +756,15 @@ export function BetPanel({
       {/* Countdown */}
       {(lockTimestamp > 0 || closeTimestamp > 0) && (
         <div className="px-5 py-4 border-b-2 border-pg-border bg-base-200/30 text-center">
-          <RoundTimer lockTimestamp={lockTimestamp} closeTimestamp={closeTimestamp} isLocked={Boolean(isLocked)} />
+          <RoundTimer
+            lockTimestamp={lockTimestamp}
+            closeTimestamp={closeTimestamp}
+            isLocked={Boolean(isLocked)}
+            isSettled={Boolean(currentRound?.oracleCalled)}
+            isCancelled={roundCancelled}
+            canClaim={Boolean(claimable)}
+            outcome={roundOutcome}
+          />
         </div>
       )}
 
@@ -721,7 +782,7 @@ export function BetPanel({
                 Settling...
               </span>
             ) : (
-              `${isLockable ? "Lock Round" : "Settle Round"}${settlerReward > 0 ? ` — Earn $${settlerReward.toFixed(2)}` : ""}`
+              `${isLockable ? "Lock Round" : `Settle Round${settlerReward > 0 ? ` — Earn $${settlerReward.toFixed(2)}` : ""}`}`
             )}
           </button>
         )}
@@ -771,7 +832,11 @@ export function BetPanel({
             {/* Claim winnings */}
             {claimable ? (
               <div className="mt-4 space-y-2">
-                <p className="text-xs font-bold text-pg-mint">You won! Claim your USDC.</p>
+                <p className="text-xs font-bold text-pg-mint">
+                  {roundCancelled
+                    ? `Round cancelled. Claim your $${claimAmountDisplay ?? (Number(userBet!.amount) / 1e6).toFixed(2)} refund.`
+                    : `You won 🎉 Claim $${claimAmountDisplay ?? "0.00"} USDC.`}
+                </p>
                 <button
                   onClick={handleClaim}
                   disabled={isClaiming}
@@ -785,10 +850,16 @@ export function BetPanel({
                   ) : roundCancelled ? (
                     "Claim Refund"
                   ) : (
-                    "Claim Winnings"
+                    `Claim $${claimAmountDisplay ?? "0.00"}`
                   )}
                 </button>
               </div>
+            ) : hasClaimed && currentRound?.oracleCalled ? (
+              <p className={`text-xs font-bold mt-3 ${roundCancelled ? "text-pg-amber" : "text-pg-mint"}`}>
+                {roundCancelled
+                  ? `You claimed $${claimAmountDisplay ?? (Number(userBet!.amount) / 1e6).toFixed(2)} refund.`
+                  : `You claimed $${claimAmountDisplay ?? "0.00"} USDC.`}
+              </p>
             ) : roundCancelled ? (
               <div className="mt-4 space-y-1">
                 <p className="text-xs font-bold text-pg-amber">Round cancelled — your bet will be refunded.</p>
@@ -807,11 +878,13 @@ export function BetPanel({
                   )}
                 </button>
               </div>
+            ) : currentRound?.oracleCalled ? (
+              <p className="text-xs font-bold text-pg-pink mt-3">Better luck next time</p>
             ) : (
               <p className="text-xs text-pg-muted/50 mt-3">Waiting for settlement</p>
             )}
 
-            {!claimable && !roundCancelled && (
+            {!claimable && !roundCancelled && !hasClaimed && (
               <div className="mt-4">
                 <ShareButton
                   message={`I just bet $${(Number(userBet!.amount) / 1e6).toFixed(2)} ${userBet!.position === 0 ? "UP" : "DOWN"} on ${tokenSymbol || "a token"} on BankrBets!`}
@@ -940,8 +1013,12 @@ export function BetPanel({
           </>
         ) : (
           <div className="py-8 text-center">
-            <p className="text-sm font-bold text-pg-muted">Betting closed</p>
-            <p className="text-xs text-pg-muted/50 mt-1">Waiting for settlement</p>
+            <p className="text-sm font-bold text-pg-muted">
+              {currentRound?.oracleCalled ? "Round settled" : "Betting closed"}
+            </p>
+            <p className="text-xs text-pg-muted/50 mt-1">
+              {currentRound?.oracleCalled ? "Next round starts with the first bet" : "Waiting for settlement"}
+            </p>
           </div>
         )}
       </div>
