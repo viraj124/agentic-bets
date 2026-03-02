@@ -1,0 +1,17 @@
+{
+  "name": "bankr-bets-ponder",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "ponder dev",
+    "start": "ponder start",
+    "codegen": "ponder codegen"
+  },
+  "dependencies": {
+    "ponder": "^0.9.0",
+    "viem": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
