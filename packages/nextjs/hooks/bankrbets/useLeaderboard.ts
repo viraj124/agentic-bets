@@ -18,6 +18,7 @@ type UseLeaderboardOptions = {
 export function useLeaderboard({ watch = false }: UseLeaderboardOptions = {}) {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [updatedAt, setUpdatedAt] = useState<number>(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -29,6 +30,7 @@ export function useLeaderboard({ watch = false }: UseLeaderboardOptions = {}) {
         const json = await res.json();
         if (!cancelled) {
           setLeaderboard(Array.isArray(json.leaderboard) ? json.leaderboard : []);
+          setUpdatedAt(typeof json.updatedAt === "number" ? json.updatedAt : 0);
           setIsLoading(false);
         }
       } catch {
@@ -40,7 +42,7 @@ export function useLeaderboard({ watch = false }: UseLeaderboardOptions = {}) {
 
     let interval: ReturnType<typeof setInterval> | null = null;
     if (watch) {
-      interval = setInterval(load, 2 * 60_000); // re-fetch every 2 min when watching
+      interval = setInterval(load, 2 * 60_000);
     }
 
     return () => {
@@ -49,5 +51,5 @@ export function useLeaderboard({ watch = false }: UseLeaderboardOptions = {}) {
     };
   }, [watch]);
 
-  return { leaderboard, isLoading };
+  return { leaderboard, isLoading, updatedAt };
 }

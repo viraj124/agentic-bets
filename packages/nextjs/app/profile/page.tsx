@@ -36,6 +36,15 @@ function useUserStats(address: string | undefined) {
   });
 }
 
+function StatCardSkeleton() {
+  return (
+    <div className="bg-base-100 rounded-2xl border-2 border-pg-border p-4 animate-pulse">
+      <div className="h-2 rounded-full bg-pg-border/70 w-14 mb-3" />
+      <div className="h-6 rounded-full bg-pg-border/70 w-20" />
+    </div>
+  );
+}
+
 const ProfilePage: NextPage = () => {
   const { address } = useAccount();
   const { data: userStats, isLoading: isStatsLoading } = useUserStats(address);
@@ -60,29 +69,25 @@ const ProfilePage: NextPage = () => {
 
   const statCards = useMemo(
     () => [
-      { label: "Total bets", value: isLoading ? "…" : hasBets ? String(userStats!.totalBets) : "--", color: "" },
-      { label: "Wins", value: isLoading ? "…" : hasBets ? String(userStats!.wins) : "--", color: "" },
+      { label: "Total bets", value: hasBets ? String(userStats!.totalBets) : "--", color: "" },
+      { label: "Wins", value: hasBets ? String(userStats!.wins) : "--", color: "" },
       {
         label: "Win rate",
-        value: isLoading ? "…" : hasBets ? `${userStats!.winRate.toFixed(0)}%` : "--",
+        value: hasBets ? `${userStats!.winRate.toFixed(0)}%` : "--",
         color: "",
       },
       {
         label: "Net P&L",
-        value: isLoading
-          ? "…"
-          : hasBets
-            ? `${userStats!.netPnL >= 0 ? "+" : ""}$${userStats!.netPnL.toFixed(2)}`
-            : "--",
+        value: hasBets ? `${userStats!.netPnL >= 0 ? "+" : ""}$${userStats!.netPnL.toFixed(2)}` : "--",
         color: hasBets ? (userStats!.netPnL >= 0 ? "text-pg-mint" : "text-pg-pink") : "",
       },
       {
         label: "Creator earnings",
-        value: isLoading ? "…" : earnings > 0 ? `$${earnings.toFixed(2)}` : "--",
+        value: earnings > 0 ? `$${earnings.toFixed(2)}` : "--",
         color: "text-pg-violet",
       },
     ],
-    [isLoading, hasBets, userStats, earnings],
+    [hasBets, userStats, earnings],
   );
 
   if (!address) {
@@ -131,25 +136,27 @@ const ProfilePage: NextPage = () => {
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
-        {statCards.map(stat => (
-          <div
-            key={stat.label}
-            className="bg-base-100 rounded-2xl border-2 border-pg-border p-4 hover:border-pg-slate/40 transition-colors"
-          >
-            <p
-              className="text-[10px] text-pg-muted uppercase tracking-wider font-bold mb-1.5"
-              style={{ fontFamily: "var(--font-heading)" }}
-            >
-              {stat.label}
-            </p>
-            <p
-              className={`text-xl font-extrabold ${stat.color || "text-base-content"}`}
-              style={{ fontFamily: "var(--font-heading)" }}
-            >
-              {stat.value}
-            </p>
-          </div>
-        ))}
+        {isLoading
+          ? Array.from({ length: 5 }).map((_, i) => <StatCardSkeleton key={i} />)
+          : statCards.map(stat => (
+              <div
+                key={stat.label}
+                className="bg-base-100 rounded-2xl border-2 border-pg-border p-4 hover:border-pg-slate/40 transition-colors motion-safe:animate-pop-in"
+              >
+                <p
+                  className="text-[10px] text-pg-muted uppercase tracking-wider font-bold mb-1.5"
+                  style={{ fontFamily: "var(--font-heading)" }}
+                >
+                  {stat.label}
+                </p>
+                <p
+                  className={`text-xl font-extrabold ${stat.color || "text-base-content"}`}
+                  style={{ fontFamily: "var(--font-heading)" }}
+                >
+                  {stat.value}
+                </p>
+              </div>
+            ))}
       </div>
 
       {/* Activity */}
@@ -161,8 +168,13 @@ const ProfilePage: NextPage = () => {
         </div>
 
         {isLoading ? (
-          <div className="py-16 text-center">
-            <span className="loading loading-spinner loading-md text-pg-violet" />
+          <div className="p-5 space-y-4 animate-pulse">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="flex justify-between items-center">
+                <div className="h-3 rounded-full bg-pg-border/70 w-24" />
+                <div className="h-3 rounded-full bg-pg-border/70 w-16" />
+              </div>
+            ))}
           </div>
         ) : hasBets ? (
           <div className="p-5 space-y-3">
@@ -189,10 +201,12 @@ const ProfilePage: NextPage = () => {
           </div>
         ) : (
           <div className="py-16 text-center">
-            <p className="text-sm text-pg-muted font-medium">No bets placed yet</p>
-            <p className="text-xs text-pg-muted/60 mt-1">Your history will appear here after placing bets</p>
-            <Link href="/" className="inline-block mt-4 btn-outline-geo text-xs px-5 py-2">
-              Browse markets
+            <p className="text-sm font-bold text-base-content mb-1" style={{ fontFamily: "var(--font-heading)" }}>
+              No bets yet
+            </p>
+            <p className="text-xs text-pg-muted/70 mt-1">Your history will appear here after your first bet</p>
+            <Link href="/" className="inline-block mt-5 btn-candy text-xs px-6 py-2.5">
+              Find a market
             </Link>
           </div>
         )}

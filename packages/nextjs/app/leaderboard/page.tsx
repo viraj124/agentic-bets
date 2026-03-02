@@ -6,11 +6,45 @@ import { IdentityBadge } from "~~/components/bankrbets/IdentityBadge";
 import { useLeaderboard } from "~~/hooks/bankrbets/useLeaderboard";
 import { useResolvedAddresses } from "~~/hooks/bankrbets/useResolvedAddresses";
 
-const MEDALS = ["", "", ""];
+const MEDALS = ["🥇", "🥈", "🥉"];
 const RESOLVED_NAMES_LIMIT = 100;
 
+function FreshnessTag({ updatedAt }: { updatedAt: number }) {
+  if (!updatedAt) return null;
+  const ageMs = Date.now() - updatedAt;
+  const ageMins = Math.floor(ageMs / 60_000);
+  const label = ageMins < 1 ? "Just updated" : `Updated ${ageMins}m ago`;
+  return <span className="text-[11px] font-normal text-pg-muted/60 ml-1.5 hidden sm:inline">· {label}</span>;
+}
+
+function SkeletonRow({ i }: { i: number }) {
+  return (
+    <div
+      className="flex items-center px-5 py-3.5 border-b-2 border-pg-border/40 last:border-b-0 animate-pulse"
+      style={{ animationDelay: `${i * 80}ms` }}
+    >
+      <div className="w-14 flex-shrink-0">
+        <div className="w-7 h-7 rounded-full bg-pg-border/70" />
+      </div>
+      <div className="flex-1 min-w-0 flex items-center gap-2.5">
+        <div className="w-7 h-7 rounded-full bg-pg-border/70 flex-shrink-0" />
+        <div className="h-3 rounded-full bg-pg-border/70 w-28 sm:w-40" />
+      </div>
+      <div className="w-20 flex justify-end flex-shrink-0">
+        <div className="h-3 rounded-full bg-pg-border/70 w-10" />
+      </div>
+      <div className="w-16 hidden sm:flex justify-end flex-shrink-0">
+        <div className="h-3 rounded-full bg-pg-border/70 w-6" />
+      </div>
+      <div className="w-24 flex justify-end flex-shrink-0">
+        <div className="h-3 rounded-full bg-pg-border/70 w-14" />
+      </div>
+    </div>
+  );
+}
+
 const LeaderboardPage: NextPage = () => {
-  const { leaderboard, isLoading } = useLeaderboard({ watch: false });
+  const { leaderboard, isLoading, updatedAt } = useLeaderboard({ watch: false });
   const addresses = useMemo(
     () => leaderboard.slice(0, RESOLVED_NAMES_LIMIT).map(entry => entry.address),
     [leaderboard],
@@ -36,6 +70,7 @@ const LeaderboardPage: NextPage = () => {
             style={{ fontFamily: "var(--font-heading)" }}
           >
             Leaderboard
+            <FreshnessTag updatedAt={updatedAt} />
           </h1>
           <p className="text-sm text-pg-muted">Top predictors ranked by net profit</p>
         </div>
@@ -51,13 +86,15 @@ const LeaderboardPage: NextPage = () => {
           <span className="w-14 flex-shrink-0">Rank</span>
           <span className="flex-1 min-w-0">Address</span>
           <span className="w-20 text-right flex-shrink-0">Win rate</span>
-          <span className="w-16 text-right flex-shrink-0">Bets</span>
-          <span className="w-24 text-right flex-shrink-0">Net P&L</span>
+          <span className="w-16 text-right flex-shrink-0 hidden sm:block">Bets</span>
+          <span className="w-24 text-right flex-shrink-0">Net P&amp;L</span>
         </div>
 
         {isLoading ? (
-          <div className="py-16 text-center">
-            <span className="loading loading-spinner loading-md text-pg-violet" />
+          <div>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <SkeletonRow key={i} i={i} />
+            ))}
           </div>
         ) : leaderboard.length === 0 ? (
           <div className="py-20 text-center">
@@ -86,7 +123,8 @@ const LeaderboardPage: NextPage = () => {
             {leaderboard.map((entry, i) => (
               <div
                 key={entry.address}
-                className="flex items-center px-5 py-3.5 border-b-2 border-pg-border/40 last:border-b-0 text-sm hover:bg-pg-cream/50 transition-colors"
+                className="flex items-center px-5 py-3.5 border-b-2 border-pg-border/40 last:border-b-0 text-sm hover:bg-pg-cream/50 transition-colors motion-safe:animate-pop-in"
+                style={{ animationDelay: `${Math.min(i, 12) * 25}ms`, animationFillMode: "both" }}
               >
                 {/* Rank */}
                 <div className="w-14 flex-shrink-0">
@@ -114,8 +152,8 @@ const LeaderboardPage: NextPage = () => {
                   </span>
                 </div>
 
-                {/* Bets */}
-                <div className="w-16 text-right flex-shrink-0">
+                {/* Bets — hidden on mobile */}
+                <div className="w-16 text-right flex-shrink-0 hidden sm:block">
                   <span className="text-xs text-pg-muted font-medium">{entry.totalBets}</span>
                 </div>
 
