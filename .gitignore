@@ -19,5 +19,9 @@ node_modules
 .vscode
 .idea
 
+# ponder
+.ponder
+.ponder.bak*
+
 # cli
 dist
