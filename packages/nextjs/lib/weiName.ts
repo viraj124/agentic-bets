@@ -15,6 +15,7 @@ const RPC_ENDPOINTS = [
   "https://1rpc.io/eth",
   "https://eth.drpc.org",
 ].filter(Boolean) as string[];
+const RPC_TIMEOUT_MS = 1200;
 
 const SEL = {
   reverseResolve: "0x9af8b7aa",
@@ -48,7 +49,7 @@ async function ethCall(data: string): Promise<string> {
   for (const rpc of RPC_ENDPOINTS) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
+      const timeout = setTimeout(() => controller.abort(), RPC_TIMEOUT_MS);
       const res = await fetch(rpc, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -1,6 +1,6 @@
 import { wagmiConnectors } from "./wagmiConnectors";
 import { Chain, createClient, fallback, http } from "viem";
-import { hardhat, mainnet } from "viem/chains";
+import { base, hardhat, mainnet } from "viem/chains";
 import { createConfig } from "wagmi";
 import scaffoldConfig, { DEFAULT_ALCHEMY_API_KEY, ScaffoldConfig } from "~~/scaffold.config";
 import { getAlchemyHttpUrl } from "~~/utils/scaffold-eth";
@@ -12,15 +12,24 @@ export const enabledChains = targetNetworks.find((network: Chain) => network.id 
   ? targetNetworks
   : ([...targetNetworks, mainnet] as const);
 
+// Public RPC fallbacks per chain — used when the Alchemy proxy is slow or down.
+const PUBLIC_RPC_FALLBACKS: Record<number, string[]> = {
+  [base.id]: ["https://base-rpc.publicnode.com", "https://mainnet.base.org"],
+  [mainnet.id]: ["https://mainnet.rpc.buidlguidl.com", "https://ethereum-rpc.publicnode.com"],
+};
+
 export const wagmiConfig = createConfig({
   chains: enabledChains,
   connectors: wagmiConnectors(),
-  ssr: true,
+  // Client-only provider in this app; disabling SSR hydration mode prevents refresh disconnects.
+  ssr: false,
   client: ({ chain }) => {
-    const mainnetFallbackWithDefaultRPC = [http("https://mainnet.rpc.buidlguidl.com")];
-    let rpcFallbacks = [...(chain.id === mainnet.id ? mainnetFallbackWithDefaultRPC : []), http()];
+    const publicFallbacks = (PUBLIC_RPC_FALLBACKS[chain.id] ?? []).map(url => http(url));
+    let rpcFallbacks = [...publicFallbacks, http()];
+
     const rpcOverrideUrl = (scaffoldConfig.rpcOverrides as ScaffoldConfig["rpcOverrides"])?.[chain.id];
     if (rpcOverrideUrl) {
+      // Alchemy proxy first, then public fallbacks
       rpcFallbacks = [http(rpcOverrideUrl), ...rpcFallbacks];
     } else {
       const alchemyHttpUrl = getAlchemyHttpUrl(chain.id);

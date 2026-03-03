@@ -22,7 +22,8 @@ export function normalizeAddress(address: string) {
 }
 
 export function getAddressDisplayName(address: string, resolved?: AddressIdentity | null, fallbackName?: string) {
-  const preferredName = resolved?.ensName || resolved?.weiName || resolved?.baseName;
+  // Prefer Basename on this Base-native app, then ENS, then WeiName
+  const preferredName = resolved?.baseName || resolved?.ensName || resolved?.weiName;
   if (preferredName) return preferredName;
 
   if (fallbackName && fallbackName.trim() !== "") {
@@ -35,5 +36,5 @@ export function getAddressDisplayName(address: string, resolved?: AddressIdentit
 }
 
 export function getAddressAvatar(resolved?: AddressIdentity | null) {
-  return resolved?.ensAvatar || resolved?.baseAvatar || "";
+  return resolved?.baseAvatar || resolved?.ensAvatar || "";
 }

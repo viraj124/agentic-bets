@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 export interface LeaderboardEntry {
   address: string;
@@ -16,40 +16,24 @@ type UseLeaderboardOptions = {
 };
 
 export function useLeaderboard({ watch = false }: UseLeaderboardOptions = {}) {
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [updatedAt, setUpdatedAt] = useState<number>(0);
+  const query = useQuery<{ leaderboard?: LeaderboardEntry[]; updatedAt?: number }>({
+    queryKey: ["leaderboard"],
+    queryFn: async () => {
+      const res = await fetch("/api/leaderboard");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    },
+    staleTime: watch ? 15_000 : 60_000,
+    gcTime: 10 * 60_000,
+    retry: 1,
+    placeholderData: previous => previous,
+    refetchInterval: watch ? 2 * 60_000 : false,
+    refetchOnWindowFocus: false,
+  });
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const res = await fetch("/api/leaderboard");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        if (!cancelled) {
-          setLeaderboard(Array.isArray(json.leaderboard) ? json.leaderboard : []);
-          setUpdatedAt(typeof json.updatedAt === "number" ? json.updatedAt : 0);
-          setIsLoading(false);
-        }
-      } catch {
-        if (!cancelled) setIsLoading(false);
-      }
-    }
-
-    load();
-
-    let interval: ReturnType<typeof setInterval> | null = null;
-    if (watch) {
-      interval = setInterval(load, 2 * 60_000);
-    }
-
-    return () => {
-      cancelled = true;
-      if (interval) clearInterval(interval);
-    };
-  }, [watch]);
-
-  return { leaderboard, isLoading, updatedAt };
+  return {
+    leaderboard: Array.isArray(query.data?.leaderboard) ? query.data!.leaderboard : [],
+    isLoading: query.isLoading,
+    updatedAt: typeof query.data?.updatedAt === "number" ? query.data.updatedAt : 0,
+  };
 }

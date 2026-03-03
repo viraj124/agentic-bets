@@ -13,40 +13,60 @@ type ResolvedIdentity = {
   weiName?: string | null;
 };
 
-const CACHE_TTL_MS = 2 * 60 * 60 * 1000;
-const cache = new Map<string, { ts: number; data: ResolvedIdentity }>();
+const POSITIVE_CACHE_TTL_MS = 2 * 60 * 60 * 1000;
+const NEGATIVE_CACHE_TTL_MS = 30 * 1000;
+const cache = new Map<string, { ts: number; ttlMs: number; data: ResolvedIdentity; hasIdentity: boolean }>();
 
 function normalize(address: string) {
   return address.toLowerCase();
 }
 
-async function resolveAddress(address: string): Promise<ResolvedIdentity> {
+async function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<T>(resolve => {
+    timeoutId = setTimeout(() => resolve(fallback), ms);
+  });
+  const result = await Promise.race([promise, timeoutPromise]).catch(() => fallback);
+  if (timeoutId) clearTimeout(timeoutId);
+  return result;
+}
+
+async function resolveAddress(address: string, highPriority: boolean): Promise<ResolvedIdentity> {
   const lower = normalize(address);
   const cached = cache.get(lower);
-  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+  if (
+    cached &&
+    Date.now() - cached.ts < cached.ttlMs &&
+    // For connect/profile (single address), avoid trusting stale negative cache.
+    !(highPriority && !cached.hasIdentity)
+  ) {
     return cached.data;
   }
 
+  const ensTimeoutMs = highPriority ? 2200 : 2000;
+  const baseTimeoutMs = highPriority ? 6000 : 5000;
+  const weiTimeoutMs = highPriority ? 2000 : 1500;
+
   const [ensName, baseName, weiName] = await Promise.all([
-    resolveEnsName(lower),
-    resolveBasename(lower),
-    resolveWeiName(lower),
+    withTimeout(resolveEnsName(lower), ensTimeoutMs, null),
+    withTimeout(resolveBasename(lower), baseTimeoutMs, null),
+    withTimeout(resolveWeiName(lower), weiTimeoutMs, null),
   ]);
 
-  // Fetch avatar for whichever name resolved (ENS first, then Basename)
-  let ensAvatar: string | null = null;
-  let baseAvatar: string | null = null;
-  if (ensName) {
-    ensAvatar = await resolveEnsAvatar(ensName);
-  } else if (baseName) {
-    baseAvatar = await resolveBasenameAvatar(baseName);
-  }
+  // Fetch avatars in parallel for whichever names resolved
+  const [ensAvatar, baseAvatar] = await Promise.all([
+    ensName ? withTimeout(resolveEnsAvatar(ensName), 1800, null) : null,
+    baseName ? withTimeout(resolveBasenameAvatar(baseName), 1800, null) : null,
+  ]);
 
   const data: ResolvedIdentity = { address: lower, ensName, ensAvatar, baseName, baseAvatar, weiName };
-  // Avoid long-lived negative cache entries so new names appear quickly
-  if (ensName || baseName || weiName || ensAvatar || baseAvatar) {
-    cache.set(lower, { ts: Date.now(), data });
-  }
+  const hasIdentity = !!(ensName || baseName || weiName || ensAvatar || baseAvatar);
+  cache.set(lower, {
+    ts: Date.now(),
+    ttlMs: hasIdentity ? POSITIVE_CACHE_TTL_MS : NEGATIVE_CACHE_TTL_MS,
+    data,
+    hasIdentity,
+  });
   return data;
 }
 
@@ -59,6 +79,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ data: [] });
   }
 
-  const results = await Promise.all(unique.map(resolveAddress));
+  const highPriority = unique.length <= 2;
+  const results = await Promise.all(unique.map(addr => resolveAddress(addr, highPriority)));
   return Response.json({ data: results });
 }

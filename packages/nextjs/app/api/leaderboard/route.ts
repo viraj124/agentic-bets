@@ -40,6 +40,7 @@ async function buildLeaderboard(): Promise<LeaderboardEntry[]> {
   const res = await fetch(`${PONDER_URL}/graphql`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    signal: AbortSignal.timeout(3_000),
     body: JSON.stringify({
       query: `{
         userStatss(limit: 1000) {

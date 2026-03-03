@@ -6,7 +6,7 @@
  * the ENSIP-19 migration. As a workaround we fall back to the Alchemy NFT API
  * to check if the address owns a Basename NFT and extract the name from metadata.
  */
-import { type Hex, createPublicClient, encodePacked, http, keccak256, namehash } from "viem";
+import { type Hex, createPublicClient, encodePacked, fallback, http, keccak256, namehash, stringToHex } from "viem";
 import { base } from "viem/chains";
 
 const L2_RESOLVER = "0xC6d566A56A1aFf6508b41f6c90ff131615583BCD" as const;
@@ -33,11 +33,14 @@ const L2_RESOLVER_ABI = [
 ] as const;
 
 const ALCHEMY_KEY = process.env.ALCHEMY_API_KEY;
-const BASE_RPC_URL = ALCHEMY_KEY ? `https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}` : "https://mainnet.base.org";
 
 const baseClient = createPublicClient({
   chain: base,
-  transport: http(BASE_RPC_URL),
+  transport: fallback([
+    ...(ALCHEMY_KEY ? [http(`https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`)] : []),
+    http("https://base-rpc.publicnode.com"),
+    http("https://mainnet.base.org"),
+  ]),
 });
 
 /**
@@ -50,8 +53,9 @@ const baseClient = createPublicClient({
  *  4. node = keccak256(encodePacked([baseReverseNode, addressNode]))
  */
 function convertReverseNodeToBytes(address: string, chainId: number): Hex {
-  const addressFormatted = address.toLowerCase();
-  const addressNode = keccak256(addressFormatted.substring(2) as Hex);
+  const addressFormatted = address.toLowerCase().replace(/^0x/, "");
+  // Hash lowercase ASCII hex chars (not decoded bytes), per ENS reverse-node spec.
+  const addressNode = keccak256(stringToHex(addressFormatted));
   const coinType = (0x80000000 | chainId) >>> 0;
   const baseReverseNode = namehash(`${coinType.toString(16).toUpperCase()}.reverse`);
   return keccak256(encodePacked(["bytes32", "bytes32"], [baseReverseNode, addressNode]));
@@ -88,8 +92,7 @@ async function resolveBasenameViaAlchemy(address: string): Promise<string | null
   }
 }
 
-export async function resolveBasename(address: string): Promise<string | null> {
-  // 1. Try on-chain reverse resolution (L2 Resolver)
+async function resolveBasenameOnChain(address: string): Promise<string | null> {
   try {
     const node = convertReverseNodeToBytes(address, base.id);
     const name = await baseClient.readContract({
@@ -98,13 +101,21 @@ export async function resolveBasename(address: string): Promise<string | null> {
       functionName: "name",
       args: [node],
     });
-    if (name && name.length > 0) return name;
+    return name && name.length > 0 ? name : null;
   } catch {
-    // fall through to fallback
+    return null;
   }
+}
 
-  // 2. Fallback: Alchemy NFT API (for ENSIP-19 migration period)
-  return resolveBasenameViaAlchemy(address);
+export async function resolveBasename(address: string): Promise<string | null> {
+  // Run both methods in parallel — the on-chain L2 Resolver is empty since
+  // the ENSIP-19 migration, but we keep it for when records return.
+  // Alchemy NFT API is the reliable path for now.
+  const [onChain, alchemy] = await Promise.all([
+    resolveBasenameOnChain(address).catch(() => null),
+    resolveBasenameViaAlchemy(address).catch(() => null),
+  ]);
+  return onChain || alchemy;
 }
 
 export async function resolveBasenameAvatar(basename: string): Promise<string | null> {

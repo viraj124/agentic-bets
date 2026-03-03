@@ -14,8 +14,9 @@ export function useResolvedAddresses(addresses: string[] | undefined) {
   const normalized = useMemo(() => {
     if (!addresses || addresses.length === 0) return [];
     const set = new Set(addresses.map(a => a.toLowerCase()));
-    return Array.from(set);
+    return Array.from(set).sort();
   }, [addresses]);
+  const isSmallBatch = normalized.length > 0 && normalized.length <= 2;
 
   const query = useQuery({
     queryKey: ["resolve-addresses", normalized.join(",")],
@@ -23,6 +24,7 @@ export function useResolvedAddresses(addresses: string[] | undefined) {
       const res = await fetch("/api/resolve-addresses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(10_000),
         body: JSON.stringify({ addresses: normalized }),
       });
       if (!res.ok) return [] as ResolvedIdentity[];
@@ -32,6 +34,8 @@ export function useResolvedAddresses(addresses: string[] | undefined) {
     enabled: normalized.length > 0,
     staleTime: 30 * 60_000,
     gcTime: 2 * 60 * 60_000,
+    retry: isSmallBatch ? 1 : 0,
+    placeholderData: previous => previous,
     refetchOnWindowFocus: false,
   });
 
