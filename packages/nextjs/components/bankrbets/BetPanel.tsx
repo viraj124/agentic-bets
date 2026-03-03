@@ -35,6 +35,7 @@ interface BetPanelProps {
   epoch?: bigint;
   round?: any;
   isActive?: boolean;
+  historicalView?: boolean;
 }
 
 const USDC_DECIMALS = 6;
@@ -137,6 +138,7 @@ export function BetPanel({
   epoch,
   round,
   isActive,
+  historicalView = false,
 }: BetPanelProps) {
   const queryClient = useQueryClient();
   const { address, chainId, connector } = useAccount();
@@ -159,6 +161,7 @@ export function BetPanel({
   const [amount, setAmount] = useState("");
   const [direction, setDirection] = useState<"bull" | "bear">("bull");
   const [submitAfterConnect, setSubmitAfterConnect] = useState(false);
+  const [showNextRoundBetting, setShowNextRoundBetting] = useState(false);
   const [isContractWallet, setIsContractWallet] = useState(false);
   const [isCheckingWalletType, setIsCheckingWalletType] = useState(false);
 
@@ -188,7 +191,11 @@ export function BetPanel({
   const closeTimestamp = currentRound ? Number(currentRound.closeTimestamp) : 0;
   const hasBet = Boolean(userBet && userBet.amount > 0n);
   const isBettingOpen =
-    currentIsActive && currentRound && !isLocked && Math.floor(Date.now() / 1000) < Number(currentRound.lockTimestamp);
+    !historicalView &&
+    currentIsActive &&
+    currentRound &&
+    !isLocked &&
+    Math.floor(Date.now() / 1000) < Number(currentRound.lockTimestamp);
   const now = Math.floor(Date.now() / 1000);
   const canTriggerRefund = !!(
     currentRound &&
@@ -197,8 +204,9 @@ export function BetPanel({
     now >= Number(currentRound.closeTimestamp) + REFUND_GRACE_PERIOD_S
   );
   const roundCancelled = !!(currentRound && currentRound.cancelled);
-  // Market exists but no active round — first bet will auto-start one
-  const canBetToStart = marketCreated === true && !currentIsActive;
+  const roundSettled = !!currentRound?.oracleCalled;
+  // Market exists but no active round, OR current round is done — first bet will auto-start one
+  const canBetToStart = !historicalView && marketCreated === true && (!currentIsActive || roundSettled);
 
   const totalPool = currentRound ? Number(currentRound.totalAmount) / 1e6 : 0;
   const bullPool = currentRound ? Number(currentRound.bullAmount) / 1e6 : 0;
@@ -241,6 +249,21 @@ export function BetPanel({
     }
     return "settled";
   }, [currentRound?.oracleCalled, didWin, hasBet, hasClaimed, roundCancelled]);
+  const showShareButton = !roundCancelled && roundSettled && (didWin || (!claimable && !hasClaimed));
+  const shareMessage = useMemo(() => {
+    if (!userBet) return "";
+    const amount = (Number(userBet.amount) / 1e6).toFixed(2);
+    const side = userBet.position === 0 ? "UP" : "DOWN";
+
+    if (didWin && roundSettled) {
+      if (hasClaimed && claimAmountDisplay) {
+        return `I just won and claimed $${claimAmountDisplay} USDC on ${tokenSymbol || "a token"} on BankrBets!`;
+      }
+      return `I just won my ${side} bet on ${tokenSymbol || "a token"} on BankrBets!`;
+    }
+
+    return `I just bet $${amount} ${side} on ${tokenSymbol || "a token"} on BankrBets!`;
+  }, [claimAmountDisplay, didWin, hasClaimed, roundSettled, tokenSymbol, userBet]);
 
   const isSmartWallet = useMemo(
     () =>
@@ -306,6 +329,11 @@ export function BetPanel({
       cancelled = true;
     };
   }, [address, connector?.id, publicClient]);
+
+  // Reset next-round view when the epoch advances
+  useEffect(() => {
+    setShowNextRoundBetting(false);
+  }, [currentEpoch]);
 
   const placeTransferFromBet = useCallback(async () => {
     if (!address || !tokenAddress || !predictionContract?.address || !usdcAddress || betAmountRaw <= 0n) return;
@@ -770,7 +798,7 @@ export function BetPanel({
 
       <div className="p-4 space-y-4">
         {/* Settlement */}
-        {(isLockable || isClosable) && (
+        {!historicalView && (isLockable || isClosable) && (
           <button
             onClick={handleSettle}
             disabled={isLocking || isClosing}
@@ -795,7 +823,7 @@ export function BetPanel({
         )}
 
         {/* Trigger refund — anyone can call this to unlock stuck rounds */}
-        {canTriggerRefund && (
+        {!historicalView && canTriggerRefund && (
           <button
             onClick={handleRefundTrigger}
             disabled={isRefunding}
@@ -812,7 +840,7 @@ export function BetPanel({
           </button>
         )}
 
-        {hasBet ? (
+        {hasBet && !showNextRoundBetting ? (
           /* Existing position */
           <div className="py-4 text-center">
             <p className="text-[10px] font-bold text-pg-muted uppercase tracking-widest mb-2">Your position</p>
@@ -884,12 +912,19 @@ export function BetPanel({
               <p className="text-xs text-pg-muted/50 mt-3">Waiting for settlement</p>
             )}
 
-            {!claimable && !roundCancelled && !hasClaimed && (
+            {showShareButton && (
               <div className="mt-4">
-                <ShareButton
-                  message={`I just bet $${(Number(userBet!.amount) / 1e6).toFixed(2)} ${userBet!.position === 0 ? "UP" : "DOWN"} on ${tokenSymbol || "a token"} on BankrBets!`}
-                />
+                <ShareButton message={shareMessage} />
               </div>
+            )}
+
+            {roundSettled && !historicalView && (
+              <button
+                onClick={() => setShowNextRoundBetting(true)}
+                className="w-full mt-4 py-2.5 rounded-xl font-bold text-sm bg-pg-violet hover:bg-pg-violet/90 text-white transition-colors"
+              >
+                Bet Next Round
+              </button>
             )}
           </div>
         ) : isBettingOpen || canBetToStart ? (

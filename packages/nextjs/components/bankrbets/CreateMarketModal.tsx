@@ -205,7 +205,7 @@ export function CreateMarketModal({
                     Creating market...
                   </span>
                 ) : (
-                  "Create Market"
+                  "Create"
                 )}
               </button>
 

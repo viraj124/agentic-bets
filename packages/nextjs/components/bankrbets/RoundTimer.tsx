@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { useCountdown } from "~~/hooks/bankrbets/useCountdown";
 
 interface RoundTimerProps {
@@ -11,6 +12,25 @@ interface RoundTimerProps {
   canClaim?: boolean;
   outcome?: "pending" | "won" | "lost" | "refund" | "refunded" | "claimed" | "cancelled" | "settled";
 }
+
+/** Linear interpolation between two hex colors based on t (0–1). */
+function lerpColor(a: string, b: string, t: number): string {
+  const parse = (hex: string) => [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ];
+  const [ar, ag, ab] = parse(a);
+  const [br, bg, bb] = parse(b);
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return `#${((1 << 24) + (r << 16) + (g << 8) + bl).toString(16).slice(1)}`;
+}
+
+const COLOR_VIOLET = "#8B5CF6";
+const COLOR_AMBER = "#FBBF24";
+const COLOR_PINK = "#F472B6";
 
 export function RoundTimer({
   lockTimestamp,
@@ -30,6 +50,20 @@ export function RoundTimer({
   // Which timer is active and how urgent is it
   const activeTimeLeft = effectivelyLocked ? closeTimeLeft : lockTimeLeft;
   const isUrgent = activeTimeLeft > 0 && activeTimeLeft <= 30;
+
+  // Smooth urgency color: violet → amber (60s) → pink (30s) → pulse (<15s)
+  const urgencyColor = useMemo(() => {
+    if (isSettled || activeTimeLeft <= 0) return undefined;
+    if (activeTimeLeft > 60) return undefined; // no urgency
+    if (activeTimeLeft > 30) {
+      // 60→30s: violet → amber
+      const t = 1 - (activeTimeLeft - 30) / 30;
+      return lerpColor(COLOR_VIOLET, COLOR_AMBER, t);
+    }
+    // 30→0s: amber → pink
+    const t = 1 - activeTimeLeft / 30;
+    return lerpColor(COLOR_AMBER, COLOR_PINK, t);
+  }, [isSettled, activeTimeLeft]);
 
   let label: string;
   let timer: string;
@@ -56,7 +90,7 @@ export function RoundTimer({
     } else if (outcome === "lost") {
       label = "Round settled";
       timer = "";
-      sublabel = "Better luck next time";
+      sublabel = "";
       chipClass = "bg-pg-pink/15 text-pg-pink border-pg-pink/35";
       sublabelClass = "text-pg-pink/75";
     } else if (outcome === "refund" || isCancelled) {
@@ -77,7 +111,7 @@ export function RoundTimer({
     timer = lockFormatted;
     sublabel = "Place your bets";
     chipClass = "bg-pg-violet/12 text-pg-violet border-pg-violet/25";
-    timerClass = isUrgent ? "text-pg-pink motion-safe:animate-pulse" : "text-base-content";
+    timerClass = isUrgent ? "motion-safe:animate-pulse" : "text-base-content";
     sublabelClass = "text-pg-muted/55";
     dotClass = "bg-pg-violet";
     dotAnimated = true;
@@ -102,21 +136,29 @@ export function RoundTimer({
   return (
     <div className="mx-auto w-full max-w-[260px] py-1 text-center transition-all duration-300">
       <div
-        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider ${chipClass}`}
+        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider transition-colors duration-500 ${chipClass}`}
       >
         {!isSettled && (
           <span
-            className={`h-1.5 w-1.5 rounded-full ${dotClass} ${dotAnimated ? "motion-safe:animate-pulse" : ""}`}
+            className={`h-1.5 w-1.5 rounded-full transition-colors duration-500 ${dotClass} ${dotAnimated ? "motion-safe:animate-pulse" : ""}`}
             aria-hidden="true"
+            style={urgencyColor ? { backgroundColor: urgencyColor } : undefined}
           />
         )}
         <span>{isSettled ? label.toUpperCase() : label}</span>
       </div>
 
       {timer ? (
-        <div className={`mt-2 text-3xl font-mono font-bold tabular-nums transition-colors ${timerClass}`}>{timer}</div>
+        <div
+          className={`mt-2 text-3xl font-mono font-bold tabular-nums transition-colors duration-500 ${timerClass}`}
+          style={urgencyColor ? { color: urgencyColor } : undefined}
+        >
+          {timer}
+        </div>
       ) : null}
-      {sublabel ? <div className={`mt-1 text-[11px] ${sublabelClass}`}>{sublabel}</div> : null}
+      {sublabel ? (
+        <div className={`mt-1 text-[11px] transition-colors duration-300 ${sublabelClass}`}>{sublabel}</div>
+      ) : null}
     </div>
   );
 }
