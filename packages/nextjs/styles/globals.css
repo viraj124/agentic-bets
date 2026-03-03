@@ -1,7 +1,5 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
-
 /* ── Design Tokens ───────────────────────────────────────────────── */
 
 @theme {
@@ -38,8 +36,7 @@
 
 @plugin "daisyui" {
   themes:
-    light,
-    dark;
+    light;
 }
 
 @plugin "daisyui/theme" {
@@ -65,32 +62,6 @@
   --radius-field: 0.5rem;
   --radius-box: 1rem;
   --tt-tailw: 6px;
-}
-
-@plugin "daisyui/theme" {
-  name: "dark";
-
-  --color-primary: #A78BFA;
-  --color-primary-content: #1E293B;
-  --color-secondary: #F9A8D4;
-  --color-secondary-content: #1E293B;
-  --color-accent: #FDE68A;
-  --color-accent-content: #1E293B;
-  --color-neutral: #F1F5F9;
-  --color-neutral-content: #1E293B;
-  --color-base-100: #1E293B;
-  --color-base-200: #0F172A;
-  --color-base-300: #334155;
-  --color-base-content: #F1F5F9;
-  --color-info: #A78BFA;
-  --color-success: #6EE7B7;
-  --color-warning: #FDE68A;
-  --color-error: #FDA4AF;
-
-  --radius-field: 0.5rem;
-  --radius-box: 1rem;
-  --tt-tailw: 6px;
-  --tt-bg: var(--color-primary);
 }
 
 /* ── Base Styles ─────────────────────────────────────────────────── */
@@ -144,7 +115,7 @@
 }
 
 .link {
-  text-underline-offset: 2px;
+  text-decoration: none;
 }
 
 .link:hover {
@@ -285,14 +256,22 @@
   .hover-wiggle:hover,
   .animate-pop-in,
   .animate-float,
-  .animate-float-slow {
-    animation: none;
-    opacity: 1;
+  .animate-float-slow,
+  .card-expand-enter {
+    animation: none !important;
+    opacity: 1 !important;
+    max-height: none !important;
   }
   .card-sticker:hover,
   .token-row:hover,
   .btn-candy:hover,
-  .btn-candy:active {
-    transform: none;
+  .btn-candy:active,
+  .btn-outline-geo:hover {
+    transform: none !important;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
   }
 }

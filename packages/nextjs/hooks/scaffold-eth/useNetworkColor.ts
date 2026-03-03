@@ -1,4 +1,3 @@
-import { useTheme } from "next-themes";
 import { useSelectedNetwork } from "~~/hooks/scaffold-eth";
 import { AllowedChainIds, ChainWithAttributes } from "~~/utils/scaffold-eth";
 
@@ -13,10 +12,6 @@ export function getNetworkColor(network: ChainWithAttributes, isDarkMode: boolea
  * Gets the color of the target network
  */
 export const useNetworkColor = (chainId?: AllowedChainIds) => {
-  const { resolvedTheme } = useTheme();
-
   const chain = useSelectedNetwork(chainId);
-  const isDarkMode = resolvedTheme === "dark";
-
-  return getNetworkColor(chain, isDarkMode);
+  return getNetworkColor(chain, false);
 };
