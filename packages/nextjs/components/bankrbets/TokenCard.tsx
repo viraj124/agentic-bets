@@ -1,14 +1,55 @@
 "use client";
 
-import { Suspense, lazy, memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useAccount } from "wagmi";
 import { BankrToken } from "~~/hooks/bankrbets/useBankrTokens";
-import { useCurrentRound } from "~~/hooks/bankrbets/usePredictionContract";
 
-const loadPriceChart = () => import("./PriceChart").then(m => ({ default: m.PriceChart }));
-const PriceChart = lazy(loadPriceChart);
-const CreateMarketModal = lazy(() => import("./CreateMarketModal").then(m => ({ default: m.CreateMarketModal })));
+const CHUNK_RELOAD_GUARD_KEY = "__bankrbets_chunk_retry__";
+
+function withChunkRetry<T>(loader: () => Promise<T>) {
+  return async () => {
+    try {
+      const loaded = await loader();
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(CHUNK_RELOAD_GUARD_KEY);
+      }
+      return loaded;
+    } catch (error) {
+      if (typeof window !== "undefined") {
+        const hasRetried = window.sessionStorage.getItem(CHUNK_RELOAD_GUARD_KEY) === "1";
+        if (!hasRetried) {
+          window.sessionStorage.setItem(CHUNK_RELOAD_GUARD_KEY, "1");
+          window.location.reload();
+          return new Promise<never>(() => {});
+        }
+        window.sessionStorage.removeItem(CHUNK_RELOAD_GUARD_KEY);
+      }
+      throw error;
+    }
+  };
+}
+
+const PriceChart = dynamic(
+  withChunkRetry(() => import("./PriceChart").then(m => m.PriceChart)),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[200px] flex items-center justify-center">
+        <span className="loading loading-spinner loading-sm text-pg-violet" />
+      </div>
+    ),
+  },
+);
+
+const CreateMarketModal = dynamic(
+  withChunkRetry(() => import("./CreateMarketModal").then(m => m.CreateMarketModal)),
+  {
+    ssr: false,
+    loading: () => null,
+  },
+);
 
 interface TokenCardProps {
   token: BankrToken;
@@ -40,9 +81,6 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
   const chartPoolAddress = token.poolId || token.topPoolAddress;
   const marketLink = `/market#${token.contractAddress},${chartPoolAddress}`;
   const avatarColor = useMemo(() => getAvatarColor(token.symbol), [token.symbol]);
-
-  // Only fetch round status for tokens that have a market — avoids unnecessary RPC calls
-  const { isActive } = useCurrentRound(token.contractAddress, !!hasMarket);
 
   const openModal = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -99,13 +137,7 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
               >
                 {token.symbol}
               </span>
-              {hasMarket && isActive && (
-                <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-pg-mint/15 text-pg-mint px-2 py-0.5 rounded-full border border-pg-mint/30">
-                  <span className="w-1 h-1 rounded-full bg-pg-mint animate-pulse" />
-                  LIVE
-                </span>
-              )}
-              {hasMarket && !isActive && (
+              {hasMarket ? (
                 <span
                   className="inline-flex items-center gap-1 text-[9px] font-extrabold px-2 py-0.5 rounded-full"
                   style={{
@@ -118,7 +150,7 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
                   <span className="text-[9px] leading-none">$</span>
                   BET
                 </span>
-              )}
+              ) : null}
             </div>
             <p className="text-[11px] text-pg-muted truncate">{token.name}</p>
           </div>
@@ -170,20 +202,12 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
               {/* Chart (lazy loaded) */}
               {chartPoolAddress && (
                 <div className="mt-4 rounded-xl overflow-hidden border-2 border-pg-border bg-base-200/30">
-                  <Suspense
-                    fallback={
-                      <div className="h-[200px] flex items-center justify-center">
-                        <span className="loading loading-spinner loading-sm text-pg-violet" />
-                      </div>
-                    }
-                  >
-                    <PriceChart
-                      poolAddress={chartPoolAddress}
-                      tokenAddress={token.contractAddress}
-                      height={200}
-                      compact
-                    />
-                  </Suspense>
+                  <PriceChart
+                    poolAddress={chartPoolAddress}
+                    tokenAddress={token.contractAddress}
+                    height={200}
+                    compact
+                  />
                 </div>
               )}
 
@@ -210,7 +234,7 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
               <div className="flex items-center gap-3 mt-4">
                 {isConnected && !hasMarket && (
                   <button onClick={openModal} className="btn-candy flex-1 text-sm text-center">
-                    Create Market
+                    Create
                   </button>
                 )}
                 <Link href={marketLink} className="btn-outline-geo flex-1 text-sm text-center">
@@ -234,14 +258,12 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
 
       {/* Create Market Modal (lazy loaded) */}
       {showCreateModal && chartPoolAddress && (
-        <Suspense fallback={null}>
-          <CreateMarketModal
-            tokenAddress={token.contractAddress}
-            poolAddress={chartPoolAddress}
-            tokenSymbol={token.symbol}
-            onClose={closeModal}
-          />
-        </Suspense>
+        <CreateMarketModal
+          tokenAddress={token.contractAddress}
+          poolAddress={chartPoolAddress}
+          tokenSymbol={token.symbol}
+          onClose={closeModal}
+        />
       )}
     </>
   );

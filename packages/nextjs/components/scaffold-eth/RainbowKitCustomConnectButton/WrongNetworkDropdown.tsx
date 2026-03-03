@@ -3,7 +3,23 @@ import { useDisconnect } from "wagmi";
 import { ArrowLeftOnRectangleIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
 
 export const WrongNetworkDropdown = () => {
-  const { disconnect } = useDisconnect();
+  const { disconnectAsync, connectors, isPending } = useDisconnect();
+
+  const handleDisconnect = async () => {
+    const snapshot = Array.from(new Map(connectors.map(connector => [connector.uid, connector])).values());
+    if (snapshot.length === 0) {
+      await disconnectAsync();
+      return;
+    }
+
+    for (const connector of snapshot) {
+      try {
+        await disconnectAsync({ connector });
+      } catch {
+        // Ignore "not connected" races while clearing multiple sessions.
+      }
+    }
+  };
 
   return (
     <div className="dropdown dropdown-end mr-2">
@@ -20,7 +36,8 @@ export const WrongNetworkDropdown = () => {
           <button
             className="menu-item text-error btn-sm rounded-xl! flex gap-3 py-3"
             type="button"
-            onClick={() => disconnect()}
+            onClick={() => void handleDisconnect()}
+            disabled={isPending}
           >
             <ArrowLeftOnRectangleIcon className="h-6 w-4 ml-2 sm:ml-0" />
             <span>Disconnect</span>

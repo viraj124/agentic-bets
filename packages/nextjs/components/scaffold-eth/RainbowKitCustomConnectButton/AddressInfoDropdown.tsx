@@ -14,7 +14,7 @@ type AddressInfoDropdownProps = {
 };
 
 export const AddressInfoDropdown = ({ address, ensAvatar, displayName }: AddressInfoDropdownProps) => {
-  const { disconnect } = useDisconnect();
+  const { disconnectAsync, connectors, isPending } = useDisconnect();
   const checkSumAddress = normalizeAddress(address);
   const addresses = useMemo(() => [address], [address]);
   const { data: resolvedMap } = useResolvedAddresses(addresses);
@@ -27,6 +27,24 @@ export const AddressInfoDropdown = ({ address, ensAvatar, displayName }: Address
 
   const closeDropdown = () => {
     dropdownRef.current?.removeAttribute("open");
+  };
+
+  const handleDisconnect = async () => {
+    closeDropdown();
+
+    const snapshot = Array.from(new Map(connectors.map(connector => [connector.uid, connector])).values());
+    if (snapshot.length === 0) {
+      await disconnectAsync();
+      return;
+    }
+
+    for (const connector of snapshot) {
+      try {
+        await disconnectAsync({ connector });
+      } catch {
+        // Ignore "not connected" races while clearing multiple sessions.
+      }
+    }
   };
 
   useOutsideClick(dropdownRef, closeDropdown);
@@ -43,7 +61,8 @@ export const AddressInfoDropdown = ({ address, ensAvatar, displayName }: Address
           <button
             className="menu-item text-error h-8 btn-sm rounded-xl! flex gap-3 py-3"
             type="button"
-            onClick={() => disconnect()}
+            onClick={() => void handleDisconnect()}
+            disabled={isPending}
           >
             <ArrowLeftOnRectangleIcon className="h-6 w-4 ml-2 sm:ml-0" />
             <span>Disconnect</span>

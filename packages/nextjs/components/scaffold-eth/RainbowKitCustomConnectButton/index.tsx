@@ -1,6 +1,7 @@
 "use client";
 
 // @refresh reset
+import { useEffect, useRef } from "react";
 import { AddressInfoDropdown } from "./AddressInfoDropdown";
 import { AddressQRCodeModal } from "./AddressQRCodeModal";
 import { RevealBurnerPKModal } from "./RevealBurnerPKModal";
@@ -17,6 +18,8 @@ function formatEthBalance(balanceFormatted: string): string {
   return `${value.toLocaleString(undefined, { maximumFractionDigits: 4 })} ETH`;
 }
 
+const nativeBalanceCache = new Map<string, string>();
+
 /**
  * Custom Wagmi Connect Button (watch balance + custom design)
  */
@@ -24,17 +27,39 @@ export const RainbowKitCustomConnectButton = () => {
   const networkColor = useNetworkColor();
   const { targetNetwork } = useTargetNetwork();
   const { address } = useAccount();
+  const normalizedAddress = address?.toLowerCase();
+  const warmedRef = useRef(new Set<string>());
   const { data: nativeBalance } = useBalance({
     address,
     chainId: targetNetwork.id,
     query: {
       enabled: !!address,
       refetchOnWindowFocus: false,
-      staleTime: 10_000,
-      gcTime: 30 * 60_000,
+      staleTime: 60_000,
+      gcTime: 2 * 60 * 60_000,
+      retry: 1,
       placeholderData: previousData => previousData,
     },
   });
+  const cachedNativeBalance = normalizedAddress ? nativeBalanceCache.get(normalizedAddress) : undefined;
+
+  useEffect(() => {
+    if (!normalizedAddress || !nativeBalance) return;
+    nativeBalanceCache.set(normalizedAddress, formatEthBalance(nativeBalance.formatted));
+  }, [normalizedAddress, nativeBalance]);
+
+  useEffect(() => {
+    if (!normalizedAddress || warmedRef.current.has(normalizedAddress)) return;
+    warmedRef.current.add(normalizedAddress);
+
+    void fetch(`/api/user-stats?address=${normalizedAddress}`).catch(() => undefined);
+    void fetch("/api/resolve-addresses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ addresses: [normalizedAddress] }),
+      keepalive: true,
+    }).catch(() => undefined);
+  }, [normalizedAddress]);
 
   return (
     <ConnectButton.Custom>
@@ -64,7 +89,9 @@ export const RainbowKitCustomConnectButton = () => {
                 <>
                   <div className="flex flex-col items-center mr-2">
                     <span className="text-[0.8em] leading-tight">
-                      {nativeBalance ? formatEthBalance(nativeBalance.formatted) : (account.displayBalance ?? "0 ETH")}
+                      {nativeBalance
+                        ? formatEthBalance(nativeBalance.formatted)
+                        : (cachedNativeBalance ?? account.displayBalance ?? "0 ETH")}
                     </span>
                     <span className="text-xs" style={{ color: networkColor }}>
                       {chain.name}

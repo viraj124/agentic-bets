@@ -400,7 +400,7 @@ export default function ChartDemoPage() {
                   <p className="text-xs text-pg-muted/50 mt-3">Waiting for settlement</p>
                   <button
                     onClick={() => setMockBetPlaced(null)}
-                    className="mt-3 text-[11px] text-pg-muted/50 hover:text-pg-muted underline"
+                    className="mt-3 text-[11px] text-pg-muted/50 hover:text-pg-muted no-underline"
                   >
                     reset demo
                   </button>

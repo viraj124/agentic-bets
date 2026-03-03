@@ -10,7 +10,7 @@ const COL_HEADER =
   "hidden sm:flex items-center gap-3 px-4 py-2.5 text-[10px] uppercase tracking-wider text-pg-muted font-bold border-b-2 border-pg-border mb-1";
 
 export function TrendingTokens() {
-  const { data: tokens, allData, isLoading, isFetching, hasNextPage, fetchNextPage, totalCount } = useBankrTokens();
+  const { data: tokens, allData, isLoading, hasNextPage, fetchNextPage, totalCount } = useBankrTokens();
   const { tokens: marketTokens } = useMarketTokens();
   const marketAddresses = useMemo(() => {
     const set = new Set<string>();
@@ -233,16 +233,6 @@ export function TrendingTokens() {
           <button onClick={fetchNextPage} className="btn-outline-geo px-8 py-2.5 text-sm font-bold">
             Load More Tokens
           </button>
-        </div>
-      )}
-
-      {/* Refreshing indicator */}
-      {isFetching && tokens.length > 0 && (
-        <div className="flex justify-center mt-4">
-          <span className="text-xs text-pg-muted/60 flex items-center gap-2">
-            <span className="loading loading-spinner loading-xs" />
-            Refreshing...
-          </span>
         </div>
       )}
     </div>

@@ -38,19 +38,19 @@ const Home: NextPage = () => {
   return (
     <div className="flex flex-col grow">
       {/* ── Hero ──────────────────────────────────────────────────── */}
-      <div className="relative px-6 pt-12 pb-8 overflow-hidden">
+      <div className="relative px-6 pt-8 md:pt-12 pb-6 overflow-hidden">
         {/* Floating geometric decorations */}
-        <div className="absolute top-6 right-[15%] w-16 h-16 rounded-full bg-pg-amber/20 border-2 border-pg-amber/30 animate-float hidden md:block" />
-        <div className="absolute top-20 right-[8%] w-8 h-8 rounded-lg bg-pg-pink/20 border-2 border-pg-pink/30 rotate-12 animate-float-slow hidden md:block" />
+        <div className="absolute top-6 right-[15%] w-16 h-16 rounded-full bg-pg-amber/20 border-2 border-pg-amber/30 motion-safe:animate-float hidden md:block" />
+        <div className="absolute top-20 right-[8%] w-8 h-8 rounded-lg bg-pg-pink/20 border-2 border-pg-pink/30 rotate-12 motion-safe:animate-float-slow hidden md:block" />
 
         <div className="max-w-5xl mx-auto relative">
-          <div className="mb-4">
-            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-base-content">
+          <div className="mb-3">
+            <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-base-content">
               Bankr <span className="text-pg-violet">Bets</span>
             </h1>
-            <div className="flex items-center gap-2 mt-1.5">
+            <div className="flex flex-wrap items-center gap-2 mt-1.5">
               <span className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-pg-mint/15 text-pg-mint rounded-full px-3 py-1 border border-pg-mint/30">
-                <span className="w-1.5 h-1.5 rounded-full bg-pg-mint animate-pulse" />
+                <span className="w-1.5 h-1.5 rounded-full bg-pg-mint motion-safe:animate-pulse" />
                 Live on Base
               </span>
               <span className="inline-flex items-center text-[11px] font-bold bg-pg-amber/15 text-pg-amber rounded-full px-3 py-1 border border-pg-amber/30">
@@ -59,7 +59,7 @@ const Home: NextPage = () => {
             </div>
           </div>
 
-          <p className="text-base text-pg-muted max-w-lg leading-relaxed">
+          <p className="text-sm md:text-base text-pg-muted max-w-lg leading-relaxed">
             Prediction markets for Bankr ecosystem tokens. Pick a token, create a market, bet on the next 5 minutes.
           </p>
         </div>
@@ -71,7 +71,7 @@ const Home: NextPage = () => {
       </div>
 
       {/* ── How it works ──────────────────────────────────────────── */}
-      <div className="relative px-6 py-14 bg-dots">
+      <div className="relative px-6 py-10 md:py-14 bg-dots">
         {/* Decorative squiggle divider */}
         <div className="absolute top-0 left-0 right-0 h-px bg-pg-border" />
 
@@ -88,7 +88,10 @@ const Home: NextPage = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {STEPS.map((item, i) => (
-              <div key={item.n} className={`animate-pop-in stagger-${i + 1} group card-sticker p-5 cursor-default`}>
+              <div
+                key={item.n}
+                className={`motion-safe:animate-pop-in stagger-${i + 1} group card-sticker p-5 cursor-default`}
+              >
                 {/* Step number badge */}
                 <div
                   className={`inline-flex items-center justify-center w-9 h-9 rounded-full ${item.color} border-2 border-pg-slate mb-3`}

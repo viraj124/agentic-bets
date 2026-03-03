@@ -43,8 +43,8 @@ export const HeaderMenuLinks = () => {
               passHref
               className={`${
                 isActive
-                  ? "text-pg-violet font-bold bg-pg-violet/10 rounded-full"
-                  : "text-pg-muted hover:text-base-content"
+                  ? "text-pg-violet font-bold bg-pg-violet/10 rounded-full no-underline"
+                  : "text-pg-muted hover:text-base-content hover:bg-base-200/50 rounded-full"
               } px-4 py-1.5 text-sm transition-all duration-200 gap-2 grid grid-flow-col`}
               style={{ fontFamily: "var(--font-heading)" }}
             >
