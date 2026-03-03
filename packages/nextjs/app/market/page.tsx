@@ -1,24 +1,35 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import type { NextPage } from "next";
 import { useAccount } from "wagmi";
 import { BetPanel } from "~~/components/bankrbets/BetPanel";
 import { CreateMarketModal } from "~~/components/bankrbets/CreateMarketModal";
 import { MarketCreatorBadge } from "~~/components/bankrbets/MarketCreatorBadge";
-import { PriceChart } from "~~/components/bankrbets/PriceChart";
+import { RoundHistory } from "~~/components/bankrbets/RoundHistory";
 import { useGeckoTerminal } from "~~/hooks/bankrbets/useGeckoTerminal";
 import { useLivePrice } from "~~/hooks/bankrbets/useLivePrice";
 import { useCreatorEarnings, useCurrentRound } from "~~/hooks/bankrbets/usePredictionContract";
-import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
+import { useDeployedContractInfo, useScaffoldReadContract } from "~~/hooks/scaffold-eth";
+
+const PriceChart = dynamic(() => import("~~/components/bankrbets/PriceChart").then(m => m.PriceChart), {
+  ssr: false,
+  loading: () => (
+    <div className="h-72 flex items-center justify-center">
+      <span className="loading loading-spinner loading-md text-pg-violet" />
+    </div>
+  ),
+});
 
 const MarketPage: NextPage = () => {
   const [tokenAddress, setTokenAddress] = useState<string | null>(null);
   const [poolAddress, setPoolAddress] = useState<string | null>(null);
+  const [focusEpoch, setFocusEpoch] = useState<bigint | null>(null);
 
   useEffect(() => {
-    const readHash = () => {
+    const readLocation = () => {
       const hash = window.location.hash.slice(1);
       if (hash && hash.startsWith("0x")) {
         const parts = hash.split(",");
@@ -29,11 +40,28 @@ const MarketPage: NextPage = () => {
           setTokenAddress(hash);
         }
       }
+
+      const roundParam = new URLSearchParams(window.location.search).get("round");
+      if (!roundParam) {
+        setFocusEpoch(null);
+        return;
+      }
+
+      try {
+        const parsed = BigInt(roundParam);
+        setFocusEpoch(parsed > 0n ? parsed : null);
+      } catch {
+        setFocusEpoch(null);
+      }
     };
 
-    readHash();
-    window.addEventListener("hashchange", readHash);
-    return () => window.removeEventListener("hashchange", readHash);
+    readLocation();
+    window.addEventListener("hashchange", readLocation);
+    window.addEventListener("popstate", readLocation);
+    return () => {
+      window.removeEventListener("hashchange", readLocation);
+      window.removeEventListener("popstate", readLocation);
+    };
   }, []);
 
   if (!tokenAddress) {
@@ -65,10 +93,27 @@ const MarketPage: NextPage = () => {
     );
   }
 
-  return <MarketViewGate tokenAddress={tokenAddress} poolAddress={poolAddress} />;
+  return (
+    <MarketViewGate
+      tokenAddress={tokenAddress}
+      poolAddress={poolAddress}
+      focusEpoch={focusEpoch}
+      clearFocusEpoch={() => setFocusEpoch(null)}
+    />
+  );
 };
 
-function MarketViewGate({ tokenAddress, poolAddress }: { tokenAddress: string; poolAddress: string | null }) {
+function MarketViewGate({
+  tokenAddress,
+  poolAddress,
+  focusEpoch,
+  clearFocusEpoch,
+}: {
+  tokenAddress: string;
+  poolAddress: string | null;
+  focusEpoch: bigint | null;
+  clearFocusEpoch: () => void;
+}) {
   const { data: predictionContract, isLoading: predictionLoading } = useDeployedContractInfo({
     contractName: "BankrBetsPrediction",
   });
@@ -117,15 +162,42 @@ function MarketViewGate({ tokenAddress, poolAddress }: { tokenAddress: string; p
     );
   }
 
-  return <MarketView tokenAddress={tokenAddress} poolAddress={poolAddress} />;
+  return (
+    <MarketView
+      tokenAddress={tokenAddress}
+      poolAddress={poolAddress}
+      focusEpoch={focusEpoch}
+      clearFocusEpoch={clearFocusEpoch}
+    />
+  );
 }
 
-function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolAddress: string | null }) {
+function MarketView({
+  tokenAddress,
+  poolAddress,
+  focusEpoch,
+  clearFocusEpoch,
+}: {
+  tokenAddress: string;
+  poolAddress: string | null;
+  focusEpoch: bigint | null;
+  clearFocusEpoch: () => void;
+}) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { data: poolData } = useGeckoTerminal(poolAddress || undefined, tokenAddress);
   const marketPoolAddress = poolData?.poolAddress || poolAddress;
   const { data: livePrice } = useLivePrice(marketPoolAddress || undefined, tokenAddress);
   const { epoch, round, isActive } = useCurrentRound(tokenAddress);
+  const { data: focusedRound } = useScaffoldReadContract({
+    contractName: "BankrBetsPrediction",
+    functionName: "getRound",
+    args: [tokenAddress, focusEpoch ?? 0n],
+    query: {
+      enabled: focusEpoch !== null && focusEpoch > 0n,
+      refetchInterval: 5000,
+    },
+    watch: false,
+  });
   const { address } = useAccount();
   const { creator, earningsFormatted } = useCreatorEarnings(tokenAddress);
   const livePriceUsd = livePrice?.priceUsd;
@@ -141,8 +213,13 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
   );
   const hasCreator = !!(creator && creator.toLowerCase() !== ZERO_ADDRESS);
 
-  const isLocked = round ? round.locked : false;
-  const lockPrice = round ? Number(round.lockPrice) / 1e18 : 0;
+  const roundInView = focusEpoch !== null ? focusedRound : round;
+  const epochInView = focusEpoch ?? epoch;
+  const isHistoricalView = focusEpoch !== null && epoch !== undefined && focusEpoch !== epoch;
+
+  const isLocked = roundInView ? roundInView.locked : false;
+  const lockPrice = roundInView ? Number(roundInView.lockPrice) / 1e18 : 0;
+  const isRoundInViewActive = roundInView ? !roundInView.oracleCalled && !roundInView.cancelled : isActive;
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-6">
@@ -166,14 +243,14 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
               >
                 {poolData?.tokenName || `${tokenAddress.slice(0, 6)}...${tokenAddress.slice(-4)}`}
               </h1>
-              {isActive ? (
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-pg-mint/15 text-pg-mint rounded-full px-3 py-1 border border-pg-mint/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-pg-mint animate-pulse" />
-                  Live
+              {marketCreated ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-3 py-1 rounded-full bg-pg-violet/15 text-pg-violet border border-pg-violet/30">
+                  <span className="text-[10px] leading-none">$</span>
+                  BET
                 </span>
               ) : marketCreated === false ? (
                 <button onClick={() => setShowCreateModal(true)} className="btn-candy text-xs px-4 py-1.5">
-                  Create Market
+                  Create
                 </button>
               ) : null}
             </div>
@@ -181,6 +258,22 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
               <p className="text-xs text-pg-muted font-mono">{tokenAddress}</p>
               <MarketCreatorBadge creatorAddress={creator} />
             </div>
+            {focusEpoch !== null && (
+              <div className="mt-2 inline-flex items-center gap-2 rounded-lg border border-pg-violet/30 bg-pg-violet/10 px-2.5 py-1">
+                <span className="text-[11px] font-bold text-pg-violet">Viewing round #{focusEpoch.toString()}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const liveUrl = `/market#${tokenAddress}${marketPoolAddress ? `,${marketPoolAddress}` : ""}`;
+                    window.history.replaceState(null, "", liveUrl);
+                    clearFocusEpoch();
+                  }}
+                  className="text-[11px] font-bold text-pg-violet/80 hover:text-pg-violet transition-colors no-underline"
+                >
+                  Back to live
+                </button>
+              </div>
+            )}
           </div>
           {poolData && (
             <div className="text-right flex-shrink-0">
@@ -237,25 +330,25 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
                 priceDelayed={isChartPriceDelayed}
                 lockPrice={isLocked && lockPrice > 0 ? lockPrice : undefined}
                 isLocked={Boolean(isLocked)}
-                epoch={epoch !== undefined ? Number(epoch) : undefined}
+                epoch={epochInView !== undefined ? Number(epochInView) : undefined}
               />
             ) : (
-              <div className="h-72 flex items-center justify-center">
-                <p className="text-xs text-pg-muted">No pool data available</p>
+              <div className="h-72 flex flex-col items-center justify-center gap-2">
+                <span className="loading loading-spinner loading-md text-pg-violet" />
+                <p className="text-xs text-pg-muted">Loading chart data...</p>
               </div>
             )}
           </div>
 
           {/* Round pool stats */}
-          {isActive &&
-            round &&
+          {roundInView &&
             (() => {
-              const isSettled = round.oracleCalled;
-              const isCancelled = round.cancelled;
-              const upWon = isSettled && !isCancelled && round.closePrice > round.lockPrice;
-              const downWon = isSettled && !isCancelled && round.closePrice < round.lockPrice;
-              const closePriceNum = Number(round.closePrice) / 1e18;
-              const lockPriceNum = Number(round.lockPrice) / 1e18;
+              const isSettled = roundInView.oracleCalled;
+              const isCancelled = roundInView.cancelled;
+              const upWon = isSettled && !isCancelled && roundInView.closePrice > roundInView.lockPrice;
+              const downWon = isSettled && !isCancelled && roundInView.closePrice < roundInView.lockPrice;
+              const closePriceNum = Number(roundInView.closePrice) / 1e18;
+              const lockPriceNum = Number(roundInView.lockPrice) / 1e18;
 
               return (
                 <div className="bg-base-100 rounded-2xl border-2 border-pg-border p-4">
@@ -264,10 +357,10 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
                       className="text-[10px] text-pg-muted uppercase tracking-wider font-bold"
                       style={{ fontFamily: "var(--font-heading)" }}
                     >
-                      Round #{epoch?.toString()} Pool
+                      Round #{epochInView?.toString()} Pool
                     </span>
                     <span className="text-xs font-bold text-base-content font-mono">
-                      ${(Number(round.totalAmount) / 1e6).toFixed(2)} total
+                      ${(Number(roundInView.totalAmount) / 1e6).toFixed(2)} total
                     </span>
                   </div>
 
@@ -298,11 +391,11 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
                     >
                       <p className="text-[10px] text-pg-mint font-bold uppercase tracking-wider mb-1">↑ UP</p>
                       <p className="text-sm font-extrabold text-base-content font-mono">
-                        ${(Number(round.bullAmount) / 1e6).toFixed(2)}
+                        ${(Number(roundInView.bullAmount) / 1e6).toFixed(2)}
                       </p>
                       <p className="text-[10px] text-pg-muted mt-0.5">
-                        {round.totalAmount > 0n
-                          ? ((Number(round.bullAmount) / Number(round.totalAmount)) * 100).toFixed(0)
+                        {roundInView.totalAmount > 0n
+                          ? ((Number(roundInView.bullAmount) / Number(roundInView.totalAmount)) * 100).toFixed(0)
                           : 50}
                         %
                       </p>
@@ -312,11 +405,11 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
                     >
                       <p className="text-[10px] text-pg-pink font-bold uppercase tracking-wider mb-1">↓ DOWN</p>
                       <p className="text-sm font-extrabold text-base-content font-mono">
-                        ${(Number(round.bearAmount) / 1e6).toFixed(2)}
+                        ${(Number(roundInView.bearAmount) / 1e6).toFixed(2)}
                       </p>
                       <p className="text-[10px] text-pg-muted mt-0.5">
-                        {round.totalAmount > 0n
-                          ? ((Number(round.bearAmount) / Number(round.totalAmount)) * 100).toFixed(0)
+                        {roundInView.totalAmount > 0n
+                          ? ((Number(roundInView.bearAmount) / Number(roundInView.totalAmount)) * 100).toFixed(0)
                           : 50}
                         %
                       </p>
@@ -326,13 +419,16 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
                     <div
                       className="h-full bg-pg-mint rounded-full transition-all duration-500"
                       style={{
-                        width: `${round.totalAmount > 0n ? (Number(round.bullAmount) / Number(round.totalAmount)) * 100 : 50}%`,
+                        width: `${roundInView.totalAmount > 0n ? (Number(roundInView.bullAmount) / Number(roundInView.totalAmount)) * 100 : 50}%`,
                       }}
                     />
                   </div>
                 </div>
               );
             })()}
+
+          {/* Round history */}
+          <RoundHistory tokenAddress={tokenAddress} currentEpoch={epoch} />
         </div>
 
         {/* Right column: Bet panel + Market info */}
@@ -342,9 +438,10 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
             tokenSymbol={poolData?.tokenName?.split("/")[0]}
             lockPrice={isLocked && lockPrice > 0 ? lockPrice : undefined}
             marketCreated={marketCreated}
-            epoch={epoch}
-            round={round}
-            isActive={isActive}
+            epoch={epochInView}
+            round={roundInView}
+            isActive={isRoundInViewActive}
+            historicalView={isHistoricalView}
           />
 
           {/* Market stats */}
@@ -400,7 +497,7 @@ function MarketView({ tokenAddress, poolAddress }: { tokenAddress: string; poolA
           {hasCreator &&
             (() => {
               const pendingFee =
-                round && isLocked && !round.oracleCalled && round.totalAmount > 0n
+                round && round.locked && !round.oracleCalled && round.totalAmount > 0n
                   ? Number((round.totalAmount * 50n) / 10000n) / 1e6
                   : null;
 
