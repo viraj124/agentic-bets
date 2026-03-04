@@ -48,7 +48,10 @@
     "vercel": "yarn workspace @se-2/nextjs vercel",
     "vercel:login": "yarn workspace @se-2/nextjs vercel:login",
     "vercel:yolo": "yarn workspace @se-2/nextjs vercel:yolo",
-    "verify": "yarn foundry:verify"
+    "verify": "yarn foundry:verify",
+    "keeper:dev": "yarn workspace @se-2/keeper dev",
+    "keeper:build": "yarn workspace @se-2/keeper build",
+    "keeper:start": "yarn workspace @se-2/keeper start"
   },
   "devDependencies": {
     "husky": "~9.1.6",
