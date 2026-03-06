@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 
 type LivePriceSnapshot = {
   priceUsd: number;
-  source: "gecko-pool" | "dexscreener-token" | "gecko-token-pools" | "zerox-price";
+  source: "gecko-pool" | "dexscreener-token" | "gecko-token-pools" | "zerox-price" | "uniswap-trading";
   updatedAt: number;
   poolAddress?: string;
   tokenAddress?: string;
@@ -48,13 +48,25 @@ type ZeroXPriceResponse = {
   liquidityAvailable?: boolean;
 };
 
+type UniswapQuoteResponse = {
+  routing?: string;
+  quote?: {
+    input?: { token?: string; amount?: string | number };
+    output?: { token?: string; amount?: string | number };
+    gasFeeUSD?: string | number;
+  };
+};
+
 const GECKO_BASE_URL = "https://api.geckoterminal.com/api/v2/networks/base/pools";
 const GECKO_TOKENS_URL = "https://api.geckoterminal.com/api/v2/networks/base/tokens";
 const DEXSCREENER_TOKENS_URL = "https://api.dexscreener.com/latest/dex/tokens";
 const ZEROX_BASE_URL = "https://api.0x.org";
 const ZEROX_CHAIN_ID = "8453"; // Base mainnet
 const USDC_BASE = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+const WETH_BASE = "0x4200000000000000000000000000000000000006";
 const BANKR_SELL_AMOUNT_18_DECIMALS = "1000000000000000000"; // 1 token @ 18 decimals
+const UNISWAP_TRADING_API_URL = "https://trade-api.gateway.uniswap.org/v1/quote";
+const UNISWAP_BASE_CHAIN_ID = 8453;
 
 const FETCH_TIMEOUT_MS = 5000;
 const SOFT_TTL_MS = 2500;
@@ -62,10 +74,11 @@ const DELAYED_AFTER_MS = 15000;
 const PROVIDER_COOLDOWN_MS = 45_000; // skip a provider for 45s after a 429
 const USDC_DECIMALS = 6;
 const OX_API_KEY = process.env["0X_API_KEY"] ?? "";
+const UNISWAP_API_KEY = process.env.UNISWAP_API_KEY ?? "";
 
 const priceCache = new Map<string, LivePriceSnapshot>();
 const inFlight = new Map<string, Promise<LivePriceSnapshot | null>>();
-// Per-provider 429 cooldown: "gecko" | "dexscreener" | "zerox" → timestamp until available
+// Per-provider 429 cooldown: "gecko" | "dexscreener" | "zerox" | "uniswap" → timestamp until available
 const rateLimitedUntil = new Map<string, number>();
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -333,13 +346,75 @@ async function fetchZeroXPrice(tokenAddress: string): Promise<LivePriceSnapshot 
   };
 }
 
+/**
+ * Uniswap Trading API quote: TOKEN → USDC on Base.
+ *
+ * Uses a dead-address swapper since we only need an indicative quote, not an
+ * executable transaction.  The API still returns accurate routing & pricing.
+ */
+async function fetchUniswapTradingPrice(tokenAddress: string): Promise<LivePriceSnapshot | null> {
+  if (!tokenAddress || !isHexAddress(tokenAddress)) return null;
+  if (!UNISWAP_API_KEY) return null;
+  if (isRateLimited("uniswap")) return null;
+
+  // Skip if the token IS USDC or WETH (no meaningful self-quote)
+  if (tokenAddress === USDC_BASE || tokenAddress === WETH_BASE) return null;
+
+  const body = JSON.stringify({
+    type: "EXACT_INPUT",
+    amount: BANKR_SELL_AMOUNT_18_DECIMALS, // 1 token (18 decimals)
+    tokenInChainId: UNISWAP_BASE_CHAIN_ID,
+    tokenOutChainId: UNISWAP_BASE_CHAIN_ID,
+    tokenIn: tokenAddress,
+    tokenOut: USDC_BASE,
+    swapper: "0x0000000000000000000000000000000000000001",
+    slippageTolerance: 0.5,
+    protocols: ["V2", "V3", "V4"],
+  });
+
+  const res = await fetchRaw(UNISWAP_TRADING_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": UNISWAP_API_KEY,
+    },
+    body,
+  });
+
+  if (!res) return null;
+  if (res.status === 429) {
+    markRateLimited("uniswap");
+    return null;
+  }
+  if (!res.ok) return null;
+
+  const json = (await res.json()) as UniswapQuoteResponse;
+
+  const outputAmount = toPositiveBigInt(json?.quote?.output?.amount);
+  const inputAmount = toPositiveBigInt(json?.quote?.input?.amount || BANKR_SELL_AMOUNT_18_DECIMALS);
+  if (!(outputAmount > 0n) || !(inputAmount > 0n)) return null;
+
+  // output is USDC (6 decimals), input is the token (18 decimals)
+  const normalizedInput = Number(inputAmount) / 1e18;
+  const normalizedOutputUsdc = Number(outputAmount) / 10 ** USDC_DECIMALS;
+  const priceUsd = normalizedOutputUsdc / normalizedInput;
+  if (!(priceUsd > 0)) return null;
+
+  return {
+    priceUsd,
+    source: "uniswap-trading",
+    updatedAt: Date.now(),
+    tokenAddress,
+  };
+}
+
 // ── Provider cascade ──────────────────────────────────────────────────────────
 
 /**
  * Fetch the best available live price using a resilient provider cascade.
  *
- * When GeckoTerminal is healthy: Gecko Pool → DexScreener → 0x → Gecko Token Pools
- * When GeckoTerminal is rate-limited: DexScreener → 0x (then Gecko if cooldown clears)
+ * When GeckoTerminal is healthy: Gecko Pool → DexScreener → 0x → Uniswap Trading API → Gecko Token Pools
+ * When GeckoTerminal is rate-limited: DexScreener → 0x → Uniswap → (then Gecko if cooldown clears)
  *
  * Providers are called sequentially and the first successful result wins.
  */
@@ -361,6 +436,11 @@ async function fetchBestLivePrice(poolAddress: string, tokenAddress: string): Pr
   if (tokenAddress) {
     // 0x quote endpoint covers many routable pools and helps during Gecko/Dex outages.
     providers.push(() => fetchZeroXPrice(tokenAddress));
+  }
+
+  if (tokenAddress) {
+    // Uniswap Trading API: V2/V3/V4 routing quote — accurate pricing via their aggregator.
+    providers.push(() => fetchUniswapTradingPrice(tokenAddress));
   }
 
   if (tokenAddress) {
