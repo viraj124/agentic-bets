@@ -10,7 +10,6 @@ import { CreateMarketModal } from "~~/components/bankrbets/CreateMarketModal";
 import { MarketCreatorBadge } from "~~/components/bankrbets/MarketCreatorBadge";
 import { RoundHistory } from "~~/components/bankrbets/RoundHistory";
 import { useGeckoTerminal } from "~~/hooks/bankrbets/useGeckoTerminal";
-import { useLivePrice } from "~~/hooks/bankrbets/useLivePrice";
 import { useCreatorEarnings, useCurrentRound } from "~~/hooks/bankrbets/usePredictionContract";
 import { useDeployedContractInfo, useScaffoldReadContract } from "~~/hooks/scaffold-eth";
 
@@ -186,7 +185,6 @@ function MarketView({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { data: poolData } = useGeckoTerminal(poolAddress || undefined, tokenAddress);
   const marketPoolAddress = poolData?.poolAddress || poolAddress;
-  const { data: livePrice } = useLivePrice(marketPoolAddress || undefined, tokenAddress);
   const { epoch, round, isActive } = useCurrentRound(tokenAddress);
   const { data: focusedRound } = useScaffoldReadContract({
     contractName: "BankrBetsPrediction",
@@ -200,9 +198,6 @@ function MarketView({
   });
   const { address } = useAccount();
   const { creator, earningsFormatted } = useCreatorEarnings(tokenAddress);
-  const livePriceUsd = livePrice?.priceUsd;
-  const chartCurrentPrice = livePriceUsd && livePriceUsd > 0 ? livePriceUsd : poolData?.priceUsd;
-  const isChartPriceDelayed = livePrice?.isDelayed ?? false;
   const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
   const marketCreated = creator ? creator.toLowerCase() !== ZERO_ADDRESS : undefined;
   const isCreator = !!(
@@ -323,15 +318,7 @@ function MarketView({
               )}
             </div>
             {marketPoolAddress ? (
-              <PriceChart
-                poolAddress={marketPoolAddress}
-                tokenAddress={tokenAddress}
-                currentPrice={chartCurrentPrice}
-                priceDelayed={isChartPriceDelayed}
-                lockPrice={isLocked && lockPrice > 0 ? lockPrice : undefined}
-                isLocked={Boolean(isLocked)}
-                epoch={epochInView !== undefined ? Number(epochInView) : undefined}
-              />
+              <PriceChart poolAddress={marketPoolAddress} tokenAddress={tokenAddress} />
             ) : (
               <div className="h-72 flex flex-col items-center justify-center gap-2">
                 <span className="loading loading-spinner loading-md text-pg-violet" />

@@ -16,7 +16,7 @@ interface GeckoTokenPool {
   };
 }
 
-const CACHE_TTL_MS = 5 * 60_000; // 5 minutes
+const CACHE_TTL_MS = 10 * 60_000; // 10 minutes
 const EMPTY_RETRY_TTL_MS = 60_000; // retry empty results after 1 min
 const RESOLVED_POOL_TTL_MS = 10 * 60_000; // cache token→bestPool for 10 min
 const PROVIDER_COOLDOWN_MS = 45_000; // skip a provider for 45s after a 429
@@ -29,6 +29,32 @@ const rateLimitedUntil = new Map<string, number>();
 const FETCH_TIMEOUT_MS = 8_000;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Map aggregate minutes from the client into the correct GeckoTerminal
+ * timeframe endpoint + aggregate value.
+ *
+ * GeckoTerminal supports:
+ *   /ohlcv/minute  → aggregate 1, 5, 15
+ *   /ohlcv/hour    → aggregate 1, 4, 12
+ *   /ohlcv/day     → aggregate 1
+ */
+function resolveGeckoTimeframe(aggregateMinutes: number): { timeframe: string; aggregate: number } {
+  if (aggregateMinutes <= 15) {
+    // 1, 5, 15 → minute endpoint
+    return { timeframe: "minute", aggregate: aggregateMinutes };
+  }
+  if (aggregateMinutes < 1440) {
+    // 60 → 1 hour, 240 → 4 hours, 720 → 12 hours
+    const hours = Math.round(aggregateMinutes / 60);
+    // Snap to nearest valid value: 1, 4, 12
+    const valid = [1, 4, 12];
+    const snapped = valid.reduce((prev, curr) => (Math.abs(curr - hours) < Math.abs(prev - hours) ? curr : prev));
+    return { timeframe: "hour", aggregate: snapped };
+  }
+  // 1440+ → day endpoint
+  return { timeframe: "day", aggregate: 1 };
+}
 
 function isRateLimited(provider: string): boolean {
   const until = rateLimitedUntil.get(provider);
@@ -117,7 +143,9 @@ async function fetchGeckoOhlcv(
 ): Promise<OhlcvCandle[] | null> {
   if (isRateLimited("gecko")) return null;
 
-  const url = `https://api.geckoterminal.com/api/v2/networks/base/pools/${pool}/ohlcv/minute?aggregate=${aggregate}&limit=${limit}&currency=${currency}`;
+  const aggMinutes = parseInt(aggregate, 10) || 5;
+  const { timeframe, aggregate: geckoAgg } = resolveGeckoTimeframe(aggMinutes);
+  const url = `https://api.geckoterminal.com/api/v2/networks/base/pools/${pool}/ohlcv/${timeframe}?aggregate=${geckoAgg}&limit=${limit}&currency=${currency}`;
 
   // One-shot fetch so we can inspect the status code for 429.
   const controller = new AbortController();
@@ -151,7 +179,10 @@ async function fetchDexScreenerOhlcv(pool: string, aggregate: string, limit: str
   if (isRateLimited("dexscreener")) return null;
 
   const cb = Date.now();
-  const url = `https://io.dexscreener.com/dex/chart/amm/v3/base/${pool}?res=${aggregate}&cb=${cb}`;
+  // DexScreener res param: 1, 5, 15, 30, 60, 240, 720, 1D
+  const aggMinutes = parseInt(aggregate, 10) || 5;
+  const dexRes = aggMinutes >= 1440 ? "1D" : String(aggMinutes);
+  const url = `https://io.dexscreener.com/dex/chart/amm/v3/base/${pool}?res=${dexRes}&cb=${cb}`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -315,8 +346,8 @@ export async function GET(req: NextRequest) {
   const cacheKey = `${pool}-${token}-${aggregate}-${limit}-${currency}`;
   const cached = cache.get(cacheKey);
 
-  // Serve fresh cache immediately
-  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+  // Serve fresh cache immediately (only if it has data — empty results use shorter TTL below)
+  if (cached && cached.data.length > 0 && Date.now() - cached.ts < CACHE_TTL_MS) {
     return Response.json(cached.data, {
       headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" },
     });
@@ -349,14 +380,18 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Provider failure: return stale cache rather than an empty/error response
+  // Provider failure: return stale cache or empty array (never 503)
   if (candles === null) {
     if (cached) {
       return Response.json(cached.data, {
         headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" },
       });
     }
-    return Response.json({ error: "Upstream chart provider unavailable" }, { status: 503 });
+    // Cache the empty result so we don't keep retrying immediately
+    cache.set(cacheKey, { ts: Date.now(), data: [] });
+    return Response.json([], {
+      headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=60" },
+    });
   }
 
   // Cache — empty arrays use EMPTY_RETRY_TTL so we retry sooner
