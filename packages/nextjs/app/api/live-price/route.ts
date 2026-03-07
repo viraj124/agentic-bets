@@ -69,7 +69,7 @@ const UNISWAP_TRADING_API_URL = "https://trade-api.gateway.uniswap.org/v1/quote"
 const UNISWAP_BASE_CHAIN_ID = 8453;
 
 const FETCH_TIMEOUT_MS = 5000;
-const SOFT_TTL_MS = 2500;
+const SOFT_TTL_MS = 8000;
 const DELAYED_AFTER_MS = 15000;
 const PROVIDER_COOLDOWN_MS = 45_000; // skip a provider for 45s after a 429
 const USDC_DECIMALS = 6;

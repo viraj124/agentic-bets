@@ -27,10 +27,10 @@ export function useLivePrice(poolAddress?: string, tokenAddress?: string) {
       return json;
     },
     enabled: Boolean(poolAddress || tokenAddress),
-    staleTime: 1000,
+    staleTime: 8000,
     retry: 2,
     retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 4000),
-    refetchInterval: query => (query.state.data?.isDelayed ? 3000 : 2000),
+    refetchInterval: query => (query.state.data?.isDelayed ? 15000 : 10000),
     refetchOnWindowFocus: false,
     placeholderData: previousData => previousData,
   });
