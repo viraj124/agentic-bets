@@ -42,7 +42,7 @@ export function CreateMarketModal({
       onClick={onClose}
     >
       <div
-        className="animate-pop-in bg-base-100 rounded-2xl border-2 border-pg-slate shadow-pop-hover w-full max-w-md mx-4 overflow-hidden"
+        className="animate-pop-in bg-base-100 rounded-xl sm:rounded-2xl border-2 border-pg-slate shadow-pop-hover w-full max-w-sm sm:max-w-md mx-2 sm:mx-4 overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}

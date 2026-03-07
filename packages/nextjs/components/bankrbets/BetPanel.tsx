@@ -1013,7 +1013,7 @@ export function BetPanel({
                   type="button"
                   onClick={handleSetMaxAmount}
                   disabled={!address || balance <= 0n}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-md border border-pg-violet/40 bg-pg-violet/10 text-[11px] font-bold tracking-wide text-pg-violet hover:bg-pg-violet/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 px-2 sm:px-2.5 py-1.5 sm:py-1 rounded-md border border-pg-violet/40 bg-pg-violet/10 text-[10px] sm:text-[11px] font-bold tracking-wide text-pg-violet hover:bg-pg-violet/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   MAX
                 </button>

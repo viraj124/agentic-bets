@@ -156,12 +156,14 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
           </div>
 
           {/* Price */}
-          <div className="text-left flex-shrink-0 w-28">
-            <p className="font-mono text-sm font-bold tracking-tight text-base-content">{token.priceFormatted}</p>
+          <div className="text-left flex-shrink-0 w-20 sm:w-28">
+            <p className="font-mono text-xs sm:text-sm font-bold tracking-tight text-base-content">
+              {token.priceFormatted}
+            </p>
           </div>
 
           {/* 24h Change */}
-          <div className="text-left flex-shrink-0 w-24">
+          <div className="text-left flex-shrink-0 w-16 sm:w-24">
             <span
               className={`inline-flex items-center text-xs font-bold ${changeColor} ${changeBg} px-2 py-0.5 rounded-full`}
             >
@@ -171,12 +173,12 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
           </div>
 
           {/* Market Cap */}
-          <div className="text-left pl-2 flex-shrink-0 w-24 hidden sm:block">
+          <div className="text-left pl-1 sm:pl-2 flex-shrink-0 w-20 sm:w-24 hidden sm:block">
             <p className="text-xs text-pg-muted font-medium">{token.marketCapFormatted}</p>
           </div>
 
           {/* Volume */}
-          <div className="text-right pr-3 flex-shrink-0 w-24 hidden md:block">
+          <div className="text-right pr-2 sm:pr-3 flex-shrink-0 w-20 sm:w-24 hidden md:block">
             <p className="text-xs text-pg-muted font-medium">{token.volumeFormatted}</p>
           </div>
 

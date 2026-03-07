@@ -73,7 +73,7 @@ function useUserStats(address: string | undefined) {
 
 function StatCardSkeleton() {
   return (
-    <div className="bg-base-100 rounded-2xl border-2 border-pg-border p-4 animate-pulse">
+    <div className="bg-base-100 rounded-xl sm:rounded-2xl border-2 border-pg-border p-3 sm:p-4 animate-pulse">
       <div className="h-2 rounded-full bg-pg-border/70 w-14 mb-3" />
       <div className="h-6 rounded-full bg-pg-border/70 w-20" />
     </div>
@@ -221,7 +221,7 @@ const ProfilePage: NextPage = () => {
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 mb-6 sm:mb-8">
         {isStatsLoading
           ? Array.from({ length: 5 }).map((_, i) => <StatCardSkeleton key={i} />)
           : statCards.map(stat => (

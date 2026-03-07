@@ -17,7 +17,7 @@ export function MarketCreatorBadge({ creatorAddress }: MarketCreatorBadgeProps) 
   if (!validCreator) return null;
 
   return (
-    <div className="inline-flex items-center gap-1.5 text-xs text-base-content/40">
+    <div className="inline-flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-base-content/40 flex-wrap">
       <span className="w-1.5 h-1.5 rounded-full bg-primary/50" />
       Created by{" "}
       <IdentityBadge address={validCreator} resolved={resolvedMap.get(validCreator.toLowerCase())} size="sm" />

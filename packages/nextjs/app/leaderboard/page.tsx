@@ -203,7 +203,7 @@ const LeaderboardPage: NextPage = () => {
         {/* Top 3 podium cards */}
         {!isLoading && top3.length > 0 && (
           <div
-            className={`grid gap-4 mb-8 ${top3.length === 1 ? "grid-cols-1 max-w-xs mx-auto" : top3.length === 2 ? "grid-cols-2 max-w-lg mx-auto" : "grid-cols-1 sm:grid-cols-3"}`}
+            className={`grid gap-3 md:gap-4 mb-8 ${top3.length === 1 ? "grid-cols-1 max-w-xs mx-auto" : top3.length === 2 ? "grid-cols-1 sm:grid-cols-2 max-w-lg mx-auto" : "grid-cols-1 sm:grid-cols-2 md:grid-cols-3"}`}
           >
             {top3.map((entry, i) => (
               <PodiumCard
@@ -220,7 +220,7 @@ const LeaderboardPage: NextPage = () => {
         <div className="bg-base-100 rounded-2xl border-2 border-pg-border overflow-hidden">
           {/* Table header */}
           <div
-            className="flex items-center px-5 py-3 border-b-2 border-pg-border text-[10px] uppercase tracking-wider text-pg-muted font-bold"
+            className="flex items-center px-3 sm:px-5 py-2.5 sm:py-3 border-b-2 border-pg-border text-[9px] sm:text-[10px] uppercase tracking-wider text-pg-muted font-bold"
             style={{ fontFamily: "var(--font-heading)" }}
           >
             <span className="w-14 flex-shrink-0">Rank</span>
@@ -267,7 +267,7 @@ const LeaderboardPage: NextPage = () => {
                 return (
                   <div
                     key={entry.address}
-                    className={`flex items-center px-5 py-3.5 border-b-2 border-pg-border/40 last:border-b-0 text-sm transition-colors motion-safe:animate-pop-in ${
+                    className={`flex items-center px-3 sm:px-5 py-2.5 sm:py-3.5 border-b-2 border-pg-border/40 last:border-b-0 text-xs sm:text-sm transition-colors motion-safe:animate-pop-in ${
                       isTop3 ? "bg-pg-amber/[0.03] hover:bg-pg-amber/[0.07]" : "hover:bg-pg-cream/50"
                     }`}
                     style={{ animationDelay: `${Math.min(i, 12) * 25}ms`, animationFillMode: "both" }}

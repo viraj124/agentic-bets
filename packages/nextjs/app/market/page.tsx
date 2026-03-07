@@ -217,7 +217,7 @@ function MarketView({
   const isRoundInViewActive = roundInView ? !roundInView.oracleCalled && !roundInView.cancelled : isActive;
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-6">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6 overflow-x-hidden">
       {/* Back link + Token header */}
       <div className="mb-6">
         <Link
@@ -229,11 +229,11 @@ function MarketView({
           </svg>
           Back to markets
         </Link>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 sm:gap-3">
               <h1
-                className="text-2xl font-extrabold tracking-tight text-base-content"
+                className="text-xl sm:text-2xl font-extrabold tracking-tight text-base-content truncate"
                 style={{ fontFamily: "var(--font-heading)" }}
               >
                 {poolData?.tokenName || `${tokenAddress.slice(0, 6)}...${tokenAddress.slice(-4)}`}
@@ -249,9 +249,13 @@ function MarketView({
                 </button>
               ) : null}
             </div>
-            <div className="flex items-center gap-3 mt-1.5">
-              <p className="text-xs text-pg-muted font-mono">{tokenAddress}</p>
-              <MarketCreatorBadge creatorAddress={creator} />
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mt-1.5 min-w-0">
+              <p className="text-[10px] sm:text-xs text-pg-muted font-mono truncate max-w-[200px] sm:max-w-none">
+                {tokenAddress}
+              </p>
+              <div className="flex-shrink-0">
+                <MarketCreatorBadge creatorAddress={creator} />
+              </div>
             </div>
             {focusEpoch !== null && (
               <div className="mt-2 inline-flex items-center gap-2 rounded-lg border border-pg-violet/30 bg-pg-violet/10 px-2.5 py-1">
@@ -271,14 +275,14 @@ function MarketView({
             )}
           </div>
           {poolData && (
-            <div className="text-right flex-shrink-0">
+            <div className="text-left sm:text-right flex-shrink-0">
               <p
-                className="text-2xl font-extrabold font-mono tracking-tight text-base-content"
+                className="text-xl sm:text-2xl font-extrabold font-mono tracking-tight text-base-content"
                 style={{ fontFamily: "var(--font-heading)" }}
               >
                 {poolData.priceFormatted}
               </p>
-              <p className={`text-sm font-bold ${poolData.change1h >= 0 ? "text-pg-mint" : "text-pg-pink"}`}>
+              <p className={`text-xs sm:text-sm font-bold ${poolData.change1h >= 0 ? "text-pg-mint" : "text-pg-pink"}`}>
                 {poolData.change1h >= 0 ? "+" : ""}
                 {poolData.change1h.toFixed(2)}%<span className="text-pg-muted font-normal ml-1">1h</span>
               </p>
@@ -297,12 +301,12 @@ function MarketView({
         />
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
         {/* Left column: Chart */}
         <div className="lg:col-span-2 space-y-5">
           {/* Price chart */}
           <div className="bg-base-100 rounded-2xl border-2 border-pg-border overflow-hidden">
-            <div className="px-5 py-3 border-b-2 border-pg-border flex items-center justify-between">
+            <div className="px-3 sm:px-5 py-3 border-b-2 border-pg-border flex items-center justify-between">
               <span className="text-sm font-extrabold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
                 Price chart
               </span>
@@ -354,7 +358,7 @@ function MarketView({
                   {/* Winner banner */}
                   {isSettled && !isCancelled && (upWon || downWon) && (
                     <div
-                      className={`mb-3 rounded-xl px-3 py-2 flex items-center justify-between ${upWon ? "bg-pg-mint/15 border border-pg-mint/30" : "bg-pg-pink/15 border border-pg-pink/30"}`}
+                      className={`mb-3 rounded-xl px-3 py-2 flex flex-wrap items-center justify-between gap-1 ${upWon ? "bg-pg-mint/15 border border-pg-mint/30" : "bg-pg-pink/15 border border-pg-pink/30"}`}
                     >
                       <span className={`text-xs font-extrabold ${upWon ? "text-pg-mint" : "text-pg-pink"}`}>
                         {upWon ? "↑ UP WON" : "↓ DOWN WON"}

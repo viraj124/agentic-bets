@@ -112,8 +112,8 @@ function RoundRow({ entry }: { entry: RoundHistoryEntry }) {
       </div>
 
       {/* Price & pool row */}
-      <div className="flex items-center justify-between mt-1.5">
-        <div className="text-[11px] font-mono text-pg-muted">
+      <div className="flex items-center justify-between gap-2 mt-1.5">
+        <div className="text-[11px] font-mono text-pg-muted min-w-0 truncate">
           {round.lockPrice > 0n ? (
             <>
               {formatPrice(round.lockPrice)}

@@ -91,6 +91,7 @@ export function PriceChart({ poolAddress, tokenAddress, height, compact }: Price
   const seriesRef = useRef<any>(null);
   const hasFitRef = useRef(false);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const isNarrowRef = useRef(false);
   const selectedRangeRef = useRef<DetailRange>("1h");
   const [chartReady, setChartReady] = useState(false);
   const [chartError, setChartError] = useState<string | null>(null);
@@ -219,13 +220,16 @@ export function PriceChart({ poolAddress, tokenAddress, height, compact }: Price
           ),
         );
 
+        const isNarrow = initialWidth < 400;
+        isNarrowRef.current = isNarrow;
+
         chartRef.current = createChart(chartContainerRef.current, {
           width: initialWidth,
           height: chartHeight,
           layout: {
             background: { color: "transparent" },
             textColor: isDetailChart ? "#7f8899" : "#9ca3af",
-            fontSize: 11,
+            fontSize: isNarrow ? 9 : 11,
             attributionLogo: false,
           },
           grid: {
@@ -355,7 +359,8 @@ export function PriceChart({ poolAddress, tokenAddress, height, compact }: Price
               return;
             }
 
-            const clampedX = Math.max(72, Math.min(width - 72, point.x));
+            const tooltipHalfW = isNarrowRef.current ? 48 : 72;
+            const clampedX = Math.max(tooltipHalfW, Math.min(width - tooltipHalfW, point.x));
             const clampedY = Math.max(28, Math.min(height - 28, point.y));
             setHoverInfo({
               x: clampedX,
@@ -464,15 +469,15 @@ export function PriceChart({ poolAddress, tokenAddress, height, compact }: Price
       style={{ height: `${chartHeight}px` }}
     >
       {showDetailControls && (
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4 pt-3">
-          <div className="pointer-events-auto max-w-[75%] overflow-x-auto rounded-xl border border-pg-violet/25 bg-base-100/90 p-1 shadow-sm backdrop-blur-sm">
-            <div className="inline-flex items-center gap-1">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between px-2 sm:px-4 pt-2 sm:pt-3">
+          <div className="pointer-events-auto overflow-x-auto rounded-lg sm:rounded-xl border border-pg-violet/25 bg-base-100/90 p-0.5 sm:p-1 shadow-sm backdrop-blur-sm flex-shrink-0">
+            <div className="inline-flex items-center gap-0.5 sm:gap-1">
               {DETAIL_RANGE_OPTIONS.map(option => (
                 <button
                   key={option.value}
                   type="button"
                   onClick={() => setSelectedRange(option.value)}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+                  className={`px-1.5 sm:px-2.5 py-1 rounded-md sm:rounded-lg text-[9px] sm:text-[10px] font-bold transition-colors ${
                     selectedRange === option.value
                       ? "bg-pg-violet text-white shadow-sm"
                       : "text-pg-muted hover:text-base-content hover:bg-pg-violet/10"
@@ -484,13 +489,18 @@ export function PriceChart({ poolAddress, tokenAddress, height, compact }: Price
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink min-w-0">
             {rangeStats && latestDisplayPrice > 0 && (
-              <div className="rounded-xl border border-pg-violet/20 bg-base-100/90 px-3 py-1.5 text-right shadow-sm backdrop-blur-sm">
-                <p className="text-[10px] font-bold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
+              <div className="rounded-lg sm:rounded-xl border border-pg-violet/20 bg-base-100/90 px-2 sm:px-3 py-1 sm:py-1.5 text-right shadow-sm backdrop-blur-sm">
+                <p
+                  className="text-[9px] sm:text-[10px] font-bold text-base-content truncate"
+                  style={{ fontFamily: "var(--font-heading)" }}
+                >
                   {formatUsdPrice(latestDisplayPrice)}
                 </p>
-                <p className={`text-[10px] font-bold ${rangeStats.isPositive ? "text-pg-violet" : "text-pg-pink"}`}>
+                <p
+                  className={`text-[9px] sm:text-[10px] font-bold ${rangeStats.isPositive ? "text-pg-violet" : "text-pg-pink"}`}
+                >
                   {formatPercent(rangeStats.changePercent)}
                 </p>
               </div>
