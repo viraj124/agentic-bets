@@ -96,7 +96,13 @@ export function PriceChart({ poolAddress, tokenAddress, height, compact }: Price
   const [chartReady, setChartReady] = useState(false);
   const [chartError, setChartError] = useState<string | null>(null);
   const [selectedRange, setSelectedRange] = useState<DetailRange>("1h");
-  const [hoverInfo, setHoverInfo] = useState<{ x: number; y: number; price: number; timeLabel: string } | null>(null);
+  const [hoverInfo, setHoverInfo] = useState<{
+    x: number;
+    y: number;
+    price: number;
+    timeLabel: string;
+    flipBelow: boolean;
+  } | null>(null);
   const chartHeight = height ?? 288;
   const detailRangeConfig = DETAIL_RANGE_CONFIG[selectedRange];
 
@@ -367,6 +373,7 @@ export function PriceChart({ poolAddress, tokenAddress, height, compact }: Price
               y: clampedY,
               price: hoveredPrice,
               timeLabel: formatCrosshairTime(timeValue, selectedRangeRef.current),
+              flipBelow: point.y < 60,
             });
           };
 
@@ -513,7 +520,7 @@ export function PriceChart({ poolAddress, tokenAddress, height, compact }: Price
 
       {hoverInfo && !shouldShowLoader && !shouldShowFallback && (
         <div
-          className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-[115%] rounded-lg border border-pg-violet/25 bg-base-100/95 px-2.5 py-1.5 shadow-sm backdrop-blur-sm"
+          className={`pointer-events-none absolute z-20 -translate-x-1/2 rounded-lg border border-pg-violet/25 bg-base-100/95 px-2.5 py-1.5 shadow-sm backdrop-blur-sm ${hoverInfo.flipBelow ? "translate-y-[15%]" : "-translate-y-[115%]"}`}
           style={{ left: `${hoverInfo.x}px`, top: `${hoverInfo.y}px` }}
         >
           <p className="text-[10px] font-bold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>

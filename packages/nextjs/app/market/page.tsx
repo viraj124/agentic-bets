@@ -217,7 +217,7 @@ function MarketView({
   const isRoundInViewActive = roundInView ? !roundInView.oracleCalled && !roundInView.cancelled : isActive;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6 overflow-x-hidden">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
       {/* Back link + Token header */}
       <div className="mb-6">
         <Link
@@ -305,7 +305,7 @@ function MarketView({
         {/* Left column: Chart */}
         <div className="lg:col-span-2 space-y-5">
           {/* Price chart */}
-          <div className="bg-base-100 rounded-2xl border-2 border-pg-border overflow-hidden">
+          <div className="bg-base-100 rounded-2xl border-2 border-pg-border">
             <div className="px-3 sm:px-5 py-3 border-b-2 border-pg-border flex items-center justify-between">
               <span className="text-sm font-extrabold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
                 Price chart
