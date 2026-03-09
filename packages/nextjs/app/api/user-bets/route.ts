@@ -73,6 +73,8 @@ interface BetRow {
   placedAt: string;
 }
 
+type BetOutcome = "ongoing" | "won" | "lost" | "refund" | "pending";
+
 interface UserBetItem {
   id: string;
   tokenAddress: string;
@@ -82,6 +84,8 @@ interface UserBetItem {
   claimed: boolean;
   claimedAmount: number;
   isOngoing: boolean;
+  outcome: BetOutcome;
+  expectedPayout: number;
   href: string;
   placedAt: number;
 }
@@ -216,7 +220,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const bets = rows.map(row => {
+    const bets: UserBetItem[] = rows.map(row => {
       const tokenAddress = row.token.toLowerCase();
       const epochBigInt = BigInt(row.epoch);
       const currentEpoch = currentEpochByToken.get(tokenAddress);
@@ -224,21 +228,95 @@ export async function GET(req: NextRequest) {
       const currentRoundOpen = openCurrentByToken.get(tokenAddress) ?? false;
       const isOngoing = !row.claimed && isCurrentEpoch && currentRoundOpen;
 
-      const item: UserBetItem = {
+      const amount = toNumberFromUSDC(row.amount);
+      const claimedAmount = toNumberFromUSDC(row.claimedAmount);
+
+      // Determine outcome for claimed bets immediately
+      let outcome: BetOutcome = "pending";
+      if (isOngoing) {
+        outcome = "ongoing";
+      } else if (row.claimed) {
+        outcome = claimedAmount > amount ? "won" : claimedAmount > 0 ? "refund" : "lost";
+      }
+      // unclaimed non-ongoing bets stay as "pending" — resolved below via RPC
+
+      return {
         id: row.id,
         tokenAddress,
         epoch: Number(epochBigInt),
-        amount: toNumberFromUSDC(row.amount),
-        side: row.position === 0 ? "up" : "down",
+        amount,
+        side: row.position === 0 ? ("up" as const) : ("down" as const),
         claimed: row.claimed,
-        claimedAmount: toNumberFromUSDC(row.claimedAmount),
+        claimedAmount,
         isOngoing,
+        outcome,
+        expectedPayout: row.claimed ? claimedAmount : 0,
         href: `/market?round=${epochBigInt.toString()}#${tokenAddress}`,
         placedAt: Number(BigInt(row.placedAt)),
       };
-
-      return item;
     });
+
+    // For unclaimed non-ongoing bets, fetch round data to determine outcome
+    const unresolved = bets.filter(b => b.outcome === "pending" && !b.isOngoing);
+    if (predictionAddress && unresolved.length > 0) {
+      const roundKeys = new Map<string, { token: `0x${string}`; epoch: bigint }>();
+      for (const bet of unresolved) {
+        const key = `${bet.tokenAddress}:${bet.epoch}`;
+        if (!roundKeys.has(key)) {
+          roundKeys.set(key, { token: bet.tokenAddress as `0x${string}`, epoch: BigInt(bet.epoch) });
+        }
+      }
+
+      type RoundResult = {
+        closePrice: bigint;
+        lockPrice: bigint;
+        oracleCalled: boolean;
+        cancelled: boolean;
+        rewardAmount: bigint;
+        rewardBaseCalAmount: bigint;
+      };
+
+      const roundDataMap = new Map<string, RoundResult>();
+      const roundReads = await Promise.allSettled(
+        Array.from(roundKeys.entries()).map(async ([key, { token, epoch }]) => {
+          const round = await baseClient.readContract({
+            address: predictionAddress,
+            abi: predictionReadAbi,
+            functionName: "getRound",
+            args: [token, epoch],
+          });
+          return [key, round as unknown as RoundResult] as const;
+        }),
+      );
+      for (const result of roundReads) {
+        if (result.status === "fulfilled") {
+          roundDataMap.set(result.value[0], result.value[1]);
+        }
+      }
+
+      for (const bet of unresolved) {
+        const key = `${bet.tokenAddress}:${bet.epoch}`;
+        const round = roundDataMap.get(key);
+        if (!round || !round.oracleCalled) {
+          bet.outcome = "pending";
+          continue;
+        }
+        if (round.cancelled) {
+          bet.outcome = "refund";
+          bet.expectedPayout = bet.amount;
+          continue;
+        }
+        const upWon = round.closePrice > round.lockPrice;
+        const userBetUp = bet.side === "up";
+        const won = (userBetUp && upWon) || (!userBetUp && !upWon);
+        if (won && Number(round.rewardBaseCalAmount) > 0) {
+          bet.outcome = "won";
+          bet.expectedPayout = bet.amount * (Number(round.rewardAmount) / Number(round.rewardBaseCalAmount));
+        } else {
+          bet.outcome = "lost";
+        }
+      }
+    }
 
     const data = {
       ongoing: bets.filter(bet => bet.isOngoing),

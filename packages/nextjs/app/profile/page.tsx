@@ -19,6 +19,8 @@ interface UserStats {
   winRate: number;
 }
 
+type BetOutcome = "ongoing" | "won" | "lost" | "refund" | "pending";
+
 interface UserBetItem {
   id: string;
   tokenAddress: string;
@@ -28,6 +30,8 @@ interface UserBetItem {
   claimed: boolean;
   claimedAmount: number;
   isOngoing: boolean;
+  outcome: BetOutcome;
+  expectedPayout: number;
   href: string;
   placedAt: number;
 }
@@ -147,25 +151,51 @@ const ProfilePage: NextPage = () => {
   });
 
   const earnings = creatorEarnings ? Number(creatorEarnings) / 1e6 : 0;
-  const hasStats = !!(userStats && userStats.totalBets > 0);
   const ongoingBets = userBets?.ongoing ?? [];
   const previousBets = userBets?.previous ?? [];
-  const hasListedBets = ongoingBets.length + previousBets.length > 0;
+  const allBets = useMemo(() => [...ongoingBets, ...previousBets], [ongoingBets, previousBets]);
+
+  // Compute stats from bets data so ongoing/pending bets don't skew PnL
+  const computedStats = useMemo(() => {
+    if (allBets.length === 0 && !userStats) return null;
+
+    const settled = allBets.filter(b => b.outcome === "won" || b.outcome === "lost" || b.outcome === "refund");
+    const wins = allBets.filter(b => b.outcome === "won").length;
+    const totalBets = userStats?.totalBets ?? allBets.length;
+    const settledCount = settled.length;
+
+    // PnL: only from settled bets
+    let netPnL = 0;
+    for (const bet of settled) {
+      const payout = bet.claimed ? bet.claimedAmount : bet.expectedPayout;
+      netPnL += payout - bet.amount;
+    }
+
+    return {
+      totalBets,
+      wins,
+      winRate: settledCount > 0 ? (wins / settledCount) * 100 : 0,
+      netPnL,
+    };
+  }, [allBets, userStats]);
+
+  const hasStats = computedStats !== null && computedStats.totalBets > 0;
+  const hasListedBets = allBets.length > 0;
   const hasBets = hasStats || hasListedBets;
 
   const statCards = useMemo(
     () => [
-      { label: "Total bets", value: hasStats ? String(userStats!.totalBets) : "--", color: "" },
-      { label: "Wins", value: hasStats ? String(userStats!.wins) : "--", color: "" },
+      { label: "Total bets", value: hasStats ? String(computedStats!.totalBets) : "--", color: "" },
+      { label: "Wins", value: hasStats ? String(computedStats!.wins) : "--", color: "" },
       {
         label: "Win rate",
-        value: hasStats ? `${userStats!.winRate.toFixed(0)}%` : "--",
+        value: hasStats ? `${computedStats!.winRate.toFixed(0)}%` : "--",
         color: "",
       },
       {
         label: "Net P&L",
-        value: hasStats ? `${userStats!.netPnL >= 0 ? "+" : ""}$${userStats!.netPnL.toFixed(2)}` : "--",
-        color: hasStats ? (userStats!.netPnL >= 0 ? "text-pg-mint" : "text-pg-pink") : "",
+        value: hasStats ? `${computedStats!.netPnL >= 0 ? "+" : ""}$${computedStats!.netPnL.toFixed(2)}` : "--",
+        color: hasStats ? (computedStats!.netPnL >= 0 ? "text-pg-mint" : "text-pg-pink") : "",
       },
       {
         label: "Creator earnings",
@@ -173,7 +203,7 @@ const ProfilePage: NextPage = () => {
         color: "text-pg-violet",
       },
     ],
-    [hasStats, userStats, earnings, isEarningsLoading],
+    [hasStats, computedStats, earnings, isEarningsLoading],
   );
 
   if (!address) {
@@ -356,13 +386,17 @@ const ProfilePage: NextPage = () => {
                           >
                             ${bet.amount.toFixed(2)}
                           </p>
-                          {bet.claimed && bet.claimedAmount > bet.amount ? (
+                          {bet.outcome === "won" ? (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border bg-pg-mint/15 text-pg-mint border-pg-mint/30 mt-0.5">
-                              Won ${bet.claimedAmount.toFixed(2)}
+                              Won ${(bet.claimed ? bet.claimedAmount : bet.expectedPayout).toFixed(2)}
                             </span>
-                          ) : bet.claimed && bet.claimedAmount > 0 ? (
+                          ) : bet.outcome === "refund" ? (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border bg-pg-amber/15 text-pg-amber border-pg-amber/30 mt-0.5">
-                              Refunded
+                              {bet.claimed ? "Refunded" : "Refund available"}
+                            </span>
+                          ) : bet.outcome === "pending" ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border bg-pg-violet/15 text-pg-violet border-pg-violet/30 mt-0.5">
+                              {bet.side === "up" ? "\u2191 UP" : "\u2193 DOWN"} · Pending
                             </span>
                           ) : (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border bg-pg-pink/15 text-pg-pink border-pg-pink/30 mt-0.5">
@@ -377,18 +411,18 @@ const ProfilePage: NextPage = () => {
               </div>
             )}
 
-            {hasStats && (
+            {userStats && hasStats && (
               <div className="pt-1 border-t border-pg-border/70 space-y-1.5">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-pg-muted">Total wagered</span>
                   <span className="font-bold" style={{ fontFamily: "var(--font-heading)" }}>
-                    ${userStats!.totalWagered.toFixed(2)}
+                    ${userStats.totalWagered.toFixed(2)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-pg-muted">Total won</span>
                   <span className="font-bold text-pg-mint" style={{ fontFamily: "var(--font-heading)" }}>
-                    ${userStats!.totalWon.toFixed(2)}
+                    ${userStats.totalWon.toFixed(2)}
                   </span>
                 </div>
               </div>
