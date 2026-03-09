@@ -183,8 +183,37 @@ function MarketView({
   clearFocusEpoch: () => void;
 }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const { data: poolData } = useGeckoTerminal(poolAddress || undefined, tokenAddress);
-  const marketPoolAddress = poolData?.poolAddress || poolAddress;
+
+  // Read pool address from on-chain Oracle when not provided in URL hash
+  // (e.g. navigating from profile page which only has the token address)
+  const { data: onChainMarket } = useScaffoldReadContract({
+    contractName: "BankrBetsOracle",
+    functionName: "markets",
+    args: [tokenAddress],
+    query: { staleTime: 60_000 },
+    watch: false,
+  });
+  const onChainPoolAddress =
+    onChainMarket?.[1] && onChainMarket[1] !== "0x0000000000000000000000000000000000000000"
+      ? onChainMarket[1].toLowerCase()
+      : null;
+
+  const effectivePoolAddress = poolAddress || onChainPoolAddress;
+  const { data: poolData } = useGeckoTerminal(effectivePoolAddress || undefined, tokenAddress);
+  const marketPoolAddress = poolData?.poolAddress || effectivePoolAddress;
+  // Update URL hash to include pool address once resolved (helps with refreshes/bookmarks)
+  useEffect(() => {
+    if (!marketPoolAddress || poolAddress) return; // already in hash, or nothing to add
+    const hash = window.location.hash.slice(1);
+    if (hash && !hash.includes(",")) {
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${window.location.search}#${tokenAddress},${marketPoolAddress}`,
+      );
+    }
+  }, [marketPoolAddress, poolAddress, tokenAddress]);
+
   const { epoch, round, isActive } = useCurrentRound(tokenAddress);
   const { data: focusedRound } = useScaffoldReadContract({
     contractName: "BankrBetsPrediction",
