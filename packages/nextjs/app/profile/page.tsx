@@ -199,7 +199,7 @@ const ProfilePage: NextPage = () => {
       },
       {
         label: "Creator earnings",
-        value: isEarningsLoading ? "..." : earnings > 0 ? `$${earnings.toFixed(2)}` : "--",
+        value: isEarningsLoading ? "..." : `$${earnings.toFixed(2)}`,
         color: "text-pg-violet",
       },
     ],
