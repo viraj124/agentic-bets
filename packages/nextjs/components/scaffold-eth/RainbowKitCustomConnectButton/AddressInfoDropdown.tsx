@@ -1,7 +1,13 @@
 import { useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { Address } from "viem";
 import { useDisconnect } from "wagmi";
-import { ArrowLeftOnRectangleIcon, ChevronDownIcon, ClipboardDocumentIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowLeftOnRectangleIcon,
+  ChevronDownIcon,
+  ClipboardDocumentIcon,
+  UserCircleIcon,
+} from "@heroicons/react/24/outline";
 import { CheckCircleIcon } from "@heroicons/react/24/solid";
 import { BlockieAvatar } from "~~/components/scaffold-eth";
 import { useResolvedAddresses } from "~~/hooks/bankrbets/useResolvedAddresses";
@@ -80,6 +86,12 @@ export const AddressInfoDropdown = ({ address, ensAvatar, displayName }: Address
         <ChevronDownIcon className="h-6 w-4 ml-2 sm:ml-0" />
       </summary>
       <ul className="dropdown-content menu z-2 p-2 mt-2 shadow-center shadow-accent bg-base-200 rounded-box gap-1">
+        <li>
+          <Link href="/profile" className="menu-item h-8 btn-sm rounded-xl! flex gap-3 py-3" onClick={closeDropdown}>
+            <UserCircleIcon className="h-4 w-4 ml-2 sm:ml-0" />
+            <span>Portfolio</span>
+          </Link>
+        </li>
         <li>
           <button
             className="menu-item text-error h-8 btn-sm rounded-xl! flex gap-3 py-3"

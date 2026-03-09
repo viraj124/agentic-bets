@@ -172,7 +172,7 @@ export function BetPanel({
   const claimable = useClaimable(tokenAddress, currentEpoch, address);
   const { claim, refundRound, isClaiming, isRefunding } = usePredictionActions();
   const { lockRound, closeRound, isLocking, isClosing } = useSettlementActions();
-  const { isLockable, isClosable, settlerReward } = useSettlementStatus(tokenAddress);
+  const { isLockable, isClosable } = useSettlementStatus(tokenAddress);
 
   const betAmountRaw = useMemo(() => {
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) return 0n;
@@ -810,7 +810,7 @@ export function BetPanel({
                 Settling...
               </span>
             ) : (
-              `${isLockable ? "Lock Round" : `Settle Round${settlerReward > 0 ? ` — Earn $${settlerReward.toFixed(2)}` : ""}`}`
+              `${isLockable ? "Lock Round" : "Settle Round"}`
             )}
           </button>
         )}

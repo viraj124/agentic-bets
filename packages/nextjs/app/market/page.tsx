@@ -550,7 +550,7 @@ function MarketView({
                         </div>
                       </div>
                       <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-pg-muted/60">Lifetime total</span>
+                        <span className="text-pg-muted/60">Past rounds</span>
                         <span className="font-bold text-base-content font-mono">${earningsFormatted}</span>
                       </div>
                     </div>
@@ -560,9 +560,6 @@ function MarketView({
                       <div>
                         <p className="text-xl font-extrabold text-pg-mint font-mono">${earningsFormatted}</p>
                         <p className="text-[10px] text-pg-muted/60 mt-0.5">Lifetime total · auto-paid at settlement</p>
-                      </div>
-                      <div className="w-10 h-10 rounded-xl bg-pg-mint/10 border-2 border-pg-mint/20 flex items-center justify-center flex-shrink-0">
-                        <span className="text-pg-mint font-extrabold text-sm">$</span>
                       </div>
                     </div>
                   )}
