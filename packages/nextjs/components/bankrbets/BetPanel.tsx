@@ -208,9 +208,9 @@ export function BetPanel({
   // Market exists but no active round, OR current round is done — first bet will auto-start one
   const canBetToStart = !historicalView && marketCreated === true && (!currentIsActive || roundSettled);
 
-  const totalPool = currentRound ? Number(currentRound.totalAmount) / 1e6 : 0;
-  const bullPool = currentRound ? Number(currentRound.bullAmount) / 1e6 : 0;
-  const bearPool = currentRound ? Number(currentRound.bearAmount) / 1e6 : 0;
+  const totalPool = currentRound && !canBetToStart ? Number(currentRound.totalAmount) / 1e6 : 0;
+  const bullPool = currentRound && !canBetToStart ? Number(currentRound.bullAmount) / 1e6 : 0;
+  const bearPool = currentRound && !canBetToStart ? Number(currentRound.bearAmount) / 1e6 : 0;
   const bullPercent = totalPool > 0 ? (bullPool / totalPool) * 100 : 50;
   const bearPercent = totalPool > 0 ? (bearPool / totalPool) * 100 : 50;
   const claimAmountRaw = useMemo(() => {
@@ -1038,7 +1038,7 @@ export function BetPanel({
 
             {/* Footer */}
             <div className="pt-3 border-t-2 border-pg-border/40 flex items-center justify-between text-[10px] text-pg-muted/50">
-              {lockPrice && lockPrice > 0 ? (
+              {lockPrice && lockPrice > 0 && !canBetToStart ? (
                 <span className="font-mono">Lock ${lockPrice.toFixed(5)}</span>
               ) : (
                 <span>Round #{currentEpoch?.toString()}</span>
