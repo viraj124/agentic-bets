@@ -73,6 +73,8 @@ export function RoundTimer({
   let sublabelClass = "text-pg-muted/50";
   let dotClass = "bg-pg-violet";
   let dotAnimated = false;
+  let showAwaitingSettlementTooltip = false;
+  const awaitingSettlementTooltip = "Awaiting settlement";
 
   if (isSettled) {
     if (outcome === "claimed" || outcome === "won") {
@@ -125,12 +127,12 @@ export function RoundTimer({
     dotClass = "bg-pg-amber";
     dotAnimated = true;
   } else {
-    label = "Settling";
-    timer = "--:--";
-    sublabel = "Awaiting settlement";
-    chipClass = "bg-base-200/70 text-pg-muted border-pg-border/60";
-    timerClass = "text-base-content/35";
-    sublabelClass = "text-pg-muted/50";
+    label = "Bets locked";
+    timer = "";
+    sublabel = "";
+    chipClass = "bg-pg-amber/14 text-pg-amber border-pg-amber/25";
+    dotClass = "bg-pg-amber";
+    showAwaitingSettlementTooltip = true;
   }
 
   return (
@@ -146,6 +148,28 @@ export function RoundTimer({
           />
         )}
         <span>{isSettled ? label.toUpperCase() : label}</span>
+        {showAwaitingSettlementTooltip && (
+          <span
+            className="tooltip tooltip-bottom tooltip-primary cursor-help inline-flex items-center"
+            data-tip={awaitingSettlementTooltip}
+            title={awaitingSettlementTooltip}
+            aria-label={awaitingSettlementTooltip}
+          >
+            <svg
+              className="h-3 w-3 text-pg-amber/80"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M11.25 11.25h.008v.008h-.008v-.008ZM12 16.5v-4.5m0-9a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z"
+              />
+            </svg>
+          </span>
+        )}
       </div>
 
       {timer ? (
