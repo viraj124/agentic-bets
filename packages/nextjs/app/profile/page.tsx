@@ -42,6 +42,11 @@ interface UserBetsResponse {
   updatedAt: number;
 }
 
+interface BankrTokenSymbol {
+  address: string;
+  symbol: string;
+}
+
 const USER_STATS_CACHE_TTL_MS = 5 * 60_000;
 const userStatsClientCache = new Map<string, { ts: number; data: UserStats | null }>();
 const USER_BETS_CACHE_TTL_MS = 60_000;
@@ -136,6 +141,28 @@ const ProfilePage: NextPage = () => {
   } = useUserStats(address);
   const { data: userBets, isLoading: isBetsLoading, isError: isBetsError, refetch: refetchBets } = useUserBets(address);
   const { data: resolvedMap } = useResolvedAddresses(address ? [address] : []);
+  const { data: tokenSymbolMap } = useQuery<Map<string, string>>({
+    queryKey: ["bankr-token-symbols"],
+    queryFn: async () => {
+      const res = await fetch("/api/bankr-tokens", {
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!res.ok) return new Map<string, string>();
+      const json = (await res.json()) as { tokens?: BankrTokenSymbol[] };
+      const map = new Map<string, string>();
+      for (const token of json.tokens ?? []) {
+        const addr = token.address?.toLowerCase();
+        const symbol = token.symbol?.trim();
+        if (!addr || !symbol) continue;
+        map.set(addr, symbol);
+      }
+      return map;
+    },
+    staleTime: 5 * 60_000,
+    gcTime: 15 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
 
   const { data: creatorEarnings, isLoading: isEarningsLoading } = useScaffoldReadContract({
     contractName: "BankrBetsPrediction",
@@ -329,7 +356,8 @@ const ProfilePage: NextPage = () => {
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-xs font-bold text-base-content truncate">
-                            Round #{bet.epoch} · {formatTokenShort(bet.tokenAddress)}
+                            Round #{bet.epoch} ·{" "}
+                            {tokenSymbolMap?.get(bet.tokenAddress.toLowerCase()) || formatTokenShort(bet.tokenAddress)}
                           </p>
                           <p className="text-[11px] text-pg-muted mt-0.5">{formatBetDate(bet.placedAt)}</p>
                         </div>
@@ -375,7 +403,8 @@ const ProfilePage: NextPage = () => {
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-xs font-bold text-base-content truncate">
-                            Round #{bet.epoch} · {formatTokenShort(bet.tokenAddress)}
+                            Round #{bet.epoch} ·{" "}
+                            {tokenSymbolMap?.get(bet.tokenAddress.toLowerCase()) || formatTokenShort(bet.tokenAddress)}
                           </p>
                           <p className="text-[11px] text-pg-muted mt-0.5">{formatBetDate(bet.placedAt)}</p>
                         </div>
