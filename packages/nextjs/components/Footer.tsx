@@ -77,13 +77,51 @@ export const Footer = () => {
       )}
 
       {/* Footer */}
-      <div className="w-full border-t-2 border-pg-border bg-base-100">
-        <div className="mx-auto max-w-5xl px-5 py-10 sm:px-8 sm:py-12">
+      <div className="relative w-full overflow-hidden border-t-2 border-pg-border bg-base-100">
+        {/* Decorative background shapes */}
+        <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+          {/* Top-left cluster */}
+          <div className="absolute -left-4 top-6 h-28 w-28 rounded-full bg-pg-pink/[0.06]" />
+          <div className="absolute left-16 top-2 h-5 w-5 rotate-45 rounded-sm bg-pg-violet/[0.10]" />
+          <div className="absolute left-8 top-32 h-3 w-3 rounded-full bg-pg-mint/[0.15]" />
+
+          {/* Top-right cluster */}
+          <div className="absolute -right-6 top-10 h-32 w-32 rounded-full bg-pg-violet/[0.05]" />
+          <div className="absolute right-20 top-4 h-4 w-4 rounded-full bg-pg-amber/[0.12]" />
+          <div className="absolute right-12 top-28 h-6 w-6 rotate-12 rounded-md bg-pg-pink/[0.08]" />
+
+          {/* Mid-left */}
+          <div className="absolute -left-10 bottom-20 h-20 w-20 rounded-full bg-pg-amber/[0.06]" />
+          <div className="absolute left-24 bottom-16 h-3.5 w-3.5 rotate-45 rounded-sm bg-pg-mint/[0.10]" />
+
+          {/* Mid-right */}
+          <div className="absolute -right-8 bottom-24 h-24 w-24 rounded-full bg-pg-mint/[0.05]" />
+          <div className="absolute right-28 bottom-12 h-4 w-4 rounded-full bg-pg-violet/[0.08]" />
+
+          {/* Dotted accent line — left side */}
+          <div className="absolute left-[8%] top-1/2 flex -translate-y-1/2 flex-col gap-2.5">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-1.5 w-1.5 rounded-full bg-pg-border" />
+            ))}
+          </div>
+
+          {/* Dotted accent line — right side */}
+          <div className="absolute right-[8%] top-1/2 flex -translate-y-1/2 flex-col gap-2.5">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-1.5 w-1.5 rounded-full bg-pg-border" />
+            ))}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="relative z-[1] mx-auto max-w-5xl px-5 py-10 sm:px-8 sm:py-14">
           {/* Brand centered */}
           <div className="flex flex-col items-center text-center">
-            <BankrBetsLogo className="h-11 w-11" />
+            <div className="rounded-2xl border-2 border-pg-border bg-white/80 p-2.5 shadow-pop-soft">
+              <BankrBetsLogo className="h-11 w-11" />
+            </div>
             <span
-              className="mt-3 text-xl font-extrabold tracking-tight text-base-content"
+              className="mt-4 text-xl font-extrabold tracking-tight text-base-content"
               style={{ fontFamily: "var(--font-heading)" }}
             >
               Bankr<span className="text-pg-violet">Bets</span>
@@ -93,8 +131,17 @@ export const Footer = () => {
             </p>
           </div>
 
+          {/* Geometric separator */}
+          <div className="mt-8 flex items-center justify-center gap-3">
+            <span className="h-px w-12 bg-pg-border" />
+            <span className="h-2.5 w-2.5 rounded-full bg-pg-pink/40" />
+            <span className="h-3 w-3 rotate-45 rounded-[3px] bg-pg-violet/30" />
+            <span className="h-2.5 w-2.5 rounded-full bg-pg-mint/40" />
+            <span className="h-px w-12 bg-pg-border" />
+          </div>
+
           {/* Links + Social centered */}
-          <div className="mt-8 flex flex-col items-center gap-8 sm:flex-row sm:justify-center sm:gap-20">
+          <div className="mt-8 flex flex-col items-center gap-8 sm:flex-row sm:justify-center sm:gap-24">
             {/* Navigate */}
             <div className="text-center">
               <p
@@ -117,6 +164,9 @@ export const Footer = () => {
                 ))}
               </ul>
             </div>
+
+            {/* Vertical divider on desktop */}
+            <div className="hidden sm:block h-20 w-px bg-pg-border/80" />
 
             {/* Social */}
             <div className="text-center">
