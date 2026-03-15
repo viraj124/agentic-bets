@@ -6,7 +6,7 @@ export default createConfig({
   networks: {
     base: {
       chainId: 8453,
-      transport: http(process.env.PONDER_RPC_URL_8453),
+      transport: http(process.env.PONDER_RPC_URL),
     },
   },
   contracts: {
