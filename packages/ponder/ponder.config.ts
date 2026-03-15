@@ -1,16 +1,12 @@
 import { createConfig } from "ponder";
-import { fallback, http } from "viem";
+import { http } from "viem";
 import { abi } from "./abis/BankrBetsPrediction";
 
 export default createConfig({
   networks: {
     base: {
       chainId: 8453,
-      transport: fallback([
-        http(process.env.PONDER_RPC_URL, { timeout: 60_000 }),
-        http("https://base-rpc.publicnode.com", { timeout: 60_000 }),
-        http("https://mainnet.base.org", { timeout: 60_000 }),
-      ]),
+      transport: http(process.env.PONDER_RPC_URL, { timeout: 60_000 }),
     },
   },
   contracts: {
