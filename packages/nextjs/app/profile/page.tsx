@@ -62,7 +62,7 @@ function useUserStats(address: string | undefined) {
     queryFn: async () => {
       if (!address) return null;
       const res = await fetch(`/api/user-stats?address=${address}`, {
-        signal: AbortSignal.timeout(5_000),
+        signal: AbortSignal.timeout(12_000),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
@@ -74,7 +74,8 @@ function useUserStats(address: string | undefined) {
     staleTime: 60_000,
     gcTime: 10 * 60_000,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: 2,
+    retryDelay: attempt => Math.min(1000 * 2 ** attempt, 5000),
     initialData: freshCached,
     placeholderData: previous => previous,
   });
@@ -99,7 +100,7 @@ function useUserBets(address: string | undefined) {
     queryFn: async () => {
       if (!address) return { ongoing: [], previous: [], updatedAt: Date.now() };
       const res = await fetch(`/api/user-bets?address=${address}`, {
-        signal: AbortSignal.timeout(7_000),
+        signal: AbortSignal.timeout(15_000),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as UserBetsResponse;
@@ -110,7 +111,8 @@ function useUserBets(address: string | undefined) {
     staleTime: 30_000,
     gcTime: 10 * 60_000,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: 2,
+    retryDelay: attempt => Math.min(1000 * 2 ** attempt, 5000),
     initialData: freshCached,
     placeholderData: previous => previous,
   });
@@ -145,7 +147,7 @@ const ProfilePage: NextPage = () => {
     queryKey: ["bankr-token-symbols"],
     queryFn: async () => {
       const res = await fetch("/api/bankr-tokens", {
-        signal: AbortSignal.timeout(8_000),
+        signal: AbortSignal.timeout(10_000),
       });
       if (!res.ok) return new Map<string, string>();
       const json = (await res.json()) as { tokens?: BankrTokenSymbol[] };

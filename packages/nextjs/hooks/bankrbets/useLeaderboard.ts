@@ -19,13 +19,16 @@ export function useLeaderboard({ watch = false }: UseLeaderboardOptions = {}) {
   const query = useQuery<{ leaderboard?: LeaderboardEntry[]; updatedAt?: number }>({
     queryKey: ["leaderboard"],
     queryFn: async () => {
-      const res = await fetch("/api/leaderboard");
+      const res = await fetch("/api/leaderboard", {
+        signal: AbortSignal.timeout(12_000),
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     },
     staleTime: watch ? 15_000 : 60_000,
     gcTime: 10 * 60_000,
-    retry: 1,
+    retry: 2,
+    retryDelay: attempt => Math.min(1000 * 2 ** attempt, 5000),
     placeholderData: previous => previous,
     refetchInterval: watch ? 2 * 60_000 : false,
     refetchOnWindowFocus: false,

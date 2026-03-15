@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { InfoTooltip } from "./InfoTooltip";
 import { useAccount } from "wagmi";
 import { type RoundHistoryEntry, useRoundHistory } from "~~/hooks/bankrbets/useRoundHistory";
+import { getCancellationReason } from "~~/utils/bankrbets/cancellationReason";
 
 interface RoundHistoryProps {
   tokenAddress: string;
@@ -93,8 +95,12 @@ function RoundRow({ entry }: { entry: RoundHistoryEntry }) {
               Live
             </span>
           ) : isCancelled || isTie ? (
-            <span className="text-[10px] font-bold bg-pg-amber/15 text-pg-amber rounded-full px-2 py-0.5 border border-pg-amber/30">
+            <span className="text-[10px] font-bold bg-pg-amber/15 text-pg-amber rounded-full px-2 py-0.5 border border-pg-amber/30 inline-flex items-center gap-1">
               Cancelled
+              <InfoTooltip
+                text={getCancellationReason(round) ?? "Round cancelled"}
+                iconClassName="h-2.5 w-2.5 text-pg-amber/60"
+              />
             </span>
           ) : upWon ? (
             <span className="text-[10px] font-bold bg-pg-mint/15 text-pg-mint rounded-full px-2 py-0.5 border border-pg-mint/30">

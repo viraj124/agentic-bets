@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     const res = await fetch(`${PONDER_URL}/graphql`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(3_000),
+      signal: AbortSignal.timeout(8_000),
       body: JSON.stringify({
         query: `{ userStats(id: "${id}") { id totalBets totalWagered totalWon wins } }`,
       }),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { InfoTooltip } from "./InfoTooltip";
 import { useCountdown } from "~~/hooks/bankrbets/useCountdown";
 
 interface RoundTimerProps {
@@ -11,6 +12,8 @@ interface RoundTimerProps {
   isCancelled?: boolean;
   canClaim?: boolean;
   outcome?: "pending" | "won" | "lost" | "refund" | "refunded" | "claimed" | "cancelled" | "settled";
+  cancellationReason?: string | null;
+  hasBet?: boolean;
 }
 
 /** Linear interpolation between two hex colors based on t (0–1). */
@@ -40,6 +43,8 @@ export function RoundTimer({
   isCancelled = false,
   canClaim = false,
   outcome = "pending",
+  cancellationReason,
+  hasBet = false,
 }: RoundTimerProps) {
   const { formatted: lockFormatted, isExpired: lockExpired, timeLeft: lockTimeLeft } = useCountdown(lockTimestamp);
   const { formatted: closeFormatted, isExpired: closeExpired, timeLeft: closeTimeLeft } = useCountdown(closeTimestamp);
@@ -74,6 +79,7 @@ export function RoundTimer({
   let dotClass = "bg-pg-violet";
   let dotAnimated = false;
   let showAwaitingSettlementTooltip = false;
+  let showCancellationTooltip = false;
   const awaitingSettlementTooltip = "Awaiting settlement";
 
   if (isSettled) {
@@ -101,6 +107,7 @@ export function RoundTimer({
       sublabel = canClaim ? "Refund available" : "Settlement complete";
       chipClass = "bg-pg-amber/15 text-pg-amber border-pg-amber/35";
       sublabelClass = "text-pg-amber/75";
+      if (cancellationReason) showCancellationTooltip = true;
     } else {
       label = "Round settled";
       timer = "";
@@ -108,6 +115,15 @@ export function RoundTimer({
       chipClass = "bg-pg-violet/14 text-pg-violet border-pg-violet/30";
       sublabelClass = "text-pg-violet/75";
     }
+  } else if (!effectivelyLocked && hasBet) {
+    label = "Bets locked";
+    timer = lockFormatted;
+    sublabel = "";
+    chipClass = "bg-pg-amber/14 text-pg-amber border-pg-amber/25";
+    timerClass = "text-pg-amber";
+    sublabelClass = "text-pg-muted/55";
+    dotClass = "bg-pg-amber";
+    dotAnimated = false;
   } else if (!effectivelyLocked) {
     label = "Betting closes in";
     timer = lockFormatted;
@@ -118,9 +134,9 @@ export function RoundTimer({
     dotClass = "bg-pg-violet";
     dotAnimated = true;
   } else if (!closeExpired) {
-    label = isLocked ? "Round ends in" : "Bets locked · grace period";
+    label = isLocked ? "Round ends in" : "Bets locked";
     timer = closeFormatted;
-    sublabel = isLocked ? "Bets locked" : "Waiting for settlement";
+    sublabel = isLocked ? "Bets locked" : "";
     chipClass = "bg-pg-amber/14 text-pg-amber border-pg-amber/25";
     timerClass = "text-pg-amber";
     sublabelClass = "text-pg-muted/60";
@@ -149,26 +165,10 @@ export function RoundTimer({
         )}
         <span>{isSettled ? label.toUpperCase() : label}</span>
         {showAwaitingSettlementTooltip && (
-          <span
-            className="tooltip tooltip-bottom tooltip-primary cursor-help inline-flex items-center"
-            data-tip={awaitingSettlementTooltip}
-            title={awaitingSettlementTooltip}
-            aria-label={awaitingSettlementTooltip}
-          >
-            <svg
-              className="h-3 w-3 text-pg-amber/80"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M11.25 11.25h.008v.008h-.008v-.008ZM12 16.5v-4.5m0-9a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z"
-              />
-            </svg>
-          </span>
+          <InfoTooltip text={awaitingSettlementTooltip} iconClassName="h-3 w-3 text-pg-amber/80" />
+        )}
+        {showCancellationTooltip && cancellationReason && (
+          <InfoTooltip text={cancellationReason} iconClassName="h-3 w-3 text-pg-amber/80" />
         )}
       </div>
 

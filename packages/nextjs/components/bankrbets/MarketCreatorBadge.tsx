@@ -1,6 +1,7 @@
 "use client";
 
 import { IdentityBadge } from "~~/components/bankrbets/IdentityBadge";
+import { InfoTooltip } from "~~/components/bankrbets/InfoTooltip";
 import { useResolvedAddresses } from "~~/hooks/bankrbets/useResolvedAddresses";
 
 const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
@@ -23,26 +24,7 @@ export function MarketCreatorBadge({ creatorAddress }: MarketCreatorBadgeProps) 
       <IdentityBadge address={validCreator} resolved={resolvedMap.get(validCreator.toLowerCase())} size="sm" />
       <span className="inline-flex items-center gap-1 text-primary/50">
         <span>earns 0.5%</span>
-        <span
-          className="tooltip tooltip-bottom tooltip-primary cursor-help"
-          data-tip={creatorFeeHint}
-          title={creatorFeeHint}
-          aria-label={creatorFeeHint}
-        >
-          <svg
-            className="w-3 h-3 text-primary/60"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M11.25 11.25h.008v.008h-.008v-.008ZM12 16.5v-4.5m0-9a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z"
-            />
-          </svg>
-        </span>
+        <InfoTooltip text={creatorFeeHint} iconClassName="w-3 h-3 text-primary/60" />
       </span>
     </div>
   );

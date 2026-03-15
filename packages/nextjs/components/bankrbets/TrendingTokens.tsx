@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { InfoTooltip } from "./InfoTooltip";
 import { TokenCard } from "./TokenCard";
 import { useBankrTokens } from "~~/hooks/bankrbets/useBankrTokens";
 import { useMarketTokens } from "~~/hooks/bankrbets/useMarketTokens";
@@ -133,15 +134,11 @@ export function TrendingTokens() {
           <h2 className="text-lg font-extrabold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
             Bankr Tokens
           </h2>
-          <span
-            className="tooltip tooltip-bottom tooltip-primary absolute -top-1 -right-7"
-            data-tip={tokenCountHint}
-            title={tokenCountHint}
-            aria-label={tokenCountHint}
-          >
+          <span className="absolute -top-1 -right-7 inline-flex items-center gap-0.5">
             <span className="text-[10px] font-bold text-pg-muted/50 tabular-nums leading-none">
               {tokenCount.toLocaleString()}
             </span>
+            <InfoTooltip text={tokenCountHint} iconClassName="h-2.5 w-2.5 text-pg-muted/40" />
           </span>
         </div>
 

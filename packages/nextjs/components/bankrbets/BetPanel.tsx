@@ -25,6 +25,7 @@ import {
 } from "~~/hooks/bankrbets/usePredictionContract";
 import { useUsdcApproval } from "~~/hooks/bankrbets/useUsdcApproval";
 import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
+import { getCancellationReason } from "~~/utils/bankrbets/cancellationReason";
 import { getWalletActionErrorMessage, isUserRejectedRequestError, notification } from "~~/utils/scaffold-eth";
 
 interface BetPanelProps {
@@ -204,6 +205,10 @@ export function BetPanel({
     now >= Number(currentRound.closeTimestamp) + REFUND_GRACE_PERIOD_S
   );
   const roundCancelled = !!(currentRound && currentRound.cancelled);
+  const cancellationReason = useMemo(
+    () => (currentRound && roundCancelled ? getCancellationReason(currentRound) : null),
+    [currentRound, roundCancelled],
+  );
   const roundSettled = !!currentRound?.oracleCalled;
   // Market exists but no active round, OR current round is done — first bet will auto-start one
   const canBetToStart = !historicalView && marketCreated === true && (!currentIsActive || roundSettled);
@@ -792,6 +797,8 @@ export function BetPanel({
             isCancelled={roundCancelled}
             canClaim={Boolean(claimable)}
             outcome={roundOutcome}
+            cancellationReason={cancellationReason}
+            hasBet={hasBet}
           />
         </div>
       )}
@@ -865,6 +872,9 @@ export function BetPanel({
                     ? `Round cancelled. Claim your $${claimAmountDisplay ?? (Number(userBet!.amount) / 1e6).toFixed(2)} refund.`
                     : `You won 🎉 Claim $${claimAmountDisplay ?? "0.00"} USDC.`}
                 </p>
+                {roundCancelled && cancellationReason && (
+                  <p className="text-[11px] text-pg-amber/70 mt-0.5">{cancellationReason}</p>
+                )}
                 <button
                   onClick={handleClaim}
                   disabled={isClaiming}
@@ -891,6 +901,7 @@ export function BetPanel({
             ) : roundCancelled ? (
               <div className="mt-4 space-y-1">
                 <p className="text-xs font-bold text-pg-amber">Round cancelled — your bet will be refunded.</p>
+                {cancellationReason && <p className="text-[11px] text-pg-amber/70">{cancellationReason}</p>}
                 <button
                   onClick={handleClaim}
                   disabled={isClaiming}

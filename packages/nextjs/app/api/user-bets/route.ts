@@ -128,7 +128,7 @@ export async function GET(req: NextRequest) {
     const res = await fetch(`${PONDER_URL}/graphql`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(4_000),
+      signal: AbortSignal.timeout(8_000),
       body: JSON.stringify({
         query: `{
           betParticipations(where: { user: "${id}" }, orderBy: "placedAt", orderDirection: "desc", limit: 150) {
@@ -172,50 +172,53 @@ export async function GET(req: NextRequest) {
 
     const tokens = Array.from(new Set(rows.map(row => row.token.toLowerCase() as `0x${string}`)));
 
+    // Batch all getCurrentEpoch calls into a single multicall
     const currentEpochByToken = new Map<string, bigint>();
-    if (predictionAddress) {
-      const currentEpochReads = await Promise.allSettled(
-        tokens.map(async token => {
-          const epoch = await baseClient.readContract({
-            address: predictionAddress,
-            abi: predictionReadAbi,
-            functionName: "getCurrentEpoch",
-            args: [token],
-          });
-          return [token, epoch] as const;
-        }),
-      );
+    const openCurrentByToken = new Map<string, boolean>();
+    if (predictionAddress && tokens.length > 0) {
+      const epochCalls = tokens.map(token => ({
+        address: predictionAddress,
+        abi: predictionReadAbi,
+        functionName: "getCurrentEpoch" as const,
+        args: [token] as const,
+      }));
 
-      for (const result of currentEpochReads) {
-        if (result.status === "fulfilled") {
-          currentEpochByToken.set(result.value[0], result.value[1]);
+      const epochResults = await baseClient.multicall({ contracts: epochCalls, allowFailure: true });
+      for (let i = 0; i < tokens.length; i++) {
+        const r = epochResults[i];
+        if (r.status === "success" && r.result) {
+          currentEpochByToken.set(tokens[i], r.result as bigint);
         }
       }
-    }
 
-    const openCurrentByToken = new Map<string, boolean>();
-    if (predictionAddress && currentEpochByToken.size > 0) {
-      const maybeOpenTokens = tokens.filter(token => {
-        const currentEpoch = currentEpochByToken.get(token);
-        return currentEpoch && currentEpoch > 0n;
-      });
-
-      const currentRoundReads = await Promise.allSettled(
-        maybeOpenTokens.map(async token => {
-          const epoch = currentEpochByToken.get(token)!;
-          const round = await baseClient.readContract({
+      // Batch all getRound calls for current epochs into a single multicall
+      const roundTokenOrder: string[] = [];
+      const roundContracts: Array<{
+        address: `0x${string}`;
+        abi: typeof predictionReadAbi;
+        functionName: "getRound";
+        args: readonly [`0x${string}`, bigint];
+      }> = [];
+      for (const token of tokens) {
+        const epoch = currentEpochByToken.get(token);
+        if (epoch && epoch > 0n) {
+          roundTokenOrder.push(token);
+          roundContracts.push({
             address: predictionAddress,
             abi: predictionReadAbi,
-            functionName: "getRound",
-            args: [token, epoch],
+            functionName: "getRound" as const,
+            args: [token as `0x${string}`, epoch] as const,
           });
-          return [token, !(round as { oracleCalled: boolean }).oracleCalled] as const;
-        }),
-      );
+        }
+      }
 
-      for (const result of currentRoundReads) {
-        if (result.status === "fulfilled") {
-          openCurrentByToken.set(result.value[0], result.value[1]);
+      if (roundContracts.length > 0) {
+        const roundResults = await baseClient.multicall({ contracts: roundContracts, allowFailure: true });
+        for (let i = 0; i < roundContracts.length; i++) {
+          const r = roundResults[i];
+          if (r.status === "success" && r.result) {
+            openCurrentByToken.set(roundTokenOrder[i], !(r.result as { oracleCalled: boolean }).oracleCalled);
+          }
         }
       }
     }
@@ -277,20 +280,18 @@ export async function GET(req: NextRequest) {
       };
 
       const roundDataMap = new Map<string, RoundResult>();
-      const roundReads = await Promise.allSettled(
-        Array.from(roundKeys.entries()).map(async ([key, { token, epoch }]) => {
-          const round = await baseClient.readContract({
-            address: predictionAddress,
-            abi: predictionReadAbi,
-            functionName: "getRound",
-            args: [token, epoch],
-          });
-          return [key, round as unknown as RoundResult] as const;
-        }),
-      );
-      for (const result of roundReads) {
-        if (result.status === "fulfilled") {
-          roundDataMap.set(result.value[0], result.value[1]);
+      const keyList = Array.from(roundKeys.entries());
+      const unresolvedCalls = keyList.map(([, { token, epoch }]) => ({
+        address: predictionAddress,
+        abi: predictionReadAbi,
+        functionName: "getRound" as const,
+        args: [token, epoch] as const,
+      }));
+      const unresolvedResults = await baseClient.multicall({ contracts: unresolvedCalls, allowFailure: true });
+      for (let i = 0; i < keyList.length; i++) {
+        const r = unresolvedResults[i];
+        if (r.status === "success" && r.result) {
+          roundDataMap.set(keyList[i][0], r.result as unknown as RoundResult);
         }
       }
 
