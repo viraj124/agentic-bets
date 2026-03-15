@@ -19,3 +19,7 @@ export const betParticipation = onchainTable("bet_participation", t => ({
   claimedAmount: t.bigint().notNull().default(0n),
   placedAt: t.bigint().notNull().default(0n), // unix timestamp (seconds)
 }));
+
+export const cancelledRound = onchainTable("cancelled_round", t => ({
+  id: t.text().primaryKey(), // `${token}:${epoch}`
+}));

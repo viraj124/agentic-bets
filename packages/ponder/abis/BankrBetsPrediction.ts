@@ -32,4 +32,22 @@ export const abi = [
     ],
     anonymous: false,
   },
+  {
+    type: "event",
+    name: "RoundCancelled",
+    inputs: [
+      { name: "token", type: "address", indexed: true, internalType: "address" },
+      { name: "epoch", type: "uint256", indexed: true, internalType: "uint256" },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "RoundRefunded",
+    inputs: [
+      { name: "token", type: "address", indexed: true, internalType: "address" },
+      { name: "epoch", type: "uint256", indexed: true, internalType: "uint256" },
+    ],
+    anonymous: false,
+  },
 ] as const;

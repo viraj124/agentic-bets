@@ -1,8 +1,11 @@
 import { ponder } from "ponder:registry";
-import { betParticipation, userStats } from "../ponder.schema";
+import { betParticipation, cancelledRound, userStats } from "../ponder.schema";
 
 const toBetId = (user: string, token: string, epoch: bigint) =>
   `${user.toLowerCase()}:${token.toLowerCase()}:${epoch.toString()}`;
+
+const toRoundId = (token: string, epoch: bigint) =>
+  `${token.toLowerCase()}:${epoch.toString()}`;
 
 ponder.on("BankrBetsPrediction:BetBull", async ({ event, context }) => {
   const id = event.args.sender.toLowerCase() as `0x${string}`;
@@ -70,6 +73,17 @@ ponder.on("BankrBetsPrediction:BetBear", async ({ event, context }) => {
     }));
 });
 
+// Track cancelled/refunded rounds so the Claim handler can distinguish wins from refunds
+ponder.on("BankrBetsPrediction:RoundCancelled", async ({ event, context }) => {
+  const roundId = toRoundId(event.args.token, event.args.epoch);
+  await context.db.insert(cancelledRound).values({ id: roundId }).onConflictDoNothing();
+});
+
+ponder.on("BankrBetsPrediction:RoundRefunded", async ({ event, context }) => {
+  const roundId = toRoundId(event.args.token, event.args.epoch);
+  await context.db.insert(cancelledRound).values({ id: roundId }).onConflictDoNothing();
+});
+
 ponder.on("BankrBetsPrediction:Claim", async ({ event, context }) => {
   const id = event.args.sender.toLowerCase() as `0x${string}`;
   const token = event.args.token.toLowerCase() as `0x${string}`;
@@ -95,11 +109,26 @@ ponder.on("BankrBetsPrediction:Claim", async ({ event, context }) => {
 
   if (event.args.amount === 0n) return;
 
-  await context.db
-    .insert(userStats)
-    .values({ id, totalBets: 0, totalWagered: 0n, totalWon: event.args.amount, wins: 1 })
-    .onConflictDoUpdate(row => ({
-      totalWon: row.totalWon + event.args.amount,
-      wins: row.wins + 1,
-    }));
+  // Check if this round was cancelled — if so, this claim is a refund, not a win
+  const roundId = toRoundId(token, event.args.epoch);
+  const wasCancelled = await context.db.find(cancelledRound, { id: roundId });
+
+  if (wasCancelled) {
+    // Refund: add to totalWon (to offset wager in PnL calc) but don't count as a win
+    await context.db
+      .insert(userStats)
+      .values({ id, totalBets: 0, totalWagered: 0n, totalWon: event.args.amount, wins: 0 })
+      .onConflictDoUpdate(row => ({
+        totalWon: row.totalWon + event.args.amount,
+      }));
+  } else {
+    // Actual win
+    await context.db
+      .insert(userStats)
+      .values({ id, totalBets: 0, totalWagered: 0n, totalWon: event.args.amount, wins: 1 })
+      .onConflictDoUpdate(row => ({
+        totalWon: row.totalWon + event.args.amount,
+        wins: row.wins + 1,
+      }));
+  }
 });
