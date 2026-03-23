@@ -553,15 +553,12 @@ async function enrichWithPriceData(
   clankerPriced: number;
 }> {
   const eligible = tokens;
+  const allAddresses = eligible.map(t => t.address);
+  const clankerPricedCount = eligible.filter(t => !!t.clankerPriceData).length;
+  console.log(`[bankr-tokens] Clanker API: ${clankerPricedCount} tokens have embedded price data (may be incomplete)`);
 
-  // 0) Separate tokens that already have price data from Clanker API
-  const needsExternalPrice = eligible.filter(t => !t.clankerPriceData);
-  const addresses = needsExternalPrice.map(t => t.address);
-  const clankerPricedCount = eligible.length - needsExternalPrice.length;
-  console.log(`[bankr-tokens] Clanker API: ${clankerPricedCount} tokens already have embedded price data`);
-
-  // 1) DexScreener — only for tokens without Clanker price data
-  const dexChunks = chunk(addresses, DEX_BATCH);
+  // 1) DexScreener — fetch for ALL tokens so we can fill gaps in Clanker data (e.g. volume=0)
+  const dexChunks = chunk(allAddresses, DEX_BATCH);
   const dexMap = new Map<string, PriceEnrichment>();
   const dexHost = "api.dexscreener.com";
   for (let i = 0; i < dexChunks.length; i += DEX_CONCURRENCY) {
@@ -589,17 +586,16 @@ async function enrichWithPriceData(
     }
   }
   console.log(
-    `[bankr-tokens] DexScreener: ${dexMap.size} priced out of ${addresses.length} addresses (${dexChunks.length} batches)`,
+    `[bankr-tokens] DexScreener: ${dexMap.size} priced out of ${allAddresses.length} addresses (${dexChunks.length} batches)`,
   );
 
-  // 2) Gecko fallback — only for tokens Dex didn't price (and without Clanker data)
+  // 2) Gecko fallback — only for tokens that have neither Clanker nor DexScreener data
   const useGeckoFallback = opts?.enableGeckoFallback ?? true;
   const geckoFallbackMaxAddresses = opts?.geckoFallbackMaxAddresses ?? GECKO_FALLBACK_MAX_ADDRESSES;
   const geckoFallbackCandidates = useGeckoFallback
-    ? Array.from(new Set(needsExternalPrice.filter(t => !dexMap.has(t.address)).map(t => t.address))).slice(
-        0,
-        geckoFallbackMaxAddresses,
-      )
+    ? Array.from(
+        new Set(eligible.filter(t => !t.clankerPriceData && !dexMap.has(t.address)).map(t => t.address)),
+      ).slice(0, geckoFallbackMaxAddresses)
     : [];
 
   const geckoChunks = chunk(geckoFallbackCandidates, GECKO_BATCH);
@@ -638,9 +634,35 @@ async function enrichWithPriceData(
 
   const enriched: EnrichedToken[] = [];
   for (const token of eligible) {
-    // Prefer Clanker embedded data, then DexScreener, then Gecko
-    const priceData = token.clankerPriceData || dexMap.get(token.address) || geckoMap.get(token.address);
-    if (!priceData) continue;
+    const clanker = token.clankerPriceData;
+    const dex = dexMap.get(token.address);
+    const gecko = geckoMap.get(token.address);
+
+    // Need at least one source
+    const base = dex || clanker || gecko;
+    if (!base) continue;
+
+    // Merge: DexScreener is most reliable for volume/marketCap/price,
+    // but use Clanker as base and patch in DexScreener fields where Clanker has gaps
+    let priceData: PriceEnrichment;
+    if (clanker && dex) {
+      priceData = {
+        ...clanker,
+        // DexScreener wins for fields Clanker often returns as 0
+        priceUsd: dex.priceUsd || clanker.priceUsd,
+        volume24h: dex.volume24h || clanker.volume24h,
+        marketCap: dex.marketCap || clanker.marketCap,
+        change1h: dex.change1h || clanker.change1h,
+        change24h: dex.change24h || clanker.change24h,
+        imgUrl: dex.imgUrl || clanker.imgUrl,
+        topPoolAddress: dex.topPoolAddress || clanker.topPoolAddress,
+        deployedAt: dex.deployedAt || clanker.deployedAt,
+        name: dex.name || clanker.name,
+        symbol: dex.symbol || clanker.symbol,
+      };
+    } else {
+      priceData = base;
+    }
 
     const resolvedPoolKey = token.poolKey ?? deriveFallbackPoolKey(token.address);
 
