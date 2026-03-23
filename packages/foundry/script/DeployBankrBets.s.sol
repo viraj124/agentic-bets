@@ -30,14 +30,16 @@ contract DeployBankrBets is Script {
     address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
     address constant WETH = 0x4200000000000000000000000000000000000006;
 
-    // Clanker V4 hook used by CLAWD, BNKRW, and MOLT (StaticFeeV2, PoolId-verified)
+    // Clanker V4 hook used by CLAWD and MOLT (StaticFeeV2, PoolId-verified)
     address constant CLANKER_STATIC_FEE_V2 = 0xb429d62f8f3bFFb98CdB9569533eA23bF0Ba28CC;
 
     // CLAWD — top Bankr ecosystem token by market cap
     address constant CLAWD = 0x9f86dB9fc6f7c9408e8Fda3Ff8ce4e78ac7a6b07;
 
-    // BNKRW — Bankr reward token
-    address constant BNKRW = 0xf48bC234855aB08ab2EC0cfaaEb2A80D065a3b07;
+    // WCHAN (WalletChan) — rebranded from BNKRW
+    // Vanilla V4 pool: native ETH + no hooks + fee=10000 + tickSpacing=200
+    // PoolId: 0x81c7a2a2c33ea285f062c5ac0c4e3d4ffb2f6fd2588bbd354d0d3af8a58b6337
+    address constant WCHAN = 0xBa5ED0000e1CA9136a695f0a848012A16008B032;
 
     // MOLT (Moltbook) — #3 Bankr ecosystem token by market cap
     // PoolId verified: 0x15f351bf...464dd
@@ -47,8 +49,8 @@ contract DeployBankrBets is Script {
     // Operational parameters
     // -------------------------------------------------------------------------
     // Min V4 pool liquidity for market registration + runtime price reads.
-    // CLAWD/WETH and BNKRW/WETH both have ~1e24 liquidity — 8e23 is a safe gate.
-    uint128 constant MIN_LIQUIDITY = 800_000_000_000_000_000_000_000; // 8e23
+    // CLAWD ~1e24, WCHAN ~1.93e23 — 1e22 keeps all healthy pools while blocking empty ones.
+    uint128 constant MIN_LIQUIDITY = 10_000_000_000_000_000_000_000; // 1e22
 
     // Per-round USDC pool cap. Bounds worst-case flash loan attack profit.
     // 10,000 USDC = 10_000 * 1e6 (USDC 6 decimals).
@@ -56,7 +58,10 @@ contract DeployBankrBets is Script {
 
     // Clanker pool parameters (same for all supported Bankr/Clanker V4 pools)
     uint24 constant DYNAMIC_FEE_FLAG = 0x800000;
-    int24 constant CLANKER_TICK_SPACING = 200;
+    int24 constant TICK_SPACING = 200;
+
+    // WCHAN vanilla V4 pool parameters
+    uint24 constant WCHAN_FEE = 10_000; // 1%
 
     function run() external {
         require(block.chainid == 8453, "Deploy to Base mainnet only (chain 8453)");
@@ -80,31 +85,33 @@ contract DeployBankrBets is Script {
         oracle.setPredictionContract(address(prediction));
 
         // -----------------------------------------------------------------
-        // 4. Oracle operational params
-        // -----------------------------------------------------------------
-        oracle.setMinLiquidity(MIN_LIQUIDITY);
-
-        // -----------------------------------------------------------------
-        // 5. Prediction operational params
+        // 4. Prediction operational params
         //    All other params (roundDuration, betWindow, fees, etc.) are
         //    already set to production values in contract defaults.
         // -----------------------------------------------------------------
         prediction.setMaxRoundPool(MAX_ROUND_POOL);
 
         // -----------------------------------------------------------------
-        // 6. Register initial markets
+        // 5. Register initial markets (before setting minLiquidity so
+        //    vanilla pools with lower liquidity like WCHAN aren't blocked)
         // -----------------------------------------------------------------
         // CLAWD/WETH pool — WETH is currency0 (0x4200 < 0x9f86)
-        PoolKey memory clawdKey = PoolKey({ currency0: Currency.wrap(WETH), currency1: Currency.wrap(CLAWD), fee: DYNAMIC_FEE_FLAG, tickSpacing: CLANKER_TICK_SPACING, hooks: IHooks(CLANKER_STATIC_FEE_V2) });
+        PoolKey memory clawdKey = PoolKey({ currency0: Currency.wrap(WETH), currency1: Currency.wrap(CLAWD), fee: DYNAMIC_FEE_FLAG, tickSpacing: TICK_SPACING, hooks: IHooks(CLANKER_STATIC_FEE_V2) });
         oracle.addToken(CLAWD, clawdKey);
 
-        // BNKRW/WETH pool — WETH is currency0 (0x4200 < 0xf48b)
-        PoolKey memory bnkrwKey = PoolKey({ currency0: Currency.wrap(WETH), currency1: Currency.wrap(BNKRW), fee: DYNAMIC_FEE_FLAG, tickSpacing: CLANKER_TICK_SPACING, hooks: IHooks(CLANKER_STATIC_FEE_V2) });
-        oracle.addToken(BNKRW, bnkrwKey);
+        // WCHAN/ETH pool — native ETH is currency0 (address(0) < 0xBa5E), no hooks
+        PoolKey memory wchanKey = PoolKey({ currency0: Currency.wrap(address(0)), currency1: Currency.wrap(WCHAN), fee: WCHAN_FEE, tickSpacing: TICK_SPACING, hooks: IHooks(address(0)) });
+        oracle.addToken(WCHAN, wchanKey);
 
         // MOLT/WETH pool — WETH is currency0 (0x4200 < 0xB695)
-        PoolKey memory moltKey = PoolKey({ currency0: Currency.wrap(WETH), currency1: Currency.wrap(MOLT), fee: DYNAMIC_FEE_FLAG, tickSpacing: CLANKER_TICK_SPACING, hooks: IHooks(CLANKER_STATIC_FEE_V2) });
+        PoolKey memory moltKey = PoolKey({ currency0: Currency.wrap(WETH), currency1: Currency.wrap(MOLT), fee: DYNAMIC_FEE_FLAG, tickSpacing: TICK_SPACING, hooks: IHooks(CLANKER_STATIC_FEE_V2) });
         oracle.addToken(MOLT, moltKey);
+
+        // -----------------------------------------------------------------
+        // 6. Oracle operational params (after registration so vanilla
+        //    pools aren't blocked by the liquidity threshold)
+        // -----------------------------------------------------------------
+        oracle.setMinLiquidity(MIN_LIQUIDITY);
 
         vm.stopBroadcast();
 
@@ -135,7 +142,7 @@ contract DeployBankrBets is Script {
         console.log("");
         console.log("--- Initial markets ---");
         console.log("CLAWD active         :", oracle.isTokenActive(CLAWD));
-        console.log("BNKRW active         :", oracle.isTokenActive(BNKRW));
+        console.log("WCHAN active         :", oracle.isTokenActive(WCHAN));
         console.log("MOLT  active         :", oracle.isTokenActive(MOLT));
     }
 }
