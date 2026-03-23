@@ -27,9 +27,15 @@ contract BankrBetsOracle is Ownable {
     // --- Bankr / Clanker V4 constraints (Base) ---
 
     address public constant WETH_BASE = 0x4200000000000000000000000000000000000006;
+    address public constant NATIVE_ETH = address(0); // V4 uses address(0) for native ETH
     uint24 public constant DYNAMIC_FEE_FLAG = 0x800000;
     uint24 public constant BANKR_SCHEDULED_FEE = 12_000;
     int24 public constant REQUIRED_TICK_SPACING = 200;
+
+    // Standard Uniswap V4 fee tiers accepted for hookless (vanilla) pools
+    uint24 public constant STANDARD_FEE_500 = 500; // 0.05%
+    uint24 public constant STANDARD_FEE_3000 = 3000; // 0.30%
+    uint24 public constant STANDARD_FEE_10000 = 10_000; // 1.00%
 
     // Clanker hooks (legacy + current)
     address public constant CLANKER_DYNAMIC_FEE_V2_HOOK = 0xd60D6B218116cFd801E28F78d011a203D2b068Cc;
@@ -54,7 +60,7 @@ contract BankrBetsOracle is Ownable {
     }
 
     // Default max bet for new markets (admin-configurable)
-    uint256 public constant DEFAULT_MAX_BET_AMOUNT = 500_000_000; // 500 USDC
+    uint256 public constant DEFAULT_MAX_BET_AMOUNT = 1_000_000_000; // 1000 USDC
 
     // --- State ---
 
@@ -130,19 +136,7 @@ contract BankrBetsOracle is Ownable {
         address c1 = Currency.unwrap(_poolKey.currency1);
         if (_token != c0 && _token != c1) revert TokenNotInPool();
 
-        // Restrict registration to Bankr ecosystem V4 pools.
-        // This keeps "permissionless" creator flow while blocking arbitrary pool spoofing.
-        if (c0 != WETH_BASE && c1 != WETH_BASE) revert InvalidQuoteToken();
-
-        address hook = address(_poolKey.hooks);
-        if (!isSupportedHook(hook)) revert UnsupportedHook();
-        if (_poolKey.tickSpacing != REQUIRED_TICK_SPACING) revert InvalidPoolParameters();
-
-        if (hook == BANKR_SCHEDULED_MULTICURVE_HOOK) {
-            if (_poolKey.fee != BANKR_SCHEDULED_FEE) revert InvalidPoolParameters();
-        } else {
-            if (_poolKey.fee != DYNAMIC_FEE_FLAG) revert InvalidPoolParameters();
-        }
+        _validatePoolKey(_poolKey, c0, c1);
 
         PoolId poolId = _poolKey.toId();
         address canonicalPoolAddress = address(bytes20(PoolId.unwrap(poolId)));
@@ -164,18 +158,51 @@ contract BankrBetsOracle is Ownable {
     }
 
     function isSupportedHook(address _hook) public pure returns (bool) {
-        return _hook == CLANKER_DYNAMIC_FEE_V2_HOOK || _hook == CLANKER_STATIC_FEE_V2_HOOK || _hook == CLANKER_DYNAMIC_FEE_HOOK || _hook == CLANKER_STATIC_FEE_HOOK || _hook == BANKR_SCHEDULED_MULTICURVE_HOOK
+        return _hook == address(0) // Vanilla V4 (no hooks)
+            || _hook == CLANKER_DYNAMIC_FEE_V2_HOOK || _hook == CLANKER_STATIC_FEE_V2_HOOK || _hook == CLANKER_DYNAMIC_FEE_HOOK || _hook == CLANKER_STATIC_FEE_HOOK || _hook == BANKR_SCHEDULED_MULTICURVE_HOOK
             || _hook == BANKR_DECAY_MULTICURVE_HOOK;
     }
 
+    function isValidQuoteToken(address _token) public pure returns (bool) {
+        return _token == WETH_BASE || _token == NATIVE_ETH;
+    }
+
+    function isStandardFee(uint24 _fee) public pure returns (bool) {
+        return _fee == STANDARD_FEE_500 || _fee == STANDARD_FEE_3000 || _fee == STANDARD_FEE_10000;
+    }
+
+    /**
+     * @dev Shared pool key validation for _addToken and updatePool.
+     *      Supports both Bankr/Clanker hooked pools (WETH quote, dynamic fee)
+     *      and vanilla V4 pools (native ETH or WETH, standard fee tiers, no hooks).
+     */
+    function _validatePoolKey(PoolKey calldata _poolKey, address c0, address c1) internal pure {
+        // Quote token must be WETH or native ETH
+        if (!isValidQuoteToken(c0) && !isValidQuoteToken(c1)) revert InvalidQuoteToken();
+
+        address hook = address(_poolKey.hooks);
+        if (!isSupportedHook(hook)) revert UnsupportedHook();
+        if (_poolKey.tickSpacing != REQUIRED_TICK_SPACING) revert InvalidPoolParameters();
+
+        if (hook == address(0)) {
+            // Vanilla V4 pool — must use a standard Uniswap fee tier
+            if (!isStandardFee(_poolKey.fee)) revert InvalidPoolParameters();
+        } else if (hook == BANKR_SCHEDULED_MULTICURVE_HOOK) {
+            if (_poolKey.fee != BANKR_SCHEDULED_FEE) revert InvalidPoolParameters();
+        } else {
+            if (_poolKey.fee != DYNAMIC_FEE_FLAG) revert InvalidPoolParameters();
+        }
+    }
+
     function getSupportedHooks() external pure returns (address[] memory hooks) {
-        hooks = new address[](6);
-        hooks[0] = CLANKER_DYNAMIC_FEE_V2_HOOK;
-        hooks[1] = CLANKER_STATIC_FEE_V2_HOOK;
-        hooks[2] = CLANKER_DYNAMIC_FEE_HOOK;
-        hooks[3] = CLANKER_STATIC_FEE_HOOK;
-        hooks[4] = BANKR_SCHEDULED_MULTICURVE_HOOK;
-        hooks[5] = BANKR_DECAY_MULTICURVE_HOOK;
+        hooks = new address[](7);
+        hooks[0] = address(0); // Vanilla V4 (no hooks)
+        hooks[1] = CLANKER_DYNAMIC_FEE_V2_HOOK;
+        hooks[2] = CLANKER_STATIC_FEE_V2_HOOK;
+        hooks[3] = CLANKER_DYNAMIC_FEE_HOOK;
+        hooks[4] = CLANKER_STATIC_FEE_HOOK;
+        hooks[5] = BANKR_SCHEDULED_MULTICURVE_HOOK;
+        hooks[6] = BANKR_DECAY_MULTICURVE_HOOK;
     }
 
     /**
@@ -207,19 +234,7 @@ contract BankrBetsOracle is Ownable {
         address c1 = Currency.unwrap(_poolKey.currency1);
         if (_token != c0 && _token != c1) revert TokenNotInPool();
 
-        // Apply same ecosystem constraints as _addToken — prevents switching to an
-        // unsupported/unvalidated pool (e.g. a creator-controlled pool for price manipulation).
-        if (c0 != WETH_BASE && c1 != WETH_BASE) revert InvalidQuoteToken();
-
-        address hook = address(_poolKey.hooks);
-        if (!isSupportedHook(hook)) revert UnsupportedHook();
-        if (_poolKey.tickSpacing != REQUIRED_TICK_SPACING) revert InvalidPoolParameters();
-
-        if (hook == BANKR_SCHEDULED_MULTICURVE_HOOK) {
-            if (_poolKey.fee != BANKR_SCHEDULED_FEE) revert InvalidPoolParameters();
-        } else {
-            if (_poolKey.fee != DYNAMIC_FEE_FLAG) revert InvalidPoolParameters();
-        }
+        _validatePoolKey(_poolKey, c0, c1);
 
         PoolId poolId = _poolKey.toId();
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
