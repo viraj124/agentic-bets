@@ -673,14 +673,16 @@ async function enrichWithPriceData(
     });
   }
 
-  enriched.sort((a, b) => b.marketCap - a.marketCap);
+  // Drop tokens with zero 24h volume — dead/inactive tokens clutter the list
+  const active = enriched.filter(t => t.volume24h > 0);
+  active.sort((a, b) => b.marketCap - a.marketCap);
 
   console.log(
-    `[bankr-tokens] Final enriched: ${enriched.length} (clanker: ${clankerPricedCount}, dex: ${dexMap.size}, gecko: ${geckoMap.size})`,
+    `[bankr-tokens] Final: ${active.length} active (${enriched.length - active.length} dropped for zero volume) (clanker: ${clankerPricedCount}, dex: ${dexMap.size}, gecko: ${geckoMap.size})`,
   );
 
   return {
-    enriched,
+    enriched: active,
     dexPriced: dexMap.size,
     geckoPriced: geckoMap.size,
     geckoFallbackCandidates: geckoFallbackCandidates.length,
