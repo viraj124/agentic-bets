@@ -34,7 +34,7 @@ function timeAgo(timestamp: bigint): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-function RoundRow({ entry }: { entry: RoundHistoryEntry }) {
+function RoundRow({ entry, tokenAddress }: { entry: RoundHistoryEntry; tokenAddress: string }) {
   const { round, userBet, epoch } = entry;
 
   if (!round) {
@@ -83,8 +83,13 @@ function RoundRow({ entry }: { entry: RoundHistoryEntry }) {
   else if (upWon) rowBg = "bg-pg-mint/5 border-pg-mint/20";
   else if (downWon) rowBg = "bg-pg-pink/5 border-pg-pink/20";
 
+  const roundUrl = `/market?round=${epoch.toString()}#${tokenAddress}`;
+
   return (
-    <div className={`px-4 py-3 rounded-xl border ${rowBg} transition-colors`}>
+    <a
+      href={roundUrl}
+      className={`block px-4 py-3 rounded-xl border ${rowBg} transition-colors hover:brightness-95 cursor-pointer`}
+    >
       {/* Top row: epoch, badge, prices */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
@@ -166,7 +171,7 @@ function RoundRow({ entry }: { entry: RoundHistoryEntry }) {
           </div>
         </div>
       )}
-    </div>
+    </a>
   );
 }
 
@@ -205,7 +210,7 @@ export function RoundHistory({ tokenAddress, currentEpoch }: RoundHistoryProps) 
             <p className="text-sm text-pg-muted">No rounds yet</p>
           </div>
         ) : (
-          entries.map(entry => <RoundRow key={entry.epoch.toString()} entry={entry} />)
+          entries.map(entry => <RoundRow key={entry.epoch.toString()} entry={entry} tokenAddress={tokenAddress} />)
         )}
       </div>
 

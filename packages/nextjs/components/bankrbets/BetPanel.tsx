@@ -262,12 +262,12 @@ export function BetPanel({
 
     if (didWin && roundSettled) {
       if (hasClaimed && claimAmountDisplay) {
-        return `I just won and claimed $${claimAmountDisplay} USDC on ${tokenSymbol || "a token"} on BankrBets!`;
+        return `I just won and claimed $${claimAmountDisplay} USDC on ${tokenSymbol || "a token"} on AgenticBets!`;
       }
-      return `I just won my ${side} bet on ${tokenSymbol || "a token"} on BankrBets!`;
+      return `I just won my ${side} bet on ${tokenSymbol || "a token"} on AgenticBets!`;
     }
 
-    return `I just bet $${amount} ${side} on ${tokenSymbol || "a token"} on BankrBets!`;
+    return `I just bet $${amount} ${side} on ${tokenSymbol || "a token"} on AgenticBets!`;
   }, [claimAmountDisplay, didWin, hasClaimed, roundSettled, tokenSymbol, userBet]);
 
   const isSmartWallet = useMemo(

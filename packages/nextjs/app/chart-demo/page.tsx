@@ -271,7 +271,7 @@ export default function ChartDemoPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-extrabold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
-                BNKRW / USD
+                WCHAN / USD
               </h1>
               <span className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-pg-mint/15 text-pg-mint rounded-full px-2.5 py-0.5 border border-pg-mint/30">
                 <span className="w-1.5 h-1.5 rounded-full bg-pg-mint animate-pulse" />

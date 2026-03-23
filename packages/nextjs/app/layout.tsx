@@ -21,9 +21,9 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata = getMetadata({
-  title: "BankrBets - Predict Token Prices",
+  title: "AgenticBets - Predict Token Prices",
   description:
-    "Binary prediction market for Bankr ecosystem tokens on Base. Bet UP or DOWN on Clanker tokens in 5-minute rounds.",
+    "Binary prediction market for Agentic ecosystem tokens on Base. Bet UP or DOWN on Clanker tokens in 5-minute rounds.",
 });
 
 const ScaffoldEthApp = ({ children }: { children: React.ReactNode }) => {

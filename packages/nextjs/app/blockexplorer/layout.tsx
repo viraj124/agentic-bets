@@ -2,7 +2,7 @@ import { getMetadata } from "~~/utils/scaffold-eth/getMetadata";
 
 export const metadata = getMetadata({
   title: "Block Explorer",
-  description: "BankrBets Block Explorer",
+  description: "AgenticBets Block Explorer",
 });
 
 const BlockExplorerLayout = ({ children }: { children: React.ReactNode }) => {

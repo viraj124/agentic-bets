@@ -44,7 +44,7 @@ export const wagmiConnectors = () => {
     ],
 
     {
-      appName: "BankrBets",
+      appName: "AgenticBets",
       projectId: scaffoldConfig.walletConnectProjectId,
     },
   );

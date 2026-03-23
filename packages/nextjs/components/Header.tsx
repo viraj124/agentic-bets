@@ -88,7 +88,7 @@ export const Header = () => {
             className="font-extrabold text-base tracking-tight text-base-content"
             style={{ fontFamily: "var(--font-heading)" }}
           >
-            Bankr<span className="text-pg-violet">Bets</span>
+            Agentic <span className="text-pg-violet">Bets</span>
           </span>
         </Link>
         <ul className="hidden lg:flex lg:flex-nowrap menu menu-horizontal px-1 gap-0">

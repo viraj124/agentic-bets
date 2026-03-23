@@ -2,7 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { hardhat } from "viem/chains";
 import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
-import { BankrBetsLogo } from "~~/components/assets/BankrBetsLogo";
+import { AgenticBetsLogo } from "~~/components/assets/AgenticBetsLogo";
 import { Faucet } from "~~/components/scaffold-eth";
 import { useTargetNetwork } from "~~/hooks/scaffold-eth/useTargetNetwork";
 
@@ -118,13 +118,13 @@ export const Footer = () => {
           {/* Brand centered */}
           <div className="flex flex-col items-center text-center">
             <div className="rounded-2xl border-2 border-pg-border bg-white/80 p-2.5 shadow-pop-soft">
-              <BankrBetsLogo className="h-11 w-11" />
+              <AgenticBetsLogo className="h-11 w-11" />
             </div>
             <span
               className="mt-4 text-xl font-extrabold tracking-tight text-base-content"
               style={{ fontFamily: "var(--font-heading)" }}
             >
-              Bankr<span className="text-pg-violet">Bets</span>
+              Agentic <span className="text-pg-violet">Bets</span>
             </span>
             <p className="mt-2 max-w-sm text-sm leading-relaxed text-pg-muted">
               Prediction markets for Base tokens. Pick a side, place your bet, and win.

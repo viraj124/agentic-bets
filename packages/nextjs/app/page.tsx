@@ -7,7 +7,7 @@ const STEPS = [
   {
     n: "01",
     t: "Pick a token",
-    d: "Browse Bankr ecosystem tokens and create prediction markets",
+    d: "Browse Agentic ecosystem tokens and create prediction markets",
     color: "bg-pg-violet",
     shadow: "shadow-pop-violet",
   },
@@ -46,7 +46,7 @@ const Home: NextPage = () => {
         <div className="max-w-5xl mx-auto relative">
           <div className="mb-3">
             <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-base-content">
-              Bankr <span className="text-pg-violet">Bets</span>
+              Agentic <span className="text-pg-violet">Bets</span>
             </h1>
             <div className="flex flex-wrap items-center gap-2 mt-1.5">
               <span className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-pg-mint/15 text-pg-mint rounded-full px-3 py-1 border border-pg-mint/30">
@@ -60,7 +60,7 @@ const Home: NextPage = () => {
           </div>
 
           <p className="text-sm md:text-base text-pg-muted max-w-lg leading-relaxed">
-            Prediction markets for Bankr ecosystem tokens. Pick a token, create a market, bet on the next 5 minutes.
+            5 min prediction markets for <span className="text-pg-violet font-semibold">Bankr</span> ecosystem tokens.
           </p>
         </div>
       </div>

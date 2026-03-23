@@ -54,7 +54,7 @@ export function TrendingTokens() {
       <div>
         <div className="flex items-center gap-3 mb-5">
           <h2 className="text-lg font-extrabold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
-            Bankr Tokens
+            Agentic Tokens
           </h2>
         </div>
 
@@ -120,7 +120,7 @@ export function TrendingTokens() {
           <p className="text-base font-bold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
             No tokens found
           </p>
-          <p className="text-sm text-pg-muted mt-1">Check back soon for Bankr ecosystem tokens</p>
+          <p className="text-sm text-pg-muted mt-1">Check back soon for Agentic ecosystem tokens</p>
         </div>
       </div>
     );
@@ -132,7 +132,7 @@ export function TrendingTokens() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
         <div className="relative inline-flex items-start">
           <h2 className="text-lg font-extrabold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
-            Bankr Tokens
+            Agentic Tokens
           </h2>
           <span className="absolute -top-1 -right-7 inline-flex items-center gap-0.5">
             <span className="text-[10px] font-bold text-pg-muted/50 tabular-nums leading-none">
@@ -155,7 +155,7 @@ export function TrendingTokens() {
             <span
               className={`w-1.5 h-1.5 rounded-full ${showMarketsOnly ? "bg-pg-violet animate-pulse" : "bg-pg-muted/40"}`}
             />
-            Trade
+            Bet
           </button>
 
           <div className="relative w-full sm:w-64">
