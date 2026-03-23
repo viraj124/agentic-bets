@@ -17,8 +17,8 @@ export default createConfig({
     BankrBetsPrediction: {
       network: "base",
       abi,
-      address: "0x1B342ec6fd99CFA929F4C020007D8b22eDE4c162",
-      startBlock: 42823800,
+      address: "0x8e9eBff2D977C69501a66961c919Cb7AA44494ce",
+      startBlock: 43731841,
     },
   },
 });

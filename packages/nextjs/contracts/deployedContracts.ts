@@ -7,94 +7,224 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   8453: {
     BankrBetsOracle: {
-      address: "0x5bd625AaEaFA824031B57Cd7CA905D389ddF9257",
+      address: "0xBacaF4e8201167D111Ce555E14a9053782b8db0b",
       abi: [
         {
           type: "constructor",
-          inputs: [{ name: "_poolManager", type: "address", internalType: "address" }],
+          inputs: [
+            {
+              name: "_poolManager",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           stateMutability: "nonpayable",
         },
         {
           type: "function",
           name: "BANKR_DECAY_MULTICURVE_HOOK",
           inputs: [],
-          outputs: [{ name: "", type: "address", internalType: "address" }],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "BANKR_SCHEDULED_FEE",
           inputs: [],
-          outputs: [{ name: "", type: "uint24", internalType: "uint24" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint24",
+              internalType: "uint24",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "BANKR_SCHEDULED_MULTICURVE_HOOK",
           inputs: [],
-          outputs: [{ name: "", type: "address", internalType: "address" }],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "CLANKER_DYNAMIC_FEE_HOOK",
           inputs: [],
-          outputs: [{ name: "", type: "address", internalType: "address" }],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "CLANKER_DYNAMIC_FEE_V2_HOOK",
           inputs: [],
-          outputs: [{ name: "", type: "address", internalType: "address" }],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "CLANKER_STATIC_FEE_HOOK",
           inputs: [],
-          outputs: [{ name: "", type: "address", internalType: "address" }],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "CLANKER_STATIC_FEE_V2_HOOK",
           inputs: [],
-          outputs: [{ name: "", type: "address", internalType: "address" }],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "DEFAULT_MAX_BET_AMOUNT",
           inputs: [],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "DYNAMIC_FEE_FLAG",
           inputs: [],
-          outputs: [{ name: "", type: "uint24", internalType: "uint24" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint24",
+              internalType: "uint24",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "NATIVE_ETH",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "REQUIRED_TICK_SPACING",
           inputs: [],
-          outputs: [{ name: "", type: "int24", internalType: "int24" }],
+          outputs: [
+            {
+              name: "",
+              type: "int24",
+              internalType: "int24",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "STANDARD_FEE_10000",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint24",
+              internalType: "uint24",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "STANDARD_FEE_3000",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint24",
+              internalType: "uint24",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "STANDARD_FEE_500",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint24",
+              internalType: "uint24",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "WETH_BASE",
           inputs: [],
-          outputs: [{ name: "", type: "address", internalType: "address" }],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "activateMarket",
-          inputs: [{ name: "_token", type: "address", internalType: "address" }],
+          inputs: [
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           outputs: [],
           stateMutability: "nonpayable",
         },
@@ -102,17 +232,41 @@ const deployedContracts = {
           type: "function",
           name: "addToken",
           inputs: [
-            { name: "_token", type: "address", internalType: "address" },
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
             {
               name: "_poolKey",
               type: "tuple",
               internalType: "struct PoolKey",
               components: [
-                { name: "currency0", type: "address", internalType: "Currency" },
-                { name: "currency1", type: "address", internalType: "Currency" },
-                { name: "fee", type: "uint24", internalType: "uint24" },
-                { name: "tickSpacing", type: "int24", internalType: "int24" },
-                { name: "hooks", type: "address", internalType: "contract IHooks" },
+                {
+                  name: "currency0",
+                  type: "address",
+                  internalType: "Currency",
+                },
+                {
+                  name: "currency1",
+                  type: "address",
+                  internalType: "Currency",
+                },
+                {
+                  name: "fee",
+                  type: "uint24",
+                  internalType: "uint24",
+                },
+                {
+                  name: "tickSpacing",
+                  type: "int24",
+                  internalType: "int24",
+                },
+                {
+                  name: "hooks",
+                  type: "address",
+                  internalType: "contract IHooks",
+                },
               ],
             },
           ],
@@ -123,20 +277,48 @@ const deployedContracts = {
           type: "function",
           name: "addTokenFor",
           inputs: [
-            { name: "_token", type: "address", internalType: "address" },
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
             {
               name: "_poolKey",
               type: "tuple",
               internalType: "struct PoolKey",
               components: [
-                { name: "currency0", type: "address", internalType: "Currency" },
-                { name: "currency1", type: "address", internalType: "Currency" },
-                { name: "fee", type: "uint24", internalType: "uint24" },
-                { name: "tickSpacing", type: "int24", internalType: "int24" },
-                { name: "hooks", type: "address", internalType: "contract IHooks" },
+                {
+                  name: "currency0",
+                  type: "address",
+                  internalType: "Currency",
+                },
+                {
+                  name: "currency1",
+                  type: "address",
+                  internalType: "Currency",
+                },
+                {
+                  name: "fee",
+                  type: "uint24",
+                  internalType: "uint24",
+                },
+                {
+                  name: "tickSpacing",
+                  type: "int24",
+                  internalType: "int24",
+                },
+                {
+                  name: "hooks",
+                  type: "address",
+                  internalType: "contract IHooks",
+                },
               ],
             },
-            { name: "_creator", type: "address", internalType: "address" },
+            {
+              name: "_creator",
+              type: "address",
+              internalType: "address",
+            },
           ],
           outputs: [],
           stateMutability: "nonpayable",
@@ -144,7 +326,13 @@ const deployedContracts = {
         {
           type: "function",
           name: "deactivateMarket",
-          inputs: [{ name: "_token", type: "address", internalType: "address" }],
+          inputs: [
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           outputs: [],
           stateMutability: "nonpayable",
         },
@@ -158,10 +346,26 @@ const deployedContracts = {
               type: "tuple[]",
               internalType: "struct BankrBetsOracle.MarketView[]",
               components: [
-                { name: "token", type: "address", internalType: "address" },
-                { name: "creator", type: "address", internalType: "address" },
-                { name: "poolAddress", type: "address", internalType: "address" },
-                { name: "createdAt", type: "uint256", internalType: "uint256" },
+                {
+                  name: "token",
+                  type: "address",
+                  internalType: "address",
+                },
+                {
+                  name: "creator",
+                  type: "address",
+                  internalType: "address",
+                },
+                {
+                  name: "poolAddress",
+                  type: "address",
+                  internalType: "address",
+                },
+                {
+                  name: "createdAt",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
               ],
             },
           ],
@@ -171,8 +375,16 @@ const deployedContracts = {
           type: "function",
           name: "getActiveMarketsInfoPage",
           inputs: [
-            { name: "_offset", type: "uint256", internalType: "uint256" },
-            { name: "_limit", type: "uint256", internalType: "uint256" },
+            {
+              name: "_offset",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "_limit",
+              type: "uint256",
+              internalType: "uint256",
+            },
           ],
           outputs: [
             {
@@ -180,10 +392,26 @@ const deployedContracts = {
               type: "tuple[]",
               internalType: "struct BankrBetsOracle.MarketView[]",
               components: [
-                { name: "token", type: "address", internalType: "address" },
-                { name: "creator", type: "address", internalType: "address" },
-                { name: "poolAddress", type: "address", internalType: "address" },
-                { name: "createdAt", type: "uint256", internalType: "uint256" },
+                {
+                  name: "token",
+                  type: "address",
+                  internalType: "address",
+                },
+                {
+                  name: "creator",
+                  type: "address",
+                  internalType: "address",
+                },
+                {
+                  name: "poolAddress",
+                  type: "address",
+                  internalType: "address",
+                },
+                {
+                  name: "createdAt",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
               ],
             },
           ],
@@ -193,87 +421,263 @@ const deployedContracts = {
           type: "function",
           name: "getActiveTokens",
           inputs: [],
-          outputs: [{ name: "", type: "address[]", internalType: "address[]" }],
+          outputs: [
+            {
+              name: "",
+              type: "address[]",
+              internalType: "address[]",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "getActiveTokensPage",
           inputs: [
-            { name: "_offset", type: "uint256", internalType: "uint256" },
-            { name: "_limit", type: "uint256", internalType: "uint256" },
+            {
+              name: "_offset",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "_limit",
+              type: "uint256",
+              internalType: "uint256",
+            },
           ],
-          outputs: [{ name: "result", type: "address[]", internalType: "address[]" }],
+          outputs: [
+            {
+              name: "result",
+              type: "address[]",
+              internalType: "address[]",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "getMarketCreator",
-          inputs: [{ name: "_token", type: "address", internalType: "address" }],
-          outputs: [{ name: "", type: "address", internalType: "address" }],
+          inputs: [
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "getMaxBetAmount",
-          inputs: [{ name: "_token", type: "address", internalType: "address" }],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          inputs: [
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "getPrice",
-          inputs: [{ name: "_token", type: "address", internalType: "address" }],
-          outputs: [{ name: "price", type: "int256", internalType: "int256" }],
+          inputs: [
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "price",
+              type: "int256",
+              internalType: "int256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "getSupportedHooks",
           inputs: [],
-          outputs: [{ name: "hooks", type: "address[]", internalType: "address[]" }],
+          outputs: [
+            {
+              name: "hooks",
+              type: "address[]",
+              internalType: "address[]",
+            },
+          ],
           stateMutability: "pure",
         },
         {
           type: "function",
           name: "getTokenCount",
           inputs: [],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
+          name: "isStandardFee",
+          inputs: [
+            {
+              name: "_fee",
+              type: "uint24",
+              internalType: "uint24",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "bool",
+              internalType: "bool",
+            },
+          ],
+          stateMutability: "pure",
+        },
+        {
+          type: "function",
           name: "isSupportedHook",
-          inputs: [{ name: "_hook", type: "address", internalType: "address" }],
-          outputs: [{ name: "", type: "bool", internalType: "bool" }],
+          inputs: [
+            {
+              name: "_hook",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "bool",
+              internalType: "bool",
+            },
+          ],
           stateMutability: "pure",
         },
         {
           type: "function",
           name: "isTokenActive",
-          inputs: [{ name: "_token", type: "address", internalType: "address" }],
-          outputs: [{ name: "", type: "bool", internalType: "bool" }],
+          inputs: [
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "bool",
+              internalType: "bool",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
+          name: "isValidQuoteToken",
+          inputs: [
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "bool",
+              internalType: "bool",
+            },
+          ],
+          stateMutability: "pure",
+        },
+        {
+          type: "function",
           name: "marketList",
-          inputs: [{ name: "", type: "uint256", internalType: "uint256" }],
-          outputs: [{ name: "", type: "address", internalType: "address" }],
+          inputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "markets",
-          inputs: [{ name: "", type: "address", internalType: "address" }],
+          inputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           outputs: [
-            { name: "creator", type: "address", internalType: "address" },
-            { name: "poolAddress", type: "address", internalType: "address" },
-            { name: "poolId", type: "bytes32", internalType: "PoolId" },
-            { name: "maxBetAmount", type: "uint256", internalType: "uint256" },
-            { name: "active", type: "bool", internalType: "bool" },
-            { name: "isToken0", type: "bool", internalType: "bool" },
-            { name: "createdAt", type: "uint256", internalType: "uint256" },
+            {
+              name: "creator",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "poolAddress",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "poolId",
+              type: "bytes32",
+              internalType: "PoolId",
+            },
+            {
+              name: "maxBetAmount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "active",
+              type: "bool",
+              internalType: "bool",
+            },
+            {
+              name: "isToken0",
+              type: "bool",
+              internalType: "bool",
+            },
+            {
+              name: "createdAt",
+              type: "uint256",
+              internalType: "uint256",
+            },
           ],
           stateMutability: "view",
         },
@@ -281,28 +685,52 @@ const deployedContracts = {
           type: "function",
           name: "minLiquidity",
           inputs: [],
-          outputs: [{ name: "", type: "uint128", internalType: "uint128" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint128",
+              internalType: "uint128",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "owner",
           inputs: [],
-          outputs: [{ name: "", type: "address", internalType: "address" }],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "poolManager",
           inputs: [],
-          outputs: [{ name: "", type: "address", internalType: "contract IPoolManager" }],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "contract IPoolManager",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "predictionContract",
           inputs: [],
-          outputs: [{ name: "", type: "address", internalType: "address" }],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           stateMutability: "view",
         },
         {
@@ -316,8 +744,16 @@ const deployedContracts = {
           type: "function",
           name: "setMaxBetAmount",
           inputs: [
-            { name: "_token", type: "address", internalType: "address" },
-            { name: "_maxBetAmount", type: "uint256", internalType: "uint256" },
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "_maxBetAmount",
+              type: "uint256",
+              internalType: "uint256",
+            },
           ],
           outputs: [],
           stateMutability: "nonpayable",
@@ -325,21 +761,39 @@ const deployedContracts = {
         {
           type: "function",
           name: "setMinLiquidity",
-          inputs: [{ name: "_minLiquidity", type: "uint128", internalType: "uint128" }],
+          inputs: [
+            {
+              name: "_minLiquidity",
+              type: "uint128",
+              internalType: "uint128",
+            },
+          ],
           outputs: [],
           stateMutability: "nonpayable",
         },
         {
           type: "function",
           name: "setPredictionContract",
-          inputs: [{ name: "_predictionContract", type: "address", internalType: "address" }],
+          inputs: [
+            {
+              name: "_predictionContract",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           outputs: [],
           stateMutability: "nonpayable",
         },
         {
           type: "function",
           name: "transferOwnership",
-          inputs: [{ name: "newOwner", type: "address", internalType: "address" }],
+          inputs: [
+            {
+              name: "newOwner",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           outputs: [],
           stateMutability: "nonpayable",
         },
@@ -347,17 +801,41 @@ const deployedContracts = {
           type: "function",
           name: "updatePool",
           inputs: [
-            { name: "_token", type: "address", internalType: "address" },
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
             {
               name: "_poolKey",
               type: "tuple",
               internalType: "struct PoolKey",
               components: [
-                { name: "currency0", type: "address", internalType: "Currency" },
-                { name: "currency1", type: "address", internalType: "Currency" },
-                { name: "fee", type: "uint24", internalType: "uint24" },
-                { name: "tickSpacing", type: "int24", internalType: "int24" },
-                { name: "hooks", type: "address", internalType: "contract IHooks" },
+                {
+                  name: "currency0",
+                  type: "address",
+                  internalType: "Currency",
+                },
+                {
+                  name: "currency1",
+                  type: "address",
+                  internalType: "Currency",
+                },
+                {
+                  name: "fee",
+                  type: "uint24",
+                  internalType: "uint24",
+                },
+                {
+                  name: "tickSpacing",
+                  type: "int24",
+                  internalType: "int24",
+                },
+                {
+                  name: "hooks",
+                  type: "address",
+                  internalType: "contract IHooks",
+                },
               ],
             },
           ],
@@ -367,44 +845,102 @@ const deployedContracts = {
         {
           type: "event",
           name: "DefaultMaxBetUpdated",
-          inputs: [{ name: "newMaxBet", type: "uint256", indexed: false, internalType: "uint256" }],
+          inputs: [
+            {
+              name: "newMaxBet",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+          ],
           anonymous: false,
         },
         {
           type: "event",
           name: "MarketActivated",
-          inputs: [{ name: "token", type: "address", indexed: true, internalType: "address" }],
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+          ],
           anonymous: false,
         },
         {
           type: "event",
           name: "MarketCreated",
           inputs: [
-            { name: "token", type: "address", indexed: true, internalType: "address" },
-            { name: "creator", type: "address", indexed: true, internalType: "address" },
-            { name: "poolAddress", type: "address", indexed: false, internalType: "address" },
-            { name: "poolId", type: "bytes32", indexed: false, internalType: "PoolId" },
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "creator",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "poolAddress",
+              type: "address",
+              indexed: false,
+              internalType: "address",
+            },
+            {
+              name: "poolId",
+              type: "bytes32",
+              indexed: false,
+              internalType: "PoolId",
+            },
           ],
           anonymous: false,
         },
         {
           type: "event",
           name: "MarketDeactivated",
-          inputs: [{ name: "token", type: "address", indexed: true, internalType: "address" }],
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+          ],
           anonymous: false,
         },
         {
           type: "event",
           name: "MinLiquidityUpdated",
-          inputs: [{ name: "newMinLiquidity", type: "uint128", indexed: false, internalType: "uint128" }],
+          inputs: [
+            {
+              name: "newMinLiquidity",
+              type: "uint128",
+              indexed: false,
+              internalType: "uint128",
+            },
+          ],
           anonymous: false,
         },
         {
           type: "event",
           name: "OwnershipTransferred",
           inputs: [
-            { name: "previousOwner", type: "address", indexed: true, internalType: "address" },
-            { name: "newOwner", type: "address", indexed: true, internalType: "address" },
+            {
+              name: "previousOwner",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "newOwner",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
           ],
           anonymous: false,
         },
@@ -412,50 +948,140 @@ const deployedContracts = {
           type: "event",
           name: "PoolUpdated",
           inputs: [
-            { name: "token", type: "address", indexed: true, internalType: "address" },
-            { name: "poolAddress", type: "address", indexed: false, internalType: "address" },
-            { name: "poolId", type: "bytes32", indexed: false, internalType: "PoolId" },
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "poolAddress",
+              type: "address",
+              indexed: false,
+              internalType: "address",
+            },
+            {
+              name: "poolId",
+              type: "bytes32",
+              indexed: false,
+              internalType: "PoolId",
+            },
           ],
           anonymous: false,
         },
         {
           type: "event",
           name: "PredictionContractUpdated",
-          inputs: [{ name: "newPredictionContract", type: "address", indexed: false, internalType: "address" }],
+          inputs: [
+            {
+              name: "newPredictionContract",
+              type: "address",
+              indexed: false,
+              internalType: "address",
+            },
+          ],
           anonymous: false,
         },
-        { type: "error", name: "ActiveRoundExists", inputs: [] },
-        { type: "error", name: "InvalidPoolParameters", inputs: [] },
-        { type: "error", name: "InvalidQuoteToken", inputs: [] },
-        { type: "error", name: "MarketAlreadyExists", inputs: [] },
-        { type: "error", name: "MarketNotActive", inputs: [] },
-        { type: "error", name: "MinLiquidityNotMet", inputs: [] },
-        { type: "error", name: "NotMarketCreator", inputs: [] },
+        {
+          type: "error",
+          name: "ActiveRoundExists",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "InvalidPoolParameters",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "InvalidQuoteToken",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "MarketAlreadyExists",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "MarketNotActive",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "MinLiquidityNotMet",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "NotMarketCreator",
+          inputs: [],
+        },
         {
           type: "error",
           name: "OwnableInvalidOwner",
-          inputs: [{ name: "owner", type: "address", internalType: "address" }],
+          inputs: [
+            {
+              name: "owner",
+              type: "address",
+              internalType: "address",
+            },
+          ],
         },
         {
           type: "error",
           name: "OwnableUnauthorizedAccount",
-          inputs: [{ name: "account", type: "address", internalType: "address" }],
+          inputs: [
+            {
+              name: "account",
+              type: "address",
+              internalType: "address",
+            },
+          ],
         },
-        { type: "error", name: "PoolNotInitialized", inputs: [] },
-        { type: "error", name: "TokenNotInPool", inputs: [] },
-        { type: "error", name: "Unauthorized", inputs: [] },
-        { type: "error", name: "UnsupportedHook", inputs: [] },
-        { type: "error", name: "ZeroAddress", inputs: [] },
-      ] as const,
+        {
+          type: "error",
+          name: "PoolNotInitialized",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "TokenNotInPool",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "Unauthorized",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "UnsupportedHook",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "ZeroAddress",
+          inputs: [],
+        },
+      ],
     },
     BankrBetsPrediction: {
-      address: "0x1B342ec6fd99CFA929F4C020007D8b22eDE4c162",
+      address: "0x8e9eBff2D977C69501a66961c919Cb7AA44494ce",
       abi: [
         {
           type: "constructor",
           inputs: [
-            { name: "_betToken", type: "address", internalType: "address" },
-            { name: "_oracle", type: "address", internalType: "address" },
+            {
+              name: "_betToken",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "_oracle",
+              type: "address",
+              internalType: "address",
+            },
           ],
           stateMutability: "nonpayable",
         },
@@ -463,61 +1089,86 @@ const deployedContracts = {
           type: "function",
           name: "CREATOR_FEE_BPS",
           inputs: [],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "MAX_BPS",
           inputs: [],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "MAX_SETTLER_FEE_BPS",
           inputs: [],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "MAX_TREASURY_FEE_BPS",
           inputs: [],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "REFUND_GRACE_PERIOD",
           inputs: [],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "bet",
           inputs: [
-            { name: "_token", type: "address", internalType: "address" },
-            { name: "_amount", type: "uint256", internalType: "uint256" },
-            { name: "_position", type: "uint8", internalType: "uint8" },
-          ],
-          outputs: [],
-          stateMutability: "nonpayable",
-        },
-        {
-          type: "function",
-          name: "betWithAuthorization",
-          inputs: [
-            { name: "_token", type: "address", internalType: "address" },
-            { name: "_amount", type: "uint256", internalType: "uint256" },
-            { name: "_position", type: "uint8", internalType: "uint8" },
-            { name: "_validAfter", type: "uint256", internalType: "uint256" },
-            { name: "_validBefore", type: "uint256", internalType: "uint256" },
-            { name: "_nonce", type: "bytes32", internalType: "bytes32" },
-            { name: "_v", type: "uint8", internalType: "uint8" },
-            { name: "_r", type: "bytes32", internalType: "bytes32" },
-            { name: "_s", type: "bytes32", internalType: "bytes32" },
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "_amount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "_position",
+              type: "uint8",
+              internalType: "uint8",
+            },
           ],
           outputs: [],
           stateMutability: "nonpayable",
@@ -526,22 +1177,95 @@ const deployedContracts = {
           type: "function",
           name: "betToken",
           inputs: [],
-          outputs: [{ name: "", type: "address", internalType: "contract IERC20" }],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "contract IERC20",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "betWindow",
           inputs: [],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "betWithAuthorization",
+          inputs: [
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "_amount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "_position",
+              type: "uint8",
+              internalType: "uint8",
+            },
+            {
+              name: "_validAfter",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "_validBefore",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "_nonce",
+              type: "bytes32",
+              internalType: "bytes32",
+            },
+            {
+              name: "_v",
+              type: "uint8",
+              internalType: "uint8",
+            },
+            {
+              name: "_r",
+              type: "bytes32",
+              internalType: "bytes32",
+            },
+            {
+              name: "_s",
+              type: "bytes32",
+              internalType: "bytes32",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
         },
         {
           type: "function",
           name: "claim",
           inputs: [
-            { name: "_token", type: "address", internalType: "address" },
-            { name: "_epochs", type: "uint256[]", internalType: "uint256[]" },
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "_epochs",
+              type: "uint256[]",
+              internalType: "uint256[]",
+            },
           ],
           outputs: [],
           stateMutability: "nonpayable",
@@ -557,17 +1281,41 @@ const deployedContracts = {
           type: "function",
           name: "claimable",
           inputs: [
-            { name: "_token", type: "address", internalType: "address" },
-            { name: "_epoch", type: "uint256", internalType: "uint256" },
-            { name: "_user", type: "address", internalType: "address" },
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "_epoch",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "_user",
+              type: "address",
+              internalType: "address",
+            },
           ],
-          outputs: [{ name: "", type: "bool", internalType: "bool" }],
+          outputs: [
+            {
+              name: "",
+              type: "bool",
+              internalType: "bool",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "closeRound",
-          inputs: [{ name: "_token", type: "address", internalType: "address" }],
+          inputs: [
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           outputs: [],
           stateMutability: "nonpayable",
         },
@@ -575,17 +1323,41 @@ const deployedContracts = {
           type: "function",
           name: "createMarket",
           inputs: [
-            { name: "_token", type: "address", internalType: "address" },
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
             {
               name: "_poolKey",
               type: "tuple",
               internalType: "struct PoolKey",
               components: [
-                { name: "currency0", type: "address", internalType: "Currency" },
-                { name: "currency1", type: "address", internalType: "Currency" },
-                { name: "fee", type: "uint24", internalType: "uint24" },
-                { name: "tickSpacing", type: "int24", internalType: "int24" },
-                { name: "hooks", type: "address", internalType: "contract IHooks" },
+                {
+                  name: "currency0",
+                  type: "address",
+                  internalType: "Currency",
+                },
+                {
+                  name: "currency1",
+                  type: "address",
+                  internalType: "Currency",
+                },
+                {
+                  name: "fee",
+                  type: "uint24",
+                  internalType: "uint24",
+                },
+                {
+                  name: "tickSpacing",
+                  type: "int24",
+                  internalType: "int24",
+                },
+                {
+                  name: "hooks",
+                  type: "address",
+                  internalType: "contract IHooks",
+                },
               ],
             },
           ],
@@ -595,30 +1367,74 @@ const deployedContracts = {
         {
           type: "function",
           name: "creatorEarnings",
-          inputs: [{ name: "", type: "address", internalType: "address" }],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          inputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "currentEpochs",
-          inputs: [{ name: "", type: "address", internalType: "address" }],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          inputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "getCurrentEpoch",
-          inputs: [{ name: "_token", type: "address", internalType: "address" }],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          inputs: [
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "getRound",
           inputs: [
-            { name: "_token", type: "address", internalType: "address" },
-            { name: "_epoch", type: "uint256", internalType: "uint256" },
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "_epoch",
+              type: "uint256",
+              internalType: "uint256",
+            },
           ],
           outputs: [
             {
@@ -626,20 +1442,76 @@ const deployedContracts = {
               type: "tuple",
               internalType: "struct BankrBetsPrediction.Round",
               components: [
-                { name: "epoch", type: "uint256", internalType: "uint256" },
-                { name: "startTimestamp", type: "uint256", internalType: "uint256" },
-                { name: "lockTimestamp", type: "uint256", internalType: "uint256" },
-                { name: "closeTimestamp", type: "uint256", internalType: "uint256" },
-                { name: "lockPrice", type: "int256", internalType: "int256" },
-                { name: "closePrice", type: "int256", internalType: "int256" },
-                { name: "totalAmount", type: "uint256", internalType: "uint256" },
-                { name: "bullAmount", type: "uint256", internalType: "uint256" },
-                { name: "bearAmount", type: "uint256", internalType: "uint256" },
-                { name: "rewardBaseCalAmount", type: "uint256", internalType: "uint256" },
-                { name: "rewardAmount", type: "uint256", internalType: "uint256" },
-                { name: "locked", type: "bool", internalType: "bool" },
-                { name: "oracleCalled", type: "bool", internalType: "bool" },
-                { name: "cancelled", type: "bool", internalType: "bool" },
+                {
+                  name: "epoch",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "startTimestamp",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "lockTimestamp",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "closeTimestamp",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "lockPrice",
+                  type: "int256",
+                  internalType: "int256",
+                },
+                {
+                  name: "closePrice",
+                  type: "int256",
+                  internalType: "int256",
+                },
+                {
+                  name: "totalAmount",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "bullAmount",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "bearAmount",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "rewardBaseCalAmount",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "rewardAmount",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "locked",
+                  type: "bool",
+                  internalType: "bool",
+                },
+                {
+                  name: "oracleCalled",
+                  type: "bool",
+                  internalType: "bool",
+                },
+                {
+                  name: "cancelled",
+                  type: "bool",
+                  internalType: "bool",
+                },
               ],
             },
           ],
@@ -648,17 +1520,41 @@ const deployedContracts = {
         {
           type: "function",
           name: "getSettlerReward",
-          inputs: [{ name: "_token", type: "address", internalType: "address" }],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          inputs: [
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "getUserBet",
           inputs: [
-            { name: "_token", type: "address", internalType: "address" },
-            { name: "_epoch", type: "uint256", internalType: "uint256" },
-            { name: "_user", type: "address", internalType: "address" },
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "_epoch",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "_user",
+              type: "address",
+              internalType: "address",
+            },
           ],
           outputs: [
             {
@@ -666,9 +1562,21 @@ const deployedContracts = {
               type: "tuple",
               internalType: "struct BankrBetsPrediction.BetInfo",
               components: [
-                { name: "position", type: "uint8", internalType: "enum BankrBetsPrediction.Position" },
-                { name: "amount", type: "uint256", internalType: "uint256" },
-                { name: "claimed", type: "bool", internalType: "bool" },
+                {
+                  name: "position",
+                  type: "uint8",
+                  internalType: "enum BankrBetsPrediction.Position",
+                },
+                {
+                  name: "amount",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "claimed",
+                  type: "bool",
+                  internalType: "bool",
+                },
               ],
             },
           ],
@@ -678,45 +1586,119 @@ const deployedContracts = {
           type: "function",
           name: "getUserRounds",
           inputs: [
-            { name: "_token", type: "address", internalType: "address" },
-            { name: "_user", type: "address", internalType: "address" },
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "_user",
+              type: "address",
+              internalType: "address",
+            },
           ],
-          outputs: [{ name: "", type: "uint256[]", internalType: "uint256[]" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint256[]",
+              internalType: "uint256[]",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "hasActiveRound",
-          inputs: [{ name: "_token", type: "address", internalType: "address" }],
-          outputs: [{ name: "", type: "bool", internalType: "bool" }],
+          inputs: [
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "bool",
+              internalType: "bool",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "isClosable",
-          inputs: [{ name: "_token", type: "address", internalType: "address" }],
-          outputs: [{ name: "", type: "bool", internalType: "bool" }],
+          inputs: [
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "bool",
+              internalType: "bool",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "isLockable",
-          inputs: [{ name: "_token", type: "address", internalType: "address" }],
-          outputs: [{ name: "", type: "bool", internalType: "bool" }],
+          inputs: [
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "bool",
+              internalType: "bool",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "ledger",
           inputs: [
-            { name: "", type: "address", internalType: "address" },
-            { name: "", type: "uint256", internalType: "uint256" },
-            { name: "", type: "address", internalType: "address" },
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
           ],
           outputs: [
-            { name: "position", type: "uint8", internalType: "enum BankrBetsPrediction.Position" },
-            { name: "amount", type: "uint256", internalType: "uint256" },
-            { name: "claimed", type: "bool", internalType: "bool" },
+            {
+              name: "position",
+              type: "uint8",
+              internalType: "enum BankrBetsPrediction.Position",
+            },
+            {
+              name: "amount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "claimed",
+              type: "bool",
+              internalType: "bool",
+            },
           ],
           stateMutability: "view",
         },
@@ -724,13 +1706,25 @@ const deployedContracts = {
           type: "function",
           name: "lockGracePeriod",
           inputs: [],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "lockRound",
-          inputs: [{ name: "_token", type: "address", internalType: "address" }],
+          inputs: [
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           outputs: [],
           stateMutability: "nonpayable",
         },
@@ -738,35 +1732,65 @@ const deployedContracts = {
           type: "function",
           name: "maxPriceMoveBps",
           inputs: [],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "maxRoundPool",
           inputs: [],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "minBetAmount",
           inputs: [],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "oracle",
           inputs: [],
-          outputs: [{ name: "", type: "address", internalType: "contract BankrBetsOracle" }],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "contract BankrBetsOracle",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "owner",
           inputs: [],
-          outputs: [{ name: "", type: "address", internalType: "address" }],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           stateMutability: "view",
         },
         {
@@ -780,15 +1804,29 @@ const deployedContracts = {
           type: "function",
           name: "paused",
           inputs: [],
-          outputs: [{ name: "", type: "bool", internalType: "bool" }],
+          outputs: [
+            {
+              name: "",
+              type: "bool",
+              internalType: "bool",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "refundRound",
           inputs: [
-            { name: "_token", type: "address", internalType: "address" },
-            { name: "_epoch", type: "uint256", internalType: "uint256" },
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "_epoch",
+              type: "uint256",
+              internalType: "uint256",
+            },
           ],
           outputs: [],
           stateMutability: "nonpayable",
@@ -804,87 +1842,205 @@ const deployedContracts = {
           type: "function",
           name: "roundDuration",
           inputs: [],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "rounds",
           inputs: [
-            { name: "", type: "address", internalType: "address" },
-            { name: "", type: "uint256", internalType: "uint256" },
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
           ],
           outputs: [
-            { name: "epoch", type: "uint256", internalType: "uint256" },
-            { name: "startTimestamp", type: "uint256", internalType: "uint256" },
-            { name: "lockTimestamp", type: "uint256", internalType: "uint256" },
-            { name: "closeTimestamp", type: "uint256", internalType: "uint256" },
-            { name: "lockPrice", type: "int256", internalType: "int256" },
-            { name: "closePrice", type: "int256", internalType: "int256" },
-            { name: "totalAmount", type: "uint256", internalType: "uint256" },
-            { name: "bullAmount", type: "uint256", internalType: "uint256" },
-            { name: "bearAmount", type: "uint256", internalType: "uint256" },
-            { name: "rewardBaseCalAmount", type: "uint256", internalType: "uint256" },
-            { name: "rewardAmount", type: "uint256", internalType: "uint256" },
-            { name: "locked", type: "bool", internalType: "bool" },
-            { name: "oracleCalled", type: "bool", internalType: "bool" },
-            { name: "cancelled", type: "bool", internalType: "bool" },
+            {
+              name: "epoch",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "startTimestamp",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "lockTimestamp",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "closeTimestamp",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "lockPrice",
+              type: "int256",
+              internalType: "int256",
+            },
+            {
+              name: "closePrice",
+              type: "int256",
+              internalType: "int256",
+            },
+            {
+              name: "totalAmount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "bullAmount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "bearAmount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "rewardBaseCalAmount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "rewardAmount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "locked",
+              type: "bool",
+              internalType: "bool",
+            },
+            {
+              name: "oracleCalled",
+              type: "bool",
+              internalType: "bool",
+            },
+            {
+              name: "cancelled",
+              type: "bool",
+              internalType: "bool",
+            },
           ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "setBetWindow",
-          inputs: [{ name: "_window", type: "uint256", internalType: "uint256" }],
+          inputs: [
+            {
+              name: "_window",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           outputs: [],
           stateMutability: "nonpayable",
         },
         {
           type: "function",
           name: "setLockGracePeriod",
-          inputs: [{ name: "_gracePeriod", type: "uint256", internalType: "uint256" }],
+          inputs: [
+            {
+              name: "_gracePeriod",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           outputs: [],
           stateMutability: "nonpayable",
         },
         {
           type: "function",
           name: "setMaxPriceMoveBps",
-          inputs: [{ name: "_maxPriceMoveBps", type: "uint256", internalType: "uint256" }],
+          inputs: [
+            {
+              name: "_maxPriceMoveBps",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           outputs: [],
           stateMutability: "nonpayable",
         },
         {
           type: "function",
           name: "setMaxRoundPool",
-          inputs: [{ name: "_maxRoundPool", type: "uint256", internalType: "uint256" }],
+          inputs: [
+            {
+              name: "_maxRoundPool",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           outputs: [],
           stateMutability: "nonpayable",
         },
         {
           type: "function",
           name: "setMinBetAmount",
-          inputs: [{ name: "_minBetAmount", type: "uint256", internalType: "uint256" }],
+          inputs: [
+            {
+              name: "_minBetAmount",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           outputs: [],
           stateMutability: "nonpayable",
         },
         {
           type: "function",
           name: "setRoundDuration",
-          inputs: [{ name: "_duration", type: "uint256", internalType: "uint256" }],
+          inputs: [
+            {
+              name: "_duration",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           outputs: [],
           stateMutability: "nonpayable",
         },
         {
           type: "function",
           name: "setSettlerFeeBps",
-          inputs: [{ name: "_feeBps", type: "uint256", internalType: "uint256" }],
+          inputs: [
+            {
+              name: "_feeBps",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           outputs: [],
           stateMutability: "nonpayable",
         },
         {
           type: "function",
           name: "setTreasuryFeeBps",
-          inputs: [{ name: "_feeBps", type: "uint256", internalType: "uint256" }],
+          inputs: [
+            {
+              name: "_feeBps",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           outputs: [],
           stateMutability: "nonpayable",
         },
@@ -892,20 +2048,38 @@ const deployedContracts = {
           type: "function",
           name: "settlerFeeBps",
           inputs: [],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "startRound",
-          inputs: [{ name: "_token", type: "address", internalType: "address" }],
+          inputs: [
+            {
+              name: "_token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           outputs: [],
           stateMutability: "nonpayable",
         },
         {
           type: "function",
           name: "transferOwnership",
-          inputs: [{ name: "newOwner", type: "address", internalType: "address" }],
+          inputs: [
+            {
+              name: "newOwner",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           outputs: [],
           stateMutability: "nonpayable",
         },
@@ -913,14 +2087,26 @@ const deployedContracts = {
           type: "function",
           name: "treasuryAmount",
           inputs: [],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "function",
           name: "treasuryFeeBps",
           inputs: [],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
@@ -934,21 +2120,59 @@ const deployedContracts = {
           type: "function",
           name: "userRounds",
           inputs: [
-            { name: "", type: "address", internalType: "address" },
-            { name: "", type: "address", internalType: "address" },
-            { name: "", type: "uint256", internalType: "uint256" },
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
           ],
-          outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
           stateMutability: "view",
         },
         {
           type: "event",
           name: "BetBear",
           inputs: [
-            { name: "sender", type: "address", indexed: true, internalType: "address" },
-            { name: "token", type: "address", indexed: true, internalType: "address" },
-            { name: "epoch", type: "uint256", indexed: true, internalType: "uint256" },
-            { name: "amount", type: "uint256", indexed: false, internalType: "uint256" },
+            {
+              name: "sender",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "epoch",
+              type: "uint256",
+              indexed: true,
+              internalType: "uint256",
+            },
+            {
+              name: "amount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
           ],
           anonymous: false,
         },
@@ -956,10 +2180,30 @@ const deployedContracts = {
           type: "event",
           name: "BetBull",
           inputs: [
-            { name: "sender", type: "address", indexed: true, internalType: "address" },
-            { name: "token", type: "address", indexed: true, internalType: "address" },
-            { name: "epoch", type: "uint256", indexed: true, internalType: "uint256" },
-            { name: "amount", type: "uint256", indexed: false, internalType: "uint256" },
+            {
+              name: "sender",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "epoch",
+              type: "uint256",
+              indexed: true,
+              internalType: "uint256",
+            },
+            {
+              name: "amount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
           ],
           anonymous: false,
         },
@@ -967,10 +2211,30 @@ const deployedContracts = {
           type: "event",
           name: "Claim",
           inputs: [
-            { name: "sender", type: "address", indexed: true, internalType: "address" },
-            { name: "token", type: "address", indexed: true, internalType: "address" },
-            { name: "epoch", type: "uint256", indexed: true, internalType: "uint256" },
-            { name: "amount", type: "uint256", indexed: false, internalType: "uint256" },
+            {
+              name: "sender",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "epoch",
+              type: "uint256",
+              indexed: true,
+              internalType: "uint256",
+            },
+            {
+              name: "amount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
           ],
           anonymous: false,
         },
@@ -978,9 +2242,24 @@ const deployedContracts = {
           type: "event",
           name: "CreatorReward",
           inputs: [
-            { name: "creator", type: "address", indexed: true, internalType: "address" },
-            { name: "token", type: "address", indexed: true, internalType: "address" },
-            { name: "amount", type: "uint256", indexed: false, internalType: "uint256" },
+            {
+              name: "creator",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "amount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
           ],
           anonymous: false,
         },
@@ -988,38 +2267,82 @@ const deployedContracts = {
           type: "event",
           name: "MarketCreated",
           inputs: [
-            { name: "token", type: "address", indexed: true, internalType: "address" },
-            { name: "creator", type: "address", indexed: true, internalType: "address" },
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "creator",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
           ],
           anonymous: false,
         },
         {
           type: "event",
           name: "MaxRoundPoolUpdated",
-          inputs: [{ name: "newLimit", type: "uint256", indexed: false, internalType: "uint256" }],
+          inputs: [
+            {
+              name: "newLimit",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+          ],
           anonymous: false,
         },
         {
           type: "event",
           name: "OwnershipTransferred",
           inputs: [
-            { name: "previousOwner", type: "address", indexed: true, internalType: "address" },
-            { name: "newOwner", type: "address", indexed: true, internalType: "address" },
+            {
+              name: "previousOwner",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "newOwner",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
           ],
           anonymous: false,
         },
         {
           type: "event",
           name: "Paused",
-          inputs: [{ name: "account", type: "address", indexed: false, internalType: "address" }],
+          inputs: [
+            {
+              name: "account",
+              type: "address",
+              indexed: false,
+              internalType: "address",
+            },
+          ],
           anonymous: false,
         },
         {
           type: "event",
           name: "RoundCancelled",
           inputs: [
-            { name: "token", type: "address", indexed: true, internalType: "address" },
-            { name: "epoch", type: "uint256", indexed: true, internalType: "uint256" },
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "epoch",
+              type: "uint256",
+              indexed: true,
+              internalType: "uint256",
+            },
           ],
           anonymous: false,
         },
@@ -1027,10 +2350,30 @@ const deployedContracts = {
           type: "event",
           name: "RoundEnded",
           inputs: [
-            { name: "token", type: "address", indexed: true, internalType: "address" },
-            { name: "epoch", type: "uint256", indexed: true, internalType: "uint256" },
-            { name: "closePrice", type: "int256", indexed: false, internalType: "int256" },
-            { name: "settler", type: "address", indexed: true, internalType: "address" },
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "epoch",
+              type: "uint256",
+              indexed: true,
+              internalType: "uint256",
+            },
+            {
+              name: "closePrice",
+              type: "int256",
+              indexed: false,
+              internalType: "int256",
+            },
+            {
+              name: "settler",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
           ],
           anonymous: false,
         },
@@ -1038,10 +2381,30 @@ const deployedContracts = {
           type: "event",
           name: "RoundLocked",
           inputs: [
-            { name: "token", type: "address", indexed: true, internalType: "address" },
-            { name: "epoch", type: "uint256", indexed: true, internalType: "uint256" },
-            { name: "lockPrice", type: "int256", indexed: false, internalType: "int256" },
-            { name: "settler", type: "address", indexed: true, internalType: "address" },
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "epoch",
+              type: "uint256",
+              indexed: true,
+              internalType: "uint256",
+            },
+            {
+              name: "lockPrice",
+              type: "int256",
+              indexed: false,
+              internalType: "int256",
+            },
+            {
+              name: "settler",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
           ],
           anonymous: false,
         },
@@ -1049,8 +2412,18 @@ const deployedContracts = {
           type: "event",
           name: "RoundRefunded",
           inputs: [
-            { name: "token", type: "address", indexed: true, internalType: "address" },
-            { name: "epoch", type: "uint256", indexed: true, internalType: "uint256" },
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "epoch",
+              type: "uint256",
+              indexed: true,
+              internalType: "uint256",
+            },
           ],
           anonymous: false,
         },
@@ -1058,10 +2431,30 @@ const deployedContracts = {
           type: "event",
           name: "RoundStarted",
           inputs: [
-            { name: "token", type: "address", indexed: true, internalType: "address" },
-            { name: "epoch", type: "uint256", indexed: true, internalType: "uint256" },
-            { name: "startTimestamp", type: "uint256", indexed: false, internalType: "uint256" },
-            { name: "lockTimestamp", type: "uint256", indexed: false, internalType: "uint256" },
+            {
+              name: "token",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "epoch",
+              type: "uint256",
+              indexed: true,
+              internalType: "uint256",
+            },
+            {
+              name: "startTimestamp",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "lockTimestamp",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
           ],
           anonymous: false,
         },
@@ -1069,8 +2462,18 @@ const deployedContracts = {
           type: "event",
           name: "SettlerReward",
           inputs: [
-            { name: "settler", type: "address", indexed: true, internalType: "address" },
-            { name: "amount", type: "uint256", indexed: false, internalType: "uint256" },
+            {
+              name: "settler",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "amount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
           ],
           anonymous: false,
         },
@@ -1078,58 +2481,193 @@ const deployedContracts = {
           type: "event",
           name: "TreasuryClaim",
           inputs: [
-            { name: "to", type: "address", indexed: true, internalType: "address" },
-            { name: "amount", type: "uint256", indexed: false, internalType: "uint256" },
+            {
+              name: "to",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "amount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
           ],
           anonymous: false,
         },
         {
           type: "event",
           name: "Unpaused",
-          inputs: [{ name: "account", type: "address", indexed: false, internalType: "address" }],
+          inputs: [
+            {
+              name: "account",
+              type: "address",
+              indexed: false,
+              internalType: "address",
+            },
+          ],
           anonymous: false,
         },
-        { type: "error", name: "AlreadyBet", inputs: [] },
-        { type: "error", name: "AlreadyClaimed", inputs: [] },
-        { type: "error", name: "BelowMinBet", inputs: [] },
-        { type: "error", name: "EnforcedPause", inputs: [] },
-        { type: "error", name: "ExceedsMaxBet", inputs: [] },
-        { type: "error", name: "ExceedsMaxRoundPool", inputs: [] },
-        { type: "error", name: "ExpectedPause", inputs: [] },
-        { type: "error", name: "InvalidDuration", inputs: [] },
-        { type: "error", name: "InvalidFee", inputs: [] },
-        { type: "error", name: "InvalidPosition", inputs: [] },
-        { type: "error", name: "LockWindowExpired", inputs: [] },
-        { type: "error", name: "NoActiveRound", inputs: [] },
-        { type: "error", name: "NoBetPlaced", inputs: [] },
-        { type: "error", name: "NothingToClaim", inputs: [] },
-        { type: "error", name: "OracleNotWired", inputs: [] },
+        {
+          type: "error",
+          name: "AlreadyBet",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "AlreadyClaimed",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "BelowMinBet",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "EnforcedPause",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "ExceedsMaxBet",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "ExceedsMaxRoundPool",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "ExpectedPause",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "InvalidDuration",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "InvalidFee",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "InvalidPosition",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "LockWindowExpired",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "NoActiveRound",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "NoBetPlaced",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "NothingToClaim",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "OracleNotWired",
+          inputs: [],
+        },
         {
           type: "error",
           name: "OwnableInvalidOwner",
-          inputs: [{ name: "owner", type: "address", internalType: "address" }],
+          inputs: [
+            {
+              name: "owner",
+              type: "address",
+              internalType: "address",
+            },
+          ],
         },
         {
           type: "error",
           name: "OwnableUnauthorizedAccount",
-          inputs: [{ name: "account", type: "address", internalType: "address" }],
+          inputs: [
+            {
+              name: "account",
+              type: "address",
+              internalType: "address",
+            },
+          ],
         },
-        { type: "error", name: "ReentrancyGuardReentrantCall", inputs: [] },
-        { type: "error", name: "RefundNotReady", inputs: [] },
-        { type: "error", name: "RoundAlreadyClosed", inputs: [] },
-        { type: "error", name: "RoundAlreadyLocked", inputs: [] },
-        { type: "error", name: "RoundNotBettable", inputs: [] },
-        { type: "error", name: "RoundNotClosable", inputs: [] },
-        { type: "error", name: "RoundNotLockable", inputs: [] },
-        { type: "error", name: "RoundNotSettled", inputs: [] },
-        { type: "error", name: "RoundNotStarted", inputs: [] },
+        {
+          type: "error",
+          name: "ReentrancyGuardReentrantCall",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "RefundNotReady",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "RoundAlreadyClosed",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "RoundAlreadyLocked",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "RoundNotBettable",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "RoundNotClosable",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "RoundNotLockable",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "RoundNotSettled",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "RoundNotStarted",
+          inputs: [],
+        },
         {
           type: "error",
           name: "SafeERC20FailedOperation",
-          inputs: [{ name: "token", type: "address", internalType: "address" }],
+          inputs: [
+            {
+              name: "token",
+              type: "address",
+              internalType: "address",
+            },
+          ],
         },
-        { type: "error", name: "TokenNotEligible", inputs: [] },
-      ] as const,
+        {
+          type: "error",
+          name: "TokenNotEligible",
+          inputs: [],
+        },
+      ],
     },
   },
 } as const;

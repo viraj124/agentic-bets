@@ -114,12 +114,16 @@ ponder.on("BankrBetsPrediction:Claim", async ({ event, context }) => {
   const wasCancelled = await context.db.find(cancelledRound, { id: roundId });
 
   if (wasCancelled) {
-    // Refund: add to totalWon (to offset wager in PnL calc) but don't count as a win
+    // Refund: subtract the original wager from totalWagered and decrement totalBets
+    // so the cancelled round is fully excluded from P/L and stats
+    const bet = await context.db.find(betParticipation, { id: betId });
+    const originalWager = bet?.amount ?? event.args.amount;
     await context.db
       .insert(userStats)
-      .values({ id, totalBets: 0, totalWagered: 0n, totalWon: event.args.amount, wins: 0 })
+      .values({ id, totalBets: -1, totalWagered: -originalWager, totalWon: 0n, wins: 0 })
       .onConflictDoUpdate(row => ({
-        totalWon: row.totalWon + event.args.amount,
+        totalBets: row.totalBets - 1,
+        totalWagered: row.totalWagered - originalWager,
       }));
   } else {
     // Actual win
