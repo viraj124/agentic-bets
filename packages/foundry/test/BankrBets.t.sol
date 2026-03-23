@@ -60,6 +60,11 @@ contract BankrBetsTest is Test {
     PoolKey public poolKeyWchan;
 
     function setUp() public {
+        // Skip entire test suite when BASE_RPC_URL is not set (e.g. CI without secrets)
+        string memory rpcUrl = vm.envOr("BASE_RPC_URL", string(""));
+        if (bytes(rpcUrl).length == 0) {
+            vm.skip(true);
+        }
         vm.createSelectFork("base_mainnet");
         alice = vm.addr(alicePk);
         bob = vm.addr(bobPk);
