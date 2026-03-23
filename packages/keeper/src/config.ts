@@ -37,7 +37,7 @@ export function loadConfig(): Config {
   const port = intEnv("PORT", 4000);
   const sweepThresholdUsdc = BigInt(intEnv("SWEEP_THRESHOLD_USDC", 10)) * 1_000_000n; // 6 decimals
   const sweepIntervalTicks = intEnv("SWEEP_INTERVAL_TICKS", 60);
-  const minEthBalance = BigInt(Math.floor(floatEnv("MIN_ETH_BALANCE", 0.005) * 1e18));
+  const minEthBalance = BigInt(Math.floor(floatEnv("MIN_ETH_BALANCE", 0) * 1e18));
 
   return {
     keeperPrivateKey: keeperPrivateKey as Hex,

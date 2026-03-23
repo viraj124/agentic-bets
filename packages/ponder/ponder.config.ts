@@ -3,6 +3,10 @@ import { fallback, http } from "viem";
 import { abi } from "./abis/BankrBetsPrediction";
 
 export default createConfig({
+  database: {
+    connectionString: process.env.DATABASE_URL,
+    schema: "bankr-bets-v3",
+  },
   networks: {
     base: {
       chainId: 8453,
