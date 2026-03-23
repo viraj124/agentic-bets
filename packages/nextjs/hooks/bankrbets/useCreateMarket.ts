@@ -1,27 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { EnrichedToken, PoolKeyData } from "~~/app/api/bankr-tokens/route";
 import { useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
-import {
-  CLANKER_DYNAMIC_FEE_FLAG,
-  DEFAULT_FALLBACK_HOOK,
-  REQUIRED_TICK_SPACING,
-  WETH_BASE,
-} from "~~/lib/bankrPoolConstants";
-
-/** Derive a fallback PoolKey when the API doesn't have pool metadata for this token */
-function deriveFallbackPoolKey(tokenAddress: string): PoolKeyData {
-  const token = tokenAddress.toLowerCase();
-  const weth = WETH_BASE.toLowerCase();
-  const [currency0, currency1] = token < weth ? [tokenAddress, WETH_BASE] : [WETH_BASE, tokenAddress];
-
-  return {
-    currency0,
-    currency1,
-    fee: CLANKER_DYNAMIC_FEE_FLAG,
-    tickSpacing: REQUIRED_TICK_SPACING,
-    hooks: DEFAULT_FALLBACK_HOOK,
-  };
-}
 
 /**
  * Hook to create a new prediction market via createAndStartRound.
@@ -31,7 +10,10 @@ function deriveFallbackPoolKey(tokenAddress: string): PoolKeyData {
 export function useCreateMarket() {
   const { writeContractAsync, isPending } = useScaffoldWriteContract("BankrBetsPrediction");
 
-  // Fetch resolved pool keys from the API
+  // Fetch resolved pool keys from the API — only include tokens with verified
+  // pool keys (i.e. the key was resolved against a known Bankr/Clanker hook).
+  // Tokens with unverified keys (e.g. WCHAN) use unsupported hooks and will
+  // revert with PoolNotInitialized on-chain.
   const { data: tokenPoolMap } = useQuery({
     queryKey: ["bankr-pool-keys"],
     queryFn: async (): Promise<Map<string, PoolKeyData>> => {
@@ -40,7 +22,9 @@ export function useCreateMarket() {
       const json = (await res.json()) as { tokens?: EnrichedToken[] };
       const map = new Map<string, PoolKeyData>();
       for (const t of json.tokens || []) {
-        map.set(t.address.toLowerCase(), t.poolKey);
+        if (t.poolKeyVerified !== false) {
+          map.set(t.address.toLowerCase(), t.poolKey);
+        }
       }
       return map;
     },
@@ -50,7 +34,12 @@ export function useCreateMarket() {
 
   const createMarket = async (tokenAddress: string) => {
     const addr = tokenAddress.toLowerCase();
-    const poolKey = tokenPoolMap?.get(addr) ?? deriveFallbackPoolKey(tokenAddress);
+    const poolKey = tokenPoolMap?.get(addr);
+    if (!poolKey) {
+      throw new Error(
+        "This token's pool uses an unsupported hook. Only Bankr/Clanker V4 pools can have prediction markets.",
+      );
+    }
 
     return writeContractAsync({
       functionName: "createMarket",

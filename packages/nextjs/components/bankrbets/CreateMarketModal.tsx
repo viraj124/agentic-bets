@@ -20,10 +20,11 @@ export function CreateMarketModal({
   onClose,
   onSuccess,
 }: CreateMarketModalProps) {
-  const { createMarket, isCreating } = useCreateMarket();
+  const { createMarket, isCreating, hasVerifiedPoolKey } = useCreateMarket();
   const marketCreated = useMarketCreated(tokenAddress);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const isUnsupported = !hasVerifiedPoolKey(tokenAddress);
 
   const handleCreate = async () => {
     setError(null);
@@ -188,30 +189,39 @@ export function CreateMarketModal({
                 </div>
               </div>
 
-              {error && (
-                <div className="bg-pg-pink/10 text-pg-pink text-xs font-bold rounded-xl px-4 py-2.5 mb-4 border-2 border-pg-pink/20">
-                  {error}
+              {isUnsupported ? (
+                <div className="bg-pg-amber/10 text-pg-amber text-xs font-bold rounded-xl px-4 py-3 mb-4 border-2 border-pg-amber/20">
+                  This token{"'"}s pool uses an unsupported hook. Only Bankr/Clanker V4 pools can have prediction
+                  markets.
                 </div>
+              ) : (
+                <>
+                  {error && (
+                    <div className="bg-pg-pink/10 text-pg-pink text-xs font-bold rounded-xl px-4 py-2.5 mb-4 border-2 border-pg-pink/20">
+                      {error}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleCreate}
+                    disabled={isCreating}
+                    className="btn-candy w-full text-sm disabled:opacity-50"
+                  >
+                    {isCreating ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="loading loading-spinner loading-sm" />
+                        Creating market...
+                      </span>
+                    ) : (
+                      "Create"
+                    )}
+                  </button>
+
+                  <p className="text-[11px] text-pg-muted text-center mt-3">
+                    Requires a valid Uniswap V4 pool on Base. Round 1 begins on first bet.
+                  </p>
+                </>
               )}
-
-              <button
-                onClick={handleCreate}
-                disabled={isCreating}
-                className="btn-candy w-full text-sm disabled:opacity-50"
-              >
-                {isCreating ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="loading loading-spinner loading-sm" />
-                    Creating market...
-                  </span>
-                ) : (
-                  "Create"
-                )}
-              </button>
-
-              <p className="text-[11px] text-pg-muted text-center mt-3">
-                Requires a valid Uniswap V4 pool on Base. Round 1 begins on first bet.
-              </p>
             </>
           )}
         </div>

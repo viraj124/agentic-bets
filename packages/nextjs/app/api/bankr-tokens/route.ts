@@ -3,6 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { encodeAbiParameters, keccak256, parseAbiParameters } from "viem";
 import {
   DEFAULT_FALLBACK_HOOK,
+  NATIVE_ETH,
   REQUIRED_TICK_SPACING,
   SUPPORTED_BANKR_V4_HOOK_CONFIGS,
   WETH_BASE,
@@ -23,17 +24,17 @@ const BANKR_MAX_TOKENS = 25_000; // safety cap in case indexer reports unusually
 
 const DEX_TOKENS_ENDPOINT = "https://api.dexscreener.com/tokens/v1/base";
 const DEX_BATCH = 30; // endpoint max
-const DEX_CONCURRENCY = 4; // conservative to avoid DexScreener 429s
-const DEX_DELAY_MS = 150; // small pause between concurrent waves
+const DEX_CONCURRENCY = 1; // sequential to avoid DexScreener 429 rate limits
+const DEX_DELAY_MS = 500; // pause between waves to stay under rate limit
 const DEX_MAX_RETRIES = 3;
 
 const GECKO_BASE = "https://api.geckoterminal.com/api/v2/networks/base";
 const GECKO_TOKENS_ENDPOINT = `${GECKO_BASE}/tokens/multi`;
 const GECKO_BATCH = 30;
 const GECKO_CONCURRENCY = 1; // strict to avoid rate limit
-const GECKO_DELAY_MS = 250;
+const GECKO_DELAY_MS = 500;
 const GECKO_MAX_RETRIES = 2;
-const GECKO_FALLBACK_MAX_ADDRESSES = 2_000; // cover tokens missed by DexScreener rate limiting
+const GECKO_FALLBACK_MAX_ADDRESSES = 10_000; // cover tokens missed by DexScreener rate limiting
 
 const CACHE_TTL_MS = 5 * 60_000; // serve stale cache immediately and refresh in background
 const FETCH_TIMEOUT_MS = 12_000;
@@ -61,6 +62,8 @@ export interface TokenPoolInfo {
   poolKey: PoolKeyData | null;
   fromClanker: boolean;
   fromIndexer: boolean;
+  /** Price data embedded directly from the Clanker API — skips DexScreener/Gecko when present. */
+  clankerPriceData?: PriceEnrichment;
 }
 
 export interface EnrichedToken {
@@ -91,6 +94,7 @@ interface RefreshStats {
   withPoolKey: number;
   withoutPoolKey: number;
   geckoFallbackCandidates: number;
+  clankerPriced: number;
   dexPriced: number;
   geckoPriced: number;
   finalCount: number;
@@ -104,6 +108,20 @@ interface ClankerToken {
   contract_address: string;
   pool_address: string;
   pool_config?: { pairedToken?: string };
+  name?: string;
+  symbol?: string;
+  pair?: string;
+  deployed_at?: string;
+  priceUsd?: number;
+  related?: {
+    market?: {
+      marketCap?: number;
+      volume24h?: number;
+      priceUsd?: number;
+      priceChangePercent1h?: number;
+      priceChangePercent24h?: number;
+    };
+  };
 }
 
 interface ClankerResponse {
@@ -197,11 +215,29 @@ async function fetchJson<T>(url: string, retries: number): Promise<T | null> {
         signal: controller.signal,
         headers: { accept: "application/json" },
       });
+      if (res.status === 429) {
+        // Respect rate limit — back off aggressively
+        const retryAfter = Math.max(toNumber(res.headers.get("retry-after")) * 1000, 2000);
+        if (attempt < retries) {
+          console.warn(
+            `[bankr-tokens] 429 from ${new URL(url).hostname}, backing off ${retryAfter}ms (attempt ${attempt + 1}/${retries})`,
+          );
+          await sleep(retryAfter * (attempt + 1));
+          continue;
+        }
+        console.warn(`[bankr-tokens] 429 from ${new URL(url).hostname}, exhausted retries`);
+        return null;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return (await res.json()) as T;
-    } catch {
-      if (attempt === retries) return null;
-      await sleep(150 * (attempt + 1));
+    } catch (err) {
+      if (attempt === retries) {
+        console.warn(
+          `[bankr-tokens] fetch failed for ${url.slice(0, 80)}: ${err instanceof Error ? err.message : "unknown"}`,
+        );
+        return null;
+      }
+      await sleep(500 * (attempt + 1));
     } finally {
       clearTimeout(timeout);
     }
@@ -241,21 +277,31 @@ function deriveFallbackPoolKey(tokenAddress: string): PoolKeyData {
   };
 }
 
-/** Match an expected PoolId against known V4 hook configurations. */
+/** Match an expected PoolId against known V4 hook configurations.
+ *  Tries both the provided pairedToken AND native ETH (address(0)) as quote,
+ *  since vanilla V4 pools use native ETH instead of WETH. */
 function resolvePoolKey(tokenAddress: string, pairedToken: string, expectedPoolId: string): PoolKeyData | null {
   if (!isHexBytes32(expectedPoolId)) return null;
-  const [c0, c1] = sortCurrencies(tokenAddress, pairedToken);
 
-  for (const hook of SUPPORTED_BANKR_V4_HOOK_CONFIGS) {
-    const key: PoolKeyData = {
-      currency0: c0,
-      currency1: c1,
-      fee: hook.fee,
-      tickSpacing: REQUIRED_TICK_SPACING,
-      hooks: hook.address,
-    };
-    if (computePoolId(key).toLowerCase() === expectedPoolId.toLowerCase()) {
-      return key;
+  // Try the provided quote token first, then native ETH if different
+  const quoteTokens = [pairedToken];
+  if (pairedToken.toLowerCase() !== NATIVE_ETH.toLowerCase()) {
+    quoteTokens.push(NATIVE_ETH);
+  }
+
+  for (const quote of quoteTokens) {
+    const [c0, c1] = sortCurrencies(tokenAddress, quote);
+    for (const hook of SUPPORTED_BANKR_V4_HOOK_CONFIGS) {
+      const key: PoolKeyData = {
+        currency0: c0,
+        currency1: c1,
+        fee: hook.fee,
+        tickSpacing: REQUIRED_TICK_SPACING,
+        hooks: hook.address,
+      };
+      if (computePoolId(key).toLowerCase() === expectedPoolId.toLowerCase()) {
+        return key;
+      }
     }
   }
   return null;
@@ -290,12 +336,34 @@ async function fetchFromClanker(maxPages = CLANKER_MAX_PAGES): Promise<TokenPool
       const pairedToken = (item.pool_config?.pairedToken || WETH).toLowerCase();
       const poolKey = resolvePoolKey(addr, pairedToken, poolRef);
 
+      // Extract embedded price data from Clanker API to avoid DexScreener/Gecko dependency
+      const clankerPrice = toNumber(item.priceUsd) || toNumber(item.related?.market?.priceUsd);
+      const clankerPriceData: PriceEnrichment | undefined =
+        clankerPrice > 0
+          ? {
+              name: item.name || "",
+              symbol: item.symbol || "",
+              imgUrl: "",
+              priceUsd: clankerPrice,
+              marketCap: toNumber(item.related?.market?.marketCap),
+              volume24h: toNumber(item.related?.market?.volume24h),
+              change1h: toNumber(item.related?.market?.priceChangePercent1h),
+              change24h: toNumber(item.related?.market?.priceChangePercent24h),
+              topPoolAddress: "",
+              deployedAt: item.deployed_at || "",
+              pair: item.pair || "WETH",
+              priceSource: "dexscreener",
+              poolKeyVerified: true,
+            }
+          : undefined;
+
       tokens.push({
         address: addr,
         poolId: poolKey ? computePoolId(poolKey) : poolRef,
         poolKey,
         fromClanker: true,
         fromIndexer: false,
+        clankerPriceData,
       });
     }
 
@@ -476,17 +544,29 @@ async function enrichWithPriceData(
   dexPriced: number;
   geckoPriced: number;
   geckoFallbackCandidates: number;
+  clankerPriced: number;
 }> {
-  // Include all tokens regardless of pool key resolution — unverified ones get a fallback key.
   const eligible = tokens;
-  const addresses = eligible.map(t => t.address);
 
-  // 1) DexScreener primary coverage
+  // 0) Separate tokens that already have price data from Clanker API
+  const needsExternalPrice = eligible.filter(t => !t.clankerPriceData);
+  const addresses = needsExternalPrice.map(t => t.address);
+  const clankerPricedCount = eligible.length - needsExternalPrice.length;
+  console.log(`[bankr-tokens] Clanker API: ${clankerPricedCount} tokens already have embedded price data`);
+
+  // 1) DexScreener — only for tokens without Clanker price data
   const dexChunks = chunk(addresses, DEX_BATCH);
   const dexMap = new Map<string, PriceEnrichment>();
   for (let i = 0; i < dexChunks.length; i += DEX_CONCURRENCY) {
     const wave = dexChunks.slice(i, i + DEX_CONCURRENCY);
-    const results = await Promise.all(wave.map(c => fetchDexBatch(c).catch(() => new Map())));
+    const results = await Promise.all(
+      wave.map(c =>
+        fetchDexBatch(c).catch(err => {
+          console.warn(`[bankr-tokens] DexScreener batch failed: ${err instanceof Error ? err.message : "unknown"}`);
+          return new Map();
+        }),
+      ),
+    );
     for (const m of results) {
       for (const [addr, data] of m) dexMap.set(addr, data);
     }
@@ -494,12 +574,15 @@ async function enrichWithPriceData(
       await sleep(DEX_DELAY_MS);
     }
   }
+  console.log(
+    `[bankr-tokens] DexScreener: ${dexMap.size} priced out of ${addresses.length} addresses (${dexChunks.length} batches)`,
+  );
 
-  // 2) Gecko fallback only for Clanker-source tokens Dex didn't price
+  // 2) Gecko fallback — only for tokens Dex didn't price (and without Clanker data)
   const useGeckoFallback = opts?.enableGeckoFallback ?? true;
   const geckoFallbackMaxAddresses = opts?.geckoFallbackMaxAddresses ?? GECKO_FALLBACK_MAX_ADDRESSES;
   const geckoFallbackCandidates = useGeckoFallback
-    ? Array.from(new Set(eligible.filter(t => !dexMap.has(t.address)).map(t => t.address))).slice(
+    ? Array.from(new Set(needsExternalPrice.filter(t => !dexMap.has(t.address)).map(t => t.address))).slice(
         0,
         geckoFallbackMaxAddresses,
       )
@@ -509,7 +592,14 @@ async function enrichWithPriceData(
   const geckoMap = new Map<string, PriceEnrichment>();
   for (let i = 0; i < geckoChunks.length; i += GECKO_CONCURRENCY) {
     const wave = geckoChunks.slice(i, i + GECKO_CONCURRENCY);
-    const results = await Promise.all(wave.map(c => fetchGeckoBatch(c).catch(() => new Map())));
+    const results = await Promise.all(
+      wave.map(c =>
+        fetchGeckoBatch(c).catch(err => {
+          console.warn(`[bankr-tokens] GeckoTerminal batch failed: ${err instanceof Error ? err.message : "unknown"}`);
+          return new Map();
+        }),
+      ),
+    );
     for (const m of results) {
       for (const [addr, data] of m) {
         if (!dexMap.has(addr)) geckoMap.set(addr, data);
@@ -520,9 +610,14 @@ async function enrichWithPriceData(
     }
   }
 
+  console.log(
+    `[bankr-tokens] GeckoTerminal: ${geckoMap.size} priced out of ${geckoFallbackCandidates.length} candidates (${geckoChunks.length} batches)`,
+  );
+
   const enriched: EnrichedToken[] = [];
   for (const token of eligible) {
-    const priceData = dexMap.get(token.address) || geckoMap.get(token.address);
+    // Prefer Clanker embedded data, then DexScreener, then Gecko
+    const priceData = token.clankerPriceData || dexMap.get(token.address) || geckoMap.get(token.address);
     if (!priceData) continue;
 
     const resolvedPoolKey = token.poolKey ?? deriveFallbackPoolKey(token.address);
@@ -538,11 +633,16 @@ async function enrichWithPriceData(
 
   enriched.sort((a, b) => b.marketCap - a.marketCap);
 
+  console.log(
+    `[bankr-tokens] Final enriched: ${enriched.length} (clanker: ${clankerPricedCount}, dex: ${dexMap.size}, gecko: ${geckoMap.size})`,
+  );
+
   return {
     enriched,
     dexPriced: dexMap.size,
     geckoPriced: geckoMap.size,
     geckoFallbackCandidates: geckoFallbackCandidates.length,
+    clankerPriced: clankerPricedCount,
   };
 }
 
@@ -587,12 +687,19 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
   const startedAt = Date.now();
   const clankerPageLimit = mode === "full" ? CLANKER_MAX_PAGES : BOOTSTRAP_CLANKER_MAX_PAGES;
   const indexerTokenLimit = mode === "full" ? BANKR_MAX_TOKENS : BOOTSTRAP_INDEXER_MAX_TOKENS;
-  const geckoEnabled = mode === "full";
+  const geckoEnabled = true; // always enable Gecko fallback since DexScreener rate-limits aggressively
 
   const [clankerTokens, bankrTokens] = await Promise.all([
-    fetchFromClanker(clankerPageLimit).catch(() => [] as TokenPoolInfo[]),
-    fetchFromBankrIndexer(indexerTokenLimit).catch(() => [] as TokenPoolInfo[]),
+    fetchFromClanker(clankerPageLimit).catch(err => {
+      console.warn(`[bankr-tokens] Clanker fetch failed: ${err instanceof Error ? err.message : "unknown"}`);
+      return [] as TokenPoolInfo[];
+    }),
+    fetchFromBankrIndexer(indexerTokenLimit).catch(err => {
+      console.warn(`[bankr-tokens] Bankr indexer fetch failed: ${err instanceof Error ? err.message : "unknown"}`);
+      return [] as TokenPoolInfo[];
+    }),
   ]);
+  console.log(`[bankr-tokens] Sources: ${clankerTokens.length} clanker, ${bankrTokens.length} indexer (mode=${mode})`);
 
   const allRaw = [...clankerTokens, ...bankrTokens];
   const tokenMap = new Map<string, TokenPoolInfo>();
@@ -612,16 +719,52 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
       existing.poolKey = token.poolKey;
       existing.poolId = token.poolId;
     }
+    // Preserve Clanker embedded price data
+    if (!existing.clankerPriceData && token.clankerPriceData) {
+      existing.clankerPriceData = token.clankerPriceData;
+    }
   }
 
   const uniqueTokens = [...tokenMap.values()];
   const withPoolKey = uniqueTokens.filter(t => !!t.poolKey);
   const withoutPoolKey = uniqueTokens.length - withPoolKey.length;
 
-  const { enriched, dexPriced, geckoPriced, geckoFallbackCandidates } = await enrichWithPriceData(uniqueTokens, {
-    enableGeckoFallback: geckoEnabled,
-    geckoFallbackMaxAddresses: geckoEnabled ? GECKO_FALLBACK_MAX_ADDRESSES : 0,
-  });
+  const { enriched, dexPriced, geckoPriced, geckoFallbackCandidates, clankerPriced } = await enrichWithPriceData(
+    uniqueTokens,
+    {
+      enableGeckoFallback: geckoEnabled,
+      geckoFallbackMaxAddresses: geckoEnabled ? GECKO_FALLBACK_MAX_ADDRESSES : 0,
+    },
+  );
+
+  // Replace BNKRW with WCHAN (WalletChan) — Bankr rebranded to WalletChan
+  // WCHAN uses a vanilla V4 pool: native ETH + no hooks + fee=10000
+  const BNKRW_ADDRESS = "0xf48bc234855ab08ab2ec0cfaaeb2a80d065a3b07";
+  const WCHAN_ADDRESS = "0xba5ed0000e1ca9136a695f0a848012a16008b032";
+  const WCHAN_POOL_ID = "0x81c7a2a2c33ea285f062c5ac0c4e3d4ffb2f6fd2588bbd354d0d3af8a58b6337";
+  const bnkrwIdx = enriched.findIndex(t => t.address === BNKRW_ADDRESS);
+  if (bnkrwIdx !== -1) {
+    const wchanPrice = await fetchDexBatch([WCHAN_ADDRESS]).catch(() => new Map());
+    const wchanData = wchanPrice.get(WCHAN_ADDRESS);
+    if (wchanData) {
+      // Resolve WCHAN's actual pool key (native ETH, no hooks, fee=10000)
+      const wchanPoolKey = resolvePoolKey(WCHAN_ADDRESS, WETH, WCHAN_POOL_ID);
+      const poolKey = wchanPoolKey ?? deriveFallbackPoolKey(WCHAN_ADDRESS);
+      const verified = wchanPoolKey !== null;
+      // Use topPoolAddress (DexScreener pair) as poolId so charts resolve correctly
+      const realPoolAddress = wchanData.topPoolAddress || "";
+      enriched[bnkrwIdx] = {
+        address: WCHAN_ADDRESS,
+        poolId: realPoolAddress || WCHAN_POOL_ID,
+        poolKey,
+        ...wchanData,
+        poolKeyVerified: verified,
+      };
+    } else {
+      // No price data for WCHAN — just remove BNKRW
+      enriched.splice(bnkrwIdx, 1);
+    }
+  }
 
   cache.poolKeyMap.clear();
   for (const token of withPoolKey) {
@@ -639,6 +782,7 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
     withPoolKey: withPoolKey.length,
     withoutPoolKey,
     geckoFallbackCandidates,
+    clankerPriced,
     dexPriced,
     geckoPriced,
     finalCount: enriched.length,

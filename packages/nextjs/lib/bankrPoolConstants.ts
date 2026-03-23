@@ -1,12 +1,20 @@
-// Base quote token for Bankr/Clanker markets.
+// Base quote tokens for V4 markets.
 export const WETH_BASE = "0x4200000000000000000000000000000000000006" as const;
+export const NATIVE_ETH = "0x0000000000000000000000000000000000000000" as const;
+
+// Valid quote tokens for pool key resolution (WETH or native ETH)
+export const VALID_QUOTE_TOKENS = [WETH_BASE, NATIVE_ETH] as const;
 
 // Uniswap v4 shared parameters used by supported Bankr/Clanker launch flows.
 export const CLANKER_DYNAMIC_FEE_FLAG = 0x800000 as const;
 export const BANKR_SCHEDULED_MULTICURVE_FEE = 12000 as const;
 export const REQUIRED_TICK_SPACING = 200 as const;
 
+// Standard Uniswap V4 fee tiers accepted for vanilla (hookless) pools
+export const STANDARD_FEE_TIERS = [500, 3000, 10000] as const;
+
 export const SUPPORTED_BANKR_V4_HOOKS = {
+  VANILLA: "0x0000000000000000000000000000000000000000", // No hooks
   CLANKER_DYNAMIC_FEE_V2: "0xd60D6B218116cFd801E28F78d011a203D2b068Cc",
   CLANKER_STATIC_FEE_V2: "0xb429d62f8f3bFFb98CdB9569533eA23bF0Ba28CC",
   CLANKER_DYNAMIC_FEE: "0x34a45c6B61876d739400Bd71228CbcbD4F53E8cC",
@@ -16,27 +24,40 @@ export const SUPPORTED_BANKR_V4_HOOKS = {
 } as const;
 
 export const SUPPORTED_BANKR_V4_HOOK_CONFIGS = [
+  // Vanilla V4 pools (no hooks) — one entry per standard fee tier
+  { name: "Vanilla:500", address: SUPPORTED_BANKR_V4_HOOKS.VANILLA, fee: 500 as number },
+  { name: "Vanilla:3000", address: SUPPORTED_BANKR_V4_HOOKS.VANILLA, fee: 3000 as number },
+  { name: "Vanilla:10000", address: SUPPORTED_BANKR_V4_HOOKS.VANILLA, fee: 10000 as number },
+  // Clanker / Bankr hooked pools
   {
     name: "Clanker:DynamicFeeV2",
     address: SUPPORTED_BANKR_V4_HOOKS.CLANKER_DYNAMIC_FEE_V2,
-    fee: CLANKER_DYNAMIC_FEE_FLAG,
+    fee: CLANKER_DYNAMIC_FEE_FLAG as number,
   },
   {
     name: "Clanker:StaticFeeV2",
     address: SUPPORTED_BANKR_V4_HOOKS.CLANKER_STATIC_FEE_V2,
-    fee: CLANKER_DYNAMIC_FEE_FLAG,
+    fee: CLANKER_DYNAMIC_FEE_FLAG as number,
   },
-  { name: "Clanker:DynamicFee", address: SUPPORTED_BANKR_V4_HOOKS.CLANKER_DYNAMIC_FEE, fee: CLANKER_DYNAMIC_FEE_FLAG },
-  { name: "Clanker:StaticFee", address: SUPPORTED_BANKR_V4_HOOKS.CLANKER_STATIC_FEE, fee: CLANKER_DYNAMIC_FEE_FLAG },
+  {
+    name: "Clanker:DynamicFee",
+    address: SUPPORTED_BANKR_V4_HOOKS.CLANKER_DYNAMIC_FEE,
+    fee: CLANKER_DYNAMIC_FEE_FLAG as number,
+  },
+  {
+    name: "Clanker:StaticFee",
+    address: SUPPORTED_BANKR_V4_HOOKS.CLANKER_STATIC_FEE,
+    fee: CLANKER_DYNAMIC_FEE_FLAG as number,
+  },
   {
     name: "Bankr:ScheduledMulticurve",
     address: SUPPORTED_BANKR_V4_HOOKS.BANKR_SCHEDULED_MULTICURVE,
-    fee: BANKR_SCHEDULED_MULTICURVE_FEE,
+    fee: BANKR_SCHEDULED_MULTICURVE_FEE as number,
   },
   {
     name: "Bankr:DecayMulticurve",
     address: SUPPORTED_BANKR_V4_HOOKS.BANKR_DECAY_MULTICURVE,
-    fee: CLANKER_DYNAMIC_FEE_FLAG,
+    fee: CLANKER_DYNAMIC_FEE_FLAG as number,
   },
 ] as const;
 
