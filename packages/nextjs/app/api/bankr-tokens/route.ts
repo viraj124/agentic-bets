@@ -32,9 +32,9 @@ const GECKO_BASE = "https://api.geckoterminal.com/api/v2/networks/base";
 const GECKO_TOKENS_ENDPOINT = `${GECKO_BASE}/tokens/multi`;
 const GECKO_BATCH = 30;
 const GECKO_CONCURRENCY = 1; // strict to avoid rate limit
-const GECKO_DELAY_MS = 500;
-const GECKO_MAX_RETRIES = 2;
-const GECKO_FALLBACK_MAX_ADDRESSES = 10_000; // cover tokens missed by DexScreener rate limiting
+const GECKO_DELAY_MS = 1500; // generous gap — free tier allows ~30 req/min
+const GECKO_MAX_RETRIES = 1; // don't hammer on 429
+const GECKO_FALLBACK_MAX_ADDRESSES = 300; // top tokens only — keeps total batches ≤ 10
 
 const CACHE_TTL_MS = 5 * 60_000; // serve stale cache immediately and refresh in background
 const FETCH_TIMEOUT_MS = 12_000;
@@ -205,7 +205,19 @@ function chunk<T>(items: T[], size: number): T[][] {
   return out;
 }
 
+// Circuit breaker: tracks per-host 429 cooldowns so we stop hammering rate-limited APIs
+const rateLimitCooldowns = new Map<string, number>(); // hostname → resume-after timestamp
+const RATE_LIMIT_COOLDOWN_MS = 60_000; // back off for 60s after a 429
+
 async function fetchJson<T>(url: string, retries: number): Promise<T | null> {
+  const hostname = new URL(url).hostname;
+
+  // Check circuit breaker — skip entirely if host is in cooldown
+  const cooldownUntil = rateLimitCooldowns.get(hostname) ?? 0;
+  if (Date.now() < cooldownUntil) {
+    return null;
+  }
+
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -216,16 +228,10 @@ async function fetchJson<T>(url: string, retries: number): Promise<T | null> {
         headers: { accept: "application/json" },
       });
       if (res.status === 429) {
-        // Respect rate limit — back off aggressively
-        const retryAfter = Math.max(toNumber(res.headers.get("retry-after")) * 1000, 2000);
-        if (attempt < retries) {
-          console.warn(
-            `[bankr-tokens] 429 from ${new URL(url).hostname}, backing off ${retryAfter}ms (attempt ${attempt + 1}/${retries})`,
-          );
-          await sleep(retryAfter * (attempt + 1));
-          continue;
-        }
-        console.warn(`[bankr-tokens] 429 from ${new URL(url).hostname}, exhausted retries`);
+        // Trip circuit breaker — stop all requests to this host for the cooldown period
+        const retryAfter = Math.max(toNumber(res.headers.get("retry-after")) * 1000, RATE_LIMIT_COOLDOWN_MS);
+        rateLimitCooldowns.set(hostname, Date.now() + retryAfter);
+        console.warn(`[bankr-tokens] 429 from ${hostname}, circuit breaker tripped for ${retryAfter}ms`);
         return null;
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -557,7 +563,15 @@ async function enrichWithPriceData(
   // 1) DexScreener — only for tokens without Clanker price data
   const dexChunks = chunk(addresses, DEX_BATCH);
   const dexMap = new Map<string, PriceEnrichment>();
+  const dexHost = "api.dexscreener.com";
   for (let i = 0; i < dexChunks.length; i += DEX_CONCURRENCY) {
+    // Abort remaining batches if circuit breaker tripped
+    if (Date.now() < (rateLimitCooldowns.get(dexHost) ?? 0)) {
+      console.warn(
+        `[bankr-tokens] DexScreener circuit breaker active, skipping ${dexChunks.length - i} remaining batches`,
+      );
+      break;
+    }
     const wave = dexChunks.slice(i, i + DEX_CONCURRENCY);
     const results = await Promise.all(
       wave.map(c =>
@@ -590,7 +604,15 @@ async function enrichWithPriceData(
 
   const geckoChunks = chunk(geckoFallbackCandidates, GECKO_BATCH);
   const geckoMap = new Map<string, PriceEnrichment>();
+  const geckoHost = "api.geckoterminal.com";
   for (let i = 0; i < geckoChunks.length; i += GECKO_CONCURRENCY) {
+    // Abort remaining batches if circuit breaker tripped
+    if (Date.now() < (rateLimitCooldowns.get(geckoHost) ?? 0)) {
+      console.warn(
+        `[bankr-tokens] GeckoTerminal circuit breaker active, skipping ${geckoChunks.length - i} remaining batches`,
+      );
+      break;
+    }
     const wave = geckoChunks.slice(i, i + GECKO_CONCURRENCY);
     const results = await Promise.all(
       wave.map(c =>
