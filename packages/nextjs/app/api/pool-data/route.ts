@@ -119,6 +119,10 @@ function dexPairToPoolData(pair: any) {
   };
 }
 
+function isHexBytes32(v: string): boolean {
+  return /^0x[a-f0-9]{64}$/.test(v);
+}
+
 async function resolveBestPoolForToken(token: string): Promise<string | null> {
   if (isRateLimited("gecko")) return null;
   const res = await fetchWithTimeout(`${GECKO_TOKENS_URL}/${token}/pools`);
@@ -131,19 +135,29 @@ async function resolveBestPoolForToken(token: string): Promise<string | null> {
   const json = await res.json();
   const pools = Array.isArray(json?.data) ? json.data : [];
 
-  let bestAddress = "";
-  let bestScore = -1;
+  // Prefer regular 20-byte addresses over V4 pool IDs (bytes32) — regular
+  // addresses work more reliably with OHLCV providers.
+  let bestAddr20 = "";
+  let bestScore20 = -1;
+  let bestAddr32 = "";
+  let bestScore32 = -1;
   for (const pool of pools) {
     const address =
       (pool?.attributes?.address || "").toLowerCase() || extractAddressFromGeckoId((pool?.id || "").toLowerCase());
-    if (!isPoolId(address)) continue;
     const score = toNumber(pool?.attributes?.volume_usd?.h24);
-    if (score > bestScore) {
-      bestAddress = address;
-      bestScore = score;
+    if (isHexAddress(address)) {
+      if (score > bestScore20) {
+        bestAddr20 = address;
+        bestScore20 = score;
+      }
+    } else if (isHexBytes32(address)) {
+      if (score > bestScore32) {
+        bestAddr32 = address;
+        bestScore32 = score;
+      }
     }
   }
-  return bestAddress || null;
+  return bestAddr20 || bestAddr32 || null;
 }
 
 function extractAddressFromGeckoId(id: string): string {
