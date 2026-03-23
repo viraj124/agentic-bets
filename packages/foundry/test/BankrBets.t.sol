@@ -7,6 +7,7 @@ import "../contracts/BankrBetsPrediction.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
+import { PoolId } from "@uniswap/v4-core/src/types/PoolId.sol";
 import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { IHooks } from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 
@@ -36,6 +37,10 @@ contract BankrBetsTest is Test {
     bytes32 public constant CLAWD_POOL_ID = 0x9fd58e73d8047cb14ac540acd141d3fc1a41fb6252d674b730faf62fe24aa8ce;
     bytes32 public constant BNKRW_POOL_ID = 0x6c8fd04c19e3c6c3efc21f6f5ae79c1453a19d971b7b7d4969df1928c380aaad;
 
+    // WCHAN — vanilla V4 pool (no hooks, native ETH, fee=10000, tickSpacing=200)
+    address public wchan = 0xBa5ED0000e1CA9136a695f0a848012A16008B032;
+    bytes32 public constant WCHAN_POOL_ID = 0x81c7a2a2c33ea285f062c5ac0c4e3d4ffb2f6fd2588bbd354d0d3af8a58b6337;
+
     // Base mainnet addresses (forked)
     address public constant BASE_POOL_MANAGER = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
     address public constant BASE_USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
@@ -52,6 +57,7 @@ contract BankrBetsTest is Test {
     uint256 public constant TEN_USDC = 10_000_000;
     PoolKey public poolKey1;
     PoolKey public poolKey3;
+    PoolKey public poolKeyWchan;
 
     function setUp() public {
         vm.createSelectFork("base_mainnet");
@@ -69,6 +75,8 @@ contract BankrBetsTest is Test {
         // Construct PoolKeys from known Clanker V4 parameters (verified on-chain)
         poolKey1 = _clankerPoolKey(token1, CLANKER_STATIC_FEE_V2);
         poolKey3 = _clankerPoolKey(token3, CLANKER_STATIC_FEE_V2);
+        // WCHAN: vanilla V4 pool (native ETH + no hooks + 1% fee)
+        poolKeyWchan = _vanillaPoolKey(wchan, address(0), 10_000, CLANKER_TICK_SPACING);
 
         // Register token via permissionless Oracle (marketCreator is first registrant)
         // poolAddress = PoolId cast to address (GeckoTerminal uses PoolId as pool identifier for V4)
@@ -94,6 +102,13 @@ contract BankrBetsTest is Test {
     function _standardPoolKey(address tokenA, address tokenB, uint24 fee, int24 tickSpacing) internal pure returns (PoolKey memory key) {
         address c0 = tokenA < tokenB ? tokenA : tokenB;
         address c1 = tokenA < tokenB ? tokenB : tokenA;
+        key = PoolKey({ currency0: Currency.wrap(c0), currency1: Currency.wrap(c1), fee: fee, tickSpacing: tickSpacing, hooks: IHooks(address(0)) });
+    }
+
+    /// @dev Construct a PoolKey for a vanilla V4 pool (native ETH or WETH as quote, no hooks)
+    function _vanillaPoolKey(address token, address quoteToken, uint24 fee, int24 tickSpacing) internal pure returns (PoolKey memory key) {
+        address c0 = token < quoteToken ? token : quoteToken;
+        address c1 = token < quoteToken ? quoteToken : token;
         key = PoolKey({ currency0: Currency.wrap(c0), currency1: Currency.wrap(c1), fee: fee, tickSpacing: tickSpacing, hooks: IHooks(address(0)) });
     }
 
@@ -184,7 +199,7 @@ contract BankrBetsTest is Test {
 
     function test_OracleSetup() public view {
         assertTrue(oracle.isTokenActive(token1));
-        assertEq(oracle.getMaxBetAmount(token1), 500_000_000); // default 500 USDC
+        assertEq(oracle.getMaxBetAmount(token1), 1_000_000_000); // default 1000 USDC
         assertEq(oracle.getMarketCreator(token1), marketCreator);
     }
 
@@ -477,8 +492,9 @@ contract BankrBetsTest is Test {
     function test_BetAboveMax() public {
         prediction.startRound(token1);
 
+        deal(BASE_USDC, alice, 2000 * ONE_USDC);
         vm.expectRevert(BankrBetsPrediction.ExceedsMaxBet.selector);
-        _betBull(alice, token1, 600 * ONE_USDC); // 600 > 500 USDC default max
+        _betBull(alice, token1, 1100 * ONE_USDC); // 1100 > 1000 USDC default max
     }
 
     function test_DoubleBet() public {
@@ -1263,7 +1279,8 @@ contract BankrBetsTest is Test {
     function test_AddTokenRejectsUnsupportedHook() public {
         address c0 = token3 < QUOTE_TOKEN ? token3 : QUOTE_TOKEN;
         address c1 = token3 < QUOTE_TOKEN ? QUOTE_TOKEN : token3;
-        PoolKey memory badHookPool = PoolKey({ currency0: Currency.wrap(c0), currency1: Currency.wrap(c1), fee: CLANKER_FEE, tickSpacing: CLANKER_TICK_SPACING, hooks: IHooks(address(0)) });
+        // Use a random address as hook — address(0) is now valid (vanilla V4)
+        PoolKey memory badHookPool = PoolKey({ currency0: Currency.wrap(c0), currency1: Currency.wrap(c1), fee: CLANKER_FEE, tickSpacing: CLANKER_TICK_SPACING, hooks: IHooks(address(0xDEAD)) });
 
         vm.expectRevert(BankrBetsOracle.UnsupportedHook.selector);
         oracle.addToken(token3, badHookPool);
@@ -1282,6 +1299,94 @@ contract BankrBetsTest is Test {
 
         vm.expectRevert(BankrBetsOracle.InvalidPoolParameters.selector);
         oracle.addToken(token3, badFeePool);
+    }
+
+    // --- Vanilla V4 pool support (WCHAN: native ETH, no hooks) ---
+
+    function test_AddTokenVanillaV4Pool() public {
+        // WCHAN uses native ETH + no hooks + fee=10000 + tickSpacing=200
+        vm.prank(alice);
+        oracle.addToken(wchan, poolKeyWchan);
+
+        assertTrue(oracle.isTokenActive(wchan));
+        assertEq(oracle.getMarketCreator(wchan), alice);
+    }
+
+    function test_GetPriceVanillaV4Pool() public {
+        vm.prank(alice);
+        oracle.addToken(wchan, poolKeyWchan);
+
+        int256 price = oracle.getPrice(wchan);
+        assertTrue(price > 0);
+    }
+
+    function test_VanillaV4PoolIdMatchesExpected() public {
+        vm.prank(alice);
+        oracle.addToken(wchan, poolKeyWchan);
+
+        // Verify the computed pool ID matches the known on-chain WCHAN pool ID
+        (,, PoolId storedPoolId,,,,) = oracle.markets(wchan);
+        assertEq(PoolId.unwrap(storedPoolId), WCHAN_POOL_ID);
+    }
+
+    function test_AddTokenVanillaV4RejectsNonStandardFee() public {
+        // Vanilla pools must use standard fee tiers (500, 3000, 10000)
+        PoolKey memory badFeePk = _vanillaPoolKey(wchan, address(0), 7777, CLANKER_TICK_SPACING);
+
+        vm.expectRevert(BankrBetsOracle.InvalidPoolParameters.selector);
+        oracle.addToken(wchan, badFeePk);
+    }
+
+    function test_AddTokenVanillaV4RejectsWrongTickSpacing() public {
+        PoolKey memory badTickPk = _vanillaPoolKey(wchan, address(0), 10_000, 60);
+
+        vm.expectRevert(BankrBetsOracle.InvalidPoolParameters.selector);
+        oracle.addToken(wchan, badTickPk);
+    }
+
+    function test_AddTokenNativeEthQuote() public {
+        // Native ETH (address(0)) should be accepted as a valid quote token
+        vm.prank(alice);
+        oracle.addToken(wchan, poolKeyWchan);
+        assertTrue(oracle.isTokenActive(wchan));
+    }
+
+    function test_AddTokenRejectsNonEthNonWethQuote() public {
+        // A pool with two random tokens (neither WETH nor native ETH) should be rejected
+        PoolKey memory badQuotePk = PoolKey({
+            currency0: Currency.wrap(address(usdc)),
+            currency1: Currency.wrap(wchan),
+            fee: 10_000,
+            tickSpacing: CLANKER_TICK_SPACING,
+            hooks: IHooks(address(0))
+        });
+
+        vm.expectRevert(BankrBetsOracle.InvalidQuoteToken.selector);
+        oracle.addToken(wchan, badQuotePk);
+    }
+
+    function test_GetSupportedHooksIncludesVanilla() public view {
+        address[] memory hooks = oracle.getSupportedHooks();
+        assertEq(hooks.length, 7);
+        assertEq(hooks[0], address(0)); // Vanilla V4
+    }
+
+    function test_IsSupportedHookVanilla() public view {
+        assertTrue(oracle.isSupportedHook(address(0)));
+    }
+
+    function test_IsValidQuoteToken() public view {
+        assertTrue(oracle.isValidQuoteToken(0x4200000000000000000000000000000000000006)); // WETH
+        assertTrue(oracle.isValidQuoteToken(address(0))); // Native ETH
+        assertFalse(oracle.isValidQuoteToken(address(usdc))); // USDC — invalid
+    }
+
+    function test_IsStandardFee() public view {
+        assertTrue(oracle.isStandardFee(500));
+        assertTrue(oracle.isStandardFee(3000));
+        assertTrue(oracle.isStandardFee(10_000));
+        assertFalse(oracle.isStandardFee(0x800000));
+        assertFalse(oracle.isStandardFee(7777));
     }
 
     // --- Finding: Lock window expired (lockRound after closeTimestamp) ---
@@ -1855,8 +1960,8 @@ contract BankrBetsTest is Test {
     }
 
     function test_UpdatePoolRejectsUnsupportedHook() public {
-        // Reuse a valid token pair but supply address(0) as hook
-        PoolKey memory badHookPool = PoolKey({ currency0: poolKey1.currency0, currency1: poolKey1.currency1, fee: CLANKER_FEE, tickSpacing: CLANKER_TICK_SPACING, hooks: IHooks(address(0)) });
+        // Use a random address as hook — address(0) is now valid (vanilla V4)
+        PoolKey memory badHookPool = PoolKey({ currency0: poolKey1.currency0, currency1: poolKey1.currency1, fee: CLANKER_FEE, tickSpacing: CLANKER_TICK_SPACING, hooks: IHooks(address(0xDEAD)) });
 
         vm.prank(marketCreator);
         vm.expectRevert(BankrBetsOracle.UnsupportedHook.selector);
