@@ -12,7 +12,11 @@ export function InfoTooltip({ text, iconClassName = "h-3 w-3" }: InfoTooltipProp
   const ref = useRef<HTMLSpanElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
 
-  const toggle = useCallback(() => setOpen(o => !o), []);
+  const toggle = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setOpen(o => !o);
+  }, []);
 
   // Close on outside click or scroll — defer listener to next frame to skip the opening click
   useEffect(() => {
