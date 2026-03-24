@@ -72,7 +72,7 @@ export const Header = () => {
   return (
     <div className="sticky top-0 z-20">
       {showDisclaimer && (
-        <div className="flex items-center justify-center gap-2 bg-[#2a1f3d] border-b border-pg-violet/30 px-4 py-1.5 text-xs text-pg-violet">
+        <div className="flex items-center justify-center gap-2 bg-[#1a1028] border-b border-pg-violet/30 px-4 py-1.5 text-xs text-[#c4a8ff]">
           <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0" />
           <span>
             <span className="font-semibold">Use at your own risk.</span> Contracts audited using open-source AI tools
