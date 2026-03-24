@@ -1,83 +1,152 @@
-# 🏗 Scaffold-ETH 2
+# Bankr Bets
 
-<h4 align="center">
-  <a href="https://docs.scaffoldeth.io">Documentation</a> |
-  <a href="https://scaffoldeth.io">Website</a>
-</h4>
+Permissionless binary prediction markets for [Bankr](https://bankr.fun) ecosystem tokens on Base.
 
-🧪 An open-source, up-to-date toolkit for building decentralized applications (dapps) on the Ethereum blockchain. It's designed to make it easier for developers to create and deploy smart contracts and build user interfaces that interact with those contracts.
+Bet **UP** or **DOWN** on token prices in 4-minute rounds. Winners split the pool. No keeper needed for pricing — prices are read directly on-chain from Uniswap V4.
 
-> [!NOTE]
-> 🤖 Scaffold-ETH 2 is AI-ready! It has everything agents need to build on Ethereum. Check `.agents/`, `.claude/`, `.opencode` or `.cursor/` for more info.
+## How It Works
 
-⚙️ Built using NextJS, RainbowKit, Foundry, Wagmi, Viem, and Typescript.
+1. **Pick a token** — Browse Bankr ecosystem tokens with active Uniswap V4 pools
+2. **Bet UP or DOWN** — Predict price direction within a 4-minute betting window using USDC
+3. **Anyone settles** — Lock and close rounds on-chain to earn a 0.1% settler reward
+4. **Collect winnings** — Winners split the losers' pool. Market creators earn 0.5% forever
 
-- ✅ **Contract Hot Reload**: Your frontend auto-adapts to your smart contract as you edit it.
-- 🪝 **[Custom hooks](https://docs.scaffoldeth.io/hooks/)**: Collection of React hooks wrapper around [wagmi](https://wagmi.sh/) to simplify interactions with smart contracts with typescript autocompletion.
-- 🧱 [**Components**](https://docs.scaffoldeth.io/components/): Collection of common web3 components to quickly build your frontend.
-- 🔥 **Burner Wallet & Local Faucet**: Quickly test your application with a burner wallet and local faucet.
-- 🔐 **Integration with Wallet Providers**: Connect to different wallet providers and interact with the Ethereum network.
-
-![Debug Contracts tab](https://github.com/scaffold-eth/scaffold-eth-2/assets/55535804/b237af0c-5027-4849-a5c1-2e31495cccb1)
-
-## Requirements
-
-Before you begin, you need to install the following tools:
-
-- [Node (>= v20.18.3)](https://nodejs.org/en/download/)
-- Yarn ([v1](https://classic.yarnpkg.com/en/docs/install/) or [v2+](https://yarnpkg.com/getting-started/install))
-- [Git](https://git-scm.com/downloads)
-
-## Quickstart
-
-To get started with Scaffold-ETH 2, follow the steps below:
-
-1. Install dependencies if it was skipped in CLI:
+### Round Lifecycle
 
 ```
-cd my-dapp-example
+Betting Open (4 min) → Bets Locked → Round Settled → Payouts
+```
+
+- Prices are read on-chain from Uniswap V4 `PoolManager.getSlot0()` — no off-chain oracle needed
+- Settlement is permissionless: any wallet can call `lockRound` / `closeRound`
+- If the price doesn't change, the round is tied and all bets are refunded
+
+### Fee Structure
+
+| Fee | Recipient | Description |
+|-----|-----------|-------------|
+| 1.5% | Treasury | Protocol fee |
+| 0.5% | Market Creator | Perpetual royalty for creating the market |
+| 0.1% | Settler | Reward for calling lock/close on-chain |
+
+## Architecture
+
+```
+bankr-bets/
+├── packages/
+│   ├── foundry/          # Smart contracts (Solidity, Forge)
+│   │   ├── contracts/
+│   │   │   ├── BankrBetsPrediction.sol   # Core prediction market logic
+│   │   │   └── BankrBetsOracle.sol       # Market registry + V4 price oracle
+│   │   ├── script/       # Deployment scripts (Base mainnet)
+│   │   └── test/         # Fork tests against Base
+│   │
+│   ├── nextjs/           # Frontend (Next.js, Wagmi, Viem, Tailwind)
+│   │   ├── app/          # App Router pages
+│   │   ├── components/   # UI components (BetPanel, RoundHistory, etc.)
+│   │   └── hooks/        # Custom hooks for contract interaction
+│   │
+│   ├── keeper/           # Automated settlement bot (TypeScript, Viem)
+│   │   └── src/          # Polling loop, tx submission, health server
+│   │
+│   └── ponder/           # Event indexer (Ponder v0.9)
+│       ├── ponder.config.ts
+│       └── src/          # Schema + API for user stats, bets, rounds
+```
+
+### Smart Contracts
+
+**BankrBetsPrediction** — Core prediction market. Users call `betBull` / `betBear` with USDC. Anyone can `lockRound` (snapshot lock price) and `closeRound` (snapshot close price, distribute rewards). Uses SafeERC20, ReentrancyGuard, and the CEI pattern.
+
+**BankrBetsOracle** — Permissionless market registry. Anyone can register a token market if it has a Uniswap V4 pool. Supports Clanker V4 hooks, Bankr launcher hooks, and vanilla V4 pools. Reads prices directly from `PoolManager.getSlot0()`.
+
+### Deployed Contracts (Base Mainnet)
+
+| Contract | Address |
+|----------|---------|
+| BankrBetsPrediction | `0x8e9eBff2D977C69501a66961c919Cb7AA44494ce` |
+| USDC (bet token) | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
+| Uniswap V4 PoolManager | `0x498581fF718922c3f8e6A244956aF099B2652b2b` |
+
+## Getting Started
+
+### Requirements
+
+- [Node.js](https://nodejs.org/) >= v20
+- [Yarn](https://yarnpkg.com/)
+- [Foundry](https://book.getfoundry.sh/getting-started/installation)
+
+### Install
+
+```bash
+git clone https://github.com/viraj124/bankr-bets.git
+cd bankr-bets
 yarn install
 ```
 
-2. Run a local network in the first terminal:
+### Local Development
 
-```
-yarn chain
-```
-
-This command starts a local Ethereum network using Foundry. The network runs on your local machine and can be used for testing and development. You can customize the network configuration in `packages/foundry/foundry.toml`.
-
-3. On a second terminal, deploy the test contract:
-
-```
-yarn deploy
-```
-
-This command deploys a test smart contract to the local network. The contract is located in `packages/foundry/contracts` and can be modified to suit your needs. The `yarn deploy` command uses the deploy script located in `packages/foundry/script` to deploy the contract to the network. You can also customize the deploy script.
-
-4. On a third terminal, start your NextJS app:
-
-```
+```bash
+# Start the frontend
 yarn start
+
+# Run contract tests (requires BASE_RPC_URL for fork tests)
+BASE_RPC_URL=<your-base-rpc> yarn foundry:test
 ```
 
-Visit your app on: `http://localhost:3000`. You can interact with your smart contract using the `Debug Contracts` page. You can tweak the app config in `packages/nextjs/scaffold.config.ts`.
+### Deploy Contracts
 
-Run smart contract test with `yarn foundry:test`
+```bash
+# Deploy to Base mainnet
+yarn deploy --network base
+```
 
-- Edit your smart contracts in `packages/foundry/contracts`
-- Edit your frontend homepage at `packages/nextjs/app/page.tsx`. For guidance on [routing](https://nextjs.org/docs/app/building-your-application/routing/defining-routes) and configuring [pages/layouts](https://nextjs.org/docs/app/building-your-application/routing/pages-and-layouts) checkout the Next.js documentation.
-- Edit your deployment scripts in `packages/foundry/script`
+### Run the Keeper
 
+```bash
+# Set env vars (PRIVATE_KEY, RPC_URL, etc.)
+cp packages/keeper/.env.example packages/keeper/.env
 
-## Documentation
+# Start the settlement bot
+yarn keeper:start
+```
 
-Visit our [docs](https://docs.scaffoldeth.io) to learn how to start building with Scaffold-ETH 2.
+### Deploy Frontend
 
-To know more about its features, check out our [website](https://scaffoldeth.io).
+```bash
+yarn vercel:yolo --prod
+```
 
-## Contributing to Scaffold-ETH 2
+## Tech Stack
 
-We welcome contributions to Scaffold-ETH 2!
+- **Smart Contracts**: Solidity, Foundry, OpenZeppelin
+- **Frontend**: Next.js (App Router), Wagmi, Viem, RainbowKit, Tailwind CSS
+- **Keeper**: TypeScript, Viem
+- **Indexer**: Ponder v0.9
+- **Chain**: Base (Coinbase L2)
+- **Price Oracle**: Uniswap V4 on-chain reads
+- **Bet Token**: USDC (6 decimals)
 
-Please see [CONTRIBUTING.MD](https://github.com/scaffold-eth/scaffold-eth-2/blob/main/CONTRIBUTING.md) for more information and guidelines for contributing to Scaffold-ETH 2.
+## Inspiration
+
+This project draws inspiration from on-chain prediction market protocols:
+
+- [PancakeSwap Prediction](https://github.com/pancakeswap/pancake-smart-contracts) — Binary prediction on BNB/CAKE prices using Chainlink oracles
+- [Polymarket](https://github.com/polymarket) — CLOB-based prediction markets on Polygon
+- [CryptoPredict](https://github.com/CoderEren/CryptoPredict) — Decentralized prediction market for Bitcoin price movements
+
+Key differences in Bankr Bets:
+- **No off-chain oracle** — prices read directly from Uniswap V4 pools on-chain
+- **Permissionless markets** — anyone can create a market for any token with a V4 pool
+- **Permissionless settlement** — anyone can settle rounds and earn rewards
+- **Creator royalties** — market creators earn 0.5% of every round's pool forever
+
+## Author
+
+**Viraz Malhotra** — [@Viraz04](https://twitter.com/Viraz04)
+
+Built for the [Bankr](https://bankr.fun) ecosystem.
+
+## License
+
+MIT
