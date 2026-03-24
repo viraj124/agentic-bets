@@ -76,7 +76,7 @@ export const Header = () => {
           <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0" />
           <span className="opacity-90">
             <span className="font-semibold">Use at your own risk.</span> Contracts audited using open-source AI tools
-            only — not professionally audited.
+            only.
           </span>
           <button
             onClick={() => setShowDisclaimer(false)}
