@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
 import { InfoTooltip } from "./InfoTooltip";
 import { useAccount } from "wagmi";
 import { type RoundHistoryEntry, useRoundHistory } from "~~/hooks/bankrbets/useRoundHistory";
@@ -35,7 +36,13 @@ function timeAgo(timestamp: bigint): string {
 }
 
 function RoundRow({ entry, tokenAddress }: { entry: RoundHistoryEntry; tokenAddress: string }) {
+  const router = useRouter();
   const { round, userBet, epoch } = entry;
+  const roundUrl = `/market?round=${epoch.toString()}#${tokenAddress}`;
+
+  const handleRowClick = useCallback(() => {
+    router.push(roundUrl);
+  }, [router, roundUrl]);
 
   if (!round) {
     return (
@@ -83,11 +90,10 @@ function RoundRow({ entry, tokenAddress }: { entry: RoundHistoryEntry; tokenAddr
   else if (upWon) rowBg = "bg-pg-mint/5 border-pg-mint/20";
   else if (downWon) rowBg = "bg-pg-pink/5 border-pg-pink/20";
 
-  const roundUrl = `/market?round=${epoch.toString()}#${tokenAddress}`;
-
   return (
-    <a
-      href={roundUrl}
+    <div
+      role="button"
+      onClick={handleRowClick}
       className={`block px-4 py-3 rounded-xl border ${rowBg} transition-colors hover:brightness-95 cursor-pointer`}
     >
       {/* Top row: epoch, badge, prices */}
@@ -100,12 +106,17 @@ function RoundRow({ entry, tokenAddress }: { entry: RoundHistoryEntry; tokenAddr
               Live
             </span>
           ) : isCancelled || isTie ? (
-            <span className="text-[10px] font-bold bg-pg-amber/15 text-[#9a7200] rounded-full px-2 py-0.5 border border-pg-amber/30 inline-flex items-center gap-1">
-              Cancelled
+            <span className="text-[10px] font-bold bg-pg-amber/15 text-[#9a7200] rounded-full px-2 py-0.5 border border-pg-amber/30 inline-flex items-center">
               <InfoTooltip
-                text={getCancellationReason(round) ?? "Round cancelled"}
+                text={
+                  isTie
+                    ? "Price unchanged between lock and settled stage"
+                    : (getCancellationReason(round) ?? "Round cancelled")
+                }
                 iconClassName="h-2.5 w-2.5 text-[#9a7200]/70"
-              />
+              >
+                {isTie ? "Tied" : "Cancelled"}
+              </InfoTooltip>
             </span>
           ) : upWon ? (
             <span className="text-[10px] font-bold bg-pg-mint/15 text-pg-mint rounded-full px-2 py-0.5 border border-pg-mint/30">
@@ -171,7 +182,7 @@ function RoundRow({ entry, tokenAddress }: { entry: RoundHistoryEntry; tokenAddr
           </div>
         </div>
       )}
-    </a>
+    </div>
   );
 }
 
