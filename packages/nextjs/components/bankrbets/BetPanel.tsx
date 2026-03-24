@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { RoundProgressBar } from "./RoundProgressBar";
 import { RoundTimer } from "./RoundTimer";
 import { ShareButton } from "./ShareButton";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
@@ -800,6 +801,16 @@ export function BetPanel({
             cancellationReason={cancellationReason}
             hasBet={hasBet}
           />
+          {hasBet && (
+            <div className="mt-3">
+              <RoundProgressBar
+                hasBet={hasBet}
+                isLocked={Boolean(isLocked) || lockTimestamp <= Math.floor(Date.now() / 1000)}
+                isSettled={Boolean(currentRound?.oracleCalled)}
+                isCancelled={roundCancelled}
+              />
+            </div>
+          )}
         </div>
       )}
 
