@@ -14,15 +14,22 @@ export function InfoTooltip({ text, iconClassName = "h-3 w-3" }: InfoTooltipProp
 
   const toggle = useCallback(() => setOpen(o => !o), []);
 
-  // Close on outside click or scroll
+  // Close on outside click or scroll — defer listener to next frame to skip the opening click
   useEffect(() => {
     if (!open) return;
-    const close = () => setOpen(false);
-    document.addEventListener("click", close, true);
-    document.addEventListener("scroll", close, true);
+    const closeOnClick = (e: Event) => {
+      if (ref.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    const closeOnScroll = () => setOpen(false);
+    const id = requestAnimationFrame(() => {
+      document.addEventListener("click", closeOnClick, true);
+      document.addEventListener("scroll", closeOnScroll, true);
+    });
     return () => {
-      document.removeEventListener("click", close, true);
-      document.removeEventListener("scroll", close, true);
+      cancelAnimationFrame(id);
+      document.removeEventListener("click", closeOnClick, true);
+      document.removeEventListener("scroll", closeOnScroll, true);
     };
   }, [open]);
 
