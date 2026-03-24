@@ -183,7 +183,7 @@ export function CreateMarketModal({
                       First round starts on first bet
                     </p>
                     <p className="text-xs text-pg-muted leading-relaxed">
-                      Creating a market registers it. The first 5-minute round starts when someone places a bet.
+                      Creating a market registers it. The first 4-minute betting round starts when someone places a bet.
                     </p>
                   </div>
                 </div>
