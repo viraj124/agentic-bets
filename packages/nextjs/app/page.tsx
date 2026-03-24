@@ -53,7 +53,7 @@ const Home: NextPage = () => {
                 <span className="w-1.5 h-1.5 rounded-full bg-pg-mint motion-safe:animate-pulse" />
                 Live on Base
               </span>
-              <span className="inline-flex items-center text-[11px] font-bold bg-pg-amber/15 text-pg-amber rounded-full px-3 py-1 border border-pg-amber/30">
+              <span className="inline-flex items-center text-[11px] font-bold bg-pg-amber/15 text-[#9a7200] rounded-full px-3 py-1 border border-pg-amber/30">
                 4-min bet rounds
               </span>
             </div>
