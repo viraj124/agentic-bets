@@ -100,11 +100,11 @@ function RoundRow({ entry, tokenAddress }: { entry: RoundHistoryEntry; tokenAddr
               Live
             </span>
           ) : isCancelled || isTie ? (
-            <span className="text-[10px] font-bold bg-pg-amber/15 text-pg-amber rounded-full px-2 py-0.5 border border-pg-amber/30 inline-flex items-center gap-1">
+            <span className="text-[10px] font-bold bg-pg-amber/15 text-[#9a7200] rounded-full px-2 py-0.5 border border-pg-amber/30 inline-flex items-center gap-1">
               Cancelled
               <InfoTooltip
                 text={getCancellationReason(round) ?? "Round cancelled"}
-                iconClassName="h-2.5 w-2.5 text-pg-amber/60"
+                iconClassName="h-2.5 w-2.5 text-[#9a7200]/70"
               />
             </span>
           ) : upWon ? (
@@ -164,7 +164,7 @@ function RoundRow({ entry, tokenAddress }: { entry: RoundHistoryEntry; tokenAddr
             ) : userOutcome === "lost" ? (
               <span className="font-bold text-pg-pink">Lost</span>
             ) : userOutcome === "refund" ? (
-              <span className="font-bold text-pg-amber">{userBet.claimed ? "Refunded" : "Refund available"}</span>
+              <span className="font-bold text-[#9a7200]">{userBet.claimed ? "Refunded" : "Refund available"}</span>
             ) : (
               <span className="font-bold text-pg-violet">In progress</span>
             )}
