@@ -1,6 +1,5 @@
 "use client";
 
-import { IdentityBadge } from "~~/components/bankrbets/IdentityBadge";
 import { InfoTooltip } from "~~/components/bankrbets/InfoTooltip";
 import { useResolvedAddresses } from "~~/hooks/bankrbets/useResolvedAddresses";
 
@@ -18,10 +17,20 @@ export function MarketCreatorBadge({ creatorAddress }: MarketCreatorBadgeProps) 
   if (!validCreator) return null;
 
   return (
-    <div className="inline-flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-base-content/40 flex-wrap">
-      <span className="w-1.5 h-1.5 rounded-full bg-primary/50" />
-      Created by{" "}
-      <IdentityBadge address={validCreator} resolved={resolvedMap.get(validCreator.toLowerCase())} size="sm" />
+    <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-base-content/40">
+      <span className="w-1.5 h-1.5 rounded-full bg-primary/50 shrink-0" />
+      <span>Created by</span>
+      <a
+        href={`https://basescan.org/address/${validCreator}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-semibold font-mono text-base-content hover:text-pg-violet transition-colors truncate"
+      >
+        {resolvedMap.get(validCreator.toLowerCase())?.baseName ||
+          resolvedMap.get(validCreator.toLowerCase())?.ensName ||
+          `${validCreator.slice(0, 6)}...${validCreator.slice(-4)}`}
+      </a>
+      <span className="text-primary/50">&middot;</span>
       <span className="inline-flex items-center gap-1 text-primary/50">
         <span>earns 0.5%</span>
         <InfoTooltip text={creatorFeeHint} iconClassName="w-3 h-3 text-primary/60" />

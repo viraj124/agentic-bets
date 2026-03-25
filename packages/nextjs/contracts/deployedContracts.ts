@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   8453: {
     BankrBetsOracle: {
-      address: "0xBacaF4e8201167D111Ce555E14a9053782b8db0b",
+      address: "0x57B83E00038CE7E890C003Fb3794fE6297596b60",
       abi: [
         {
           type: "constructor",
@@ -1067,7 +1067,7 @@ const deployedContracts = {
       ],
     },
     BankrBetsPrediction: {
-      address: "0x8e9eBff2D977C69501a66961c919Cb7AA44494ce",
+      address: "0xABADeb002247f2bd908Eeedb32918aEc304A0233",
       abi: [
         {
           type: "constructor",
@@ -2033,6 +2033,19 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "setTiebreakerMode",
+          inputs: [
+            {
+              name: "_mode",
+              type: "uint8",
+              internalType: "enum BankrBetsPrediction.TiebreakerMode",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
           name: "setTreasuryFeeBps",
           inputs: [
             {
@@ -2069,6 +2082,19 @@ const deployedContracts = {
           ],
           outputs: [],
           stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "tiebreakerMode",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint8",
+              internalType: "enum BankrBetsPrediction.TiebreakerMode",
+            },
+          ],
+          stateMutability: "view",
         },
         {
           type: "function",
@@ -2473,6 +2499,19 @@ const deployedContracts = {
               type: "uint256",
               indexed: false,
               internalType: "uint256",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "TiebreakerModeUpdated",
+          inputs: [
+            {
+              name: "mode",
+              type: "uint8",
+              indexed: false,
+              internalType: "enum BankrBetsPrediction.TiebreakerMode",
             },
           ],
           anonymous: false,

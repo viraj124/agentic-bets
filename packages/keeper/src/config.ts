@@ -12,8 +12,8 @@ export type Config = {
 };
 
 // Hardcoded constants
-export const PREDICTION_ADDRESS: Address = "0x8e9eBff2D977C69501a66961c919Cb7AA44494ce";
-export const ORACLE_ADDRESS: Address = "0xBacaF4e8201167D111Ce555E14a9053782b8db0b";
+export const PREDICTION_ADDRESS: Address = "0xABADeb002247f2bd908Eeedb32918aEc304A0233";
+export const ORACLE_ADDRESS: Address = "0x57B83E00038CE7E890C003Fb3794fE6297596b60";
 export const USDC_ADDRESS: Address = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 export const CHAIN_ID = 8453;
 export const GAS_LIMIT = 300_000n;

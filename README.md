@@ -64,7 +64,7 @@ bankr-bets/
 
 | Contract | Address |
 |----------|---------|
-| BankrBetsPrediction | `0x8e9eBff2D977C69501a66961c919Cb7AA44494ce` |
+| BankrBetsPrediction | `0xABADeb002247f2bd908Eeedb32918aEc304A0233` |
 | USDC (bet token) | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
 | Uniswap V4 PoolManager | `0x498581fF718922c3f8e6A244956aF099B2652b2b` |
 

@@ -805,7 +805,7 @@ export function BetPanel({
             <div className="mt-3">
               <RoundProgressBar
                 hasBet={hasBet}
-                isLocked={Boolean(isLocked) || lockTimestamp <= Math.floor(Date.now() / 1000)}
+                isLocked={Boolean(isLocked)}
                 isSettled={Boolean(currentRound?.oracleCalled)}
                 isCancelled={roundCancelled}
               />

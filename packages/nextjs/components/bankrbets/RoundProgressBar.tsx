@@ -7,7 +7,7 @@ interface RoundProgressBarProps {
   isCancelled: boolean;
 }
 
-const steps = ["Bet Placed", "Bets Locked", "Round Settled"] as const;
+const steps = ["Bets Placed", "Bets Locked", "Round Settled"] as const;
 
 export function RoundProgressBar({ hasBet, isLocked, isSettled, isCancelled }: RoundProgressBarProps) {
   // Determine the active step index (0-based)
