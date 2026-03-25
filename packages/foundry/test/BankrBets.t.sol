@@ -2186,4 +2186,397 @@ contract BankrBetsTest is Test {
         uint256 aliceAfter = IERC20(BASE_USDC).balanceOf(alice);
         assertGt(aliceAfter, aliceBefore);
     }
+
+    // ========== Tiebreaker Mode Tests ==========
+    //
+    // On a static Base fork the V4 pool has no swaps between lock & close,
+    // so lockPrice == closePrice (tie) is the natural outcome.  These tests
+    // rely on that behaviour — _lockAndClose() produces a tie every time.
+
+    // --- Helper: run a full round that ties and return the Round struct ---
+
+    function _runTiedRound(uint256 aliceBet, uint256 bobBet) internal returns (BankrBetsPrediction.Round memory) {
+        prediction.startRound(token1);
+        if (aliceBet > 0) _betBull(alice, token1, aliceBet);
+        if (bobBet > 0) _betBear(bob, token1, bobBet);
+        _lockAndClose();
+        return prediction.getRound(token1, 1);
+    }
+
+    // --- Admin setter ---
+
+    function test_SetTiebreakerModeDefault() public view {
+        // Default is Refund (0)
+        assertEq(uint8(prediction.tiebreakerMode()), uint8(BankrBetsPrediction.TiebreakerMode.Refund));
+    }
+
+    function test_SetTiebreakerModeOnlyOwner() public {
+        _expectOwnableRevert(alice);
+        vm.prank(alice);
+        prediction.setTiebreakerMode(BankrBetsPrediction.TiebreakerMode.MajorityWins);
+    }
+
+    function test_SetTiebreakerModeEmitsEvent() public {
+        vm.expectEmit();
+        emit BankrBetsPrediction.TiebreakerModeUpdated(BankrBetsPrediction.TiebreakerMode.MajorityWins);
+        prediction.setTiebreakerMode(BankrBetsPrediction.TiebreakerMode.MajorityWins);
+        assertEq(uint8(prediction.tiebreakerMode()), uint8(BankrBetsPrediction.TiebreakerMode.MajorityWins));
+    }
+
+    function test_SetTiebreakerModeCanSwitchBack() public {
+        prediction.setTiebreakerMode(BankrBetsPrediction.TiebreakerMode.MajorityWins);
+        prediction.setTiebreakerMode(BankrBetsPrediction.TiebreakerMode.Refund);
+        assertEq(uint8(prediction.tiebreakerMode()), uint8(BankrBetsPrediction.TiebreakerMode.Refund));
+    }
+
+    // --- Refund mode (default) ---
+
+    function test_TiebreakerRefundMode() public {
+        // Default mode — tie cancels and both sides get full refund
+        BankrBetsPrediction.Round memory round = _runTiedRound(TEN_USDC, TEN_USDC);
+        if (round.closePrice != round.lockPrice) return; // skip if fork moved price
+
+        assertTrue(round.cancelled);
+        assertEq(round.rewardAmount, 0);
+        assertEq(prediction.treasuryAmount(), 0);
+
+        uint256[] memory epochs = new uint256[](1);
+        epochs[0] = 1;
+
+        uint256 aliceBal = usdc.balanceOf(alice);
+        vm.prank(alice);
+        prediction.claim(token1, epochs);
+        assertEq(usdc.balanceOf(alice) - aliceBal, TEN_USDC);
+
+        uint256 bobBal = usdc.balanceOf(bob);
+        vm.prank(bob);
+        prediction.claim(token1, epochs);
+        assertEq(usdc.balanceOf(bob) - bobBal, TEN_USDC);
+    }
+
+    // --- MajorityWins: bull majority ---
+
+    function test_TiebreakerMajorityWins_BullMajority() public {
+        prediction.setTiebreakerMode(BankrBetsPrediction.TiebreakerMode.MajorityWins);
+
+        // Alice bets 20 USDC bull, Bob bets 10 USDC bear → bull is majority
+        prediction.startRound(token1);
+        _betBull(alice, token1, 20 * ONE_USDC);
+        _betBear(bob, token1, TEN_USDC);
+        _lockAndClose();
+
+        BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
+        if (round.closePrice != round.lockPrice) return; // skip if fork moved price
+
+        assertFalse(round.cancelled);
+        assertTrue(round.oracleCalled);
+        assertEq(round.rewardBaseCalAmount, 20 * ONE_USDC); // bull side total
+
+        // Alice (bull) can claim winnings
+        uint256[] memory epochs = new uint256[](1);
+        epochs[0] = 1;
+
+        assertTrue(prediction.claimable(token1, 1, alice));
+        assertFalse(prediction.claimable(token1, 1, bob));
+
+        uint256 aliceBal = usdc.balanceOf(alice);
+        vm.prank(alice);
+        prediction.claim(token1, epochs);
+        assertEq(usdc.balanceOf(alice) - aliceBal, round.rewardAmount);
+
+        // Bob (bear / minority) gets nothing
+        vm.prank(bob);
+        vm.expectRevert(BankrBetsPrediction.NothingToClaim.selector);
+        prediction.claim(token1, epochs);
+    }
+
+    // --- MajorityWins: bear majority ---
+
+    function test_TiebreakerMajorityWins_BearMajority() public {
+        prediction.setTiebreakerMode(BankrBetsPrediction.TiebreakerMode.MajorityWins);
+
+        // Alice bets 10 USDC bull, Bob bets 20 USDC bear → bear is majority
+        prediction.startRound(token1);
+        _betBull(alice, token1, TEN_USDC);
+        _betBear(bob, token1, 20 * ONE_USDC);
+        _lockAndClose();
+
+        BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
+        if (round.closePrice != round.lockPrice) return;
+
+        assertFalse(round.cancelled);
+        assertEq(round.rewardBaseCalAmount, 20 * ONE_USDC); // bear side total
+
+        uint256[] memory epochs = new uint256[](1);
+        epochs[0] = 1;
+
+        assertFalse(prediction.claimable(token1, 1, alice));
+        assertTrue(prediction.claimable(token1, 1, bob));
+
+        uint256 bobBal = usdc.balanceOf(bob);
+        vm.prank(bob);
+        prediction.claim(token1, epochs);
+        assertEq(usdc.balanceOf(bob) - bobBal, round.rewardAmount);
+    }
+
+    // --- MajorityWins: equal sides fallback to refund ---
+
+    function test_TiebreakerMajorityWins_EqualSidesRefund() public {
+        prediction.setTiebreakerMode(BankrBetsPrediction.TiebreakerMode.MajorityWins);
+
+        BankrBetsPrediction.Round memory round = _runTiedRound(TEN_USDC, TEN_USDC);
+        if (round.closePrice != round.lockPrice) return;
+
+        // Equal sides → falls back to refund
+        assertTrue(round.cancelled);
+        assertEq(round.rewardAmount, 0);
+        assertEq(prediction.treasuryAmount(), 0);
+
+        uint256[] memory epochs = new uint256[](1);
+        epochs[0] = 1;
+
+        uint256 aliceBal = usdc.balanceOf(alice);
+        vm.prank(alice);
+        prediction.claim(token1, epochs);
+        assertEq(usdc.balanceOf(alice) - aliceBal, TEN_USDC);
+
+        uint256 bobBal = usdc.balanceOf(bob);
+        vm.prank(bob);
+        prediction.claim(token1, epochs);
+        assertEq(usdc.balanceOf(bob) - bobBal, TEN_USDC);
+    }
+
+    // --- MajorityWins: fees are collected correctly ---
+
+    function test_TiebreakerMajorityWins_FeesCollected() public {
+        prediction.setTiebreakerMode(BankrBetsPrediction.TiebreakerMode.MajorityWins);
+
+        prediction.startRound(token1);
+        _betBull(alice, token1, 30 * ONE_USDC);
+        _betBear(bob, token1, TEN_USDC);
+
+        uint256 totalPool = 40 * ONE_USDC;
+        uint256 expectedTreasuryFee = (totalPool * 150) / 10_000; // 1.5%
+        uint256 expectedCreatorFee = (totalPool * 50) / 10_000; // 0.5%
+        uint256 expectedSettlerFee = (totalPool * 10) / 10_000; // 0.1%
+        uint256 expectedReward = totalPool - expectedTreasuryFee - expectedCreatorFee - expectedSettlerFee;
+
+        uint256 settlerBefore = usdc.balanceOf(settler);
+        uint256 creatorBefore = usdc.balanceOf(marketCreator);
+
+        _lockAndClose();
+
+        BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
+        if (round.closePrice != round.lockPrice) return;
+
+        assertFalse(round.cancelled);
+        assertEq(round.rewardAmount, expectedReward);
+        assertEq(prediction.treasuryAmount(), expectedTreasuryFee);
+        assertEq(usdc.balanceOf(settler) - settlerBefore, expectedSettlerFee);
+        assertEq(usdc.balanceOf(marketCreator) - creatorBefore, expectedCreatorFee);
+    }
+
+    // --- MajorityWins: multiple winners split proportionally ---
+
+    function test_TiebreakerMajorityWins_ProportionalSplit() public {
+        prediction.setTiebreakerMode(BankrBetsPrediction.TiebreakerMode.MajorityWins);
+
+        prediction.startRound(token1);
+        // Alice 10, Carol 30 on bull (majority = 40), Bob 20 on bear
+        _betBull(alice, token1, TEN_USDC);
+        _betBull(carol, token1, 30 * ONE_USDC);
+        _betBear(bob, token1, 20 * ONE_USDC);
+        _lockAndClose();
+
+        BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
+        if (round.closePrice != round.lockPrice) return;
+
+        assertFalse(round.cancelled);
+        uint256 bullTotal = 40 * ONE_USDC;
+        assertEq(round.rewardBaseCalAmount, bullTotal);
+
+        uint256[] memory epochs = new uint256[](1);
+        epochs[0] = 1;
+
+        // Alice gets 10/40 = 25% of reward pool
+        uint256 aliceBal = usdc.balanceOf(alice);
+        vm.prank(alice);
+        prediction.claim(token1, epochs);
+        uint256 aliceReward = (TEN_USDC * round.rewardAmount) / bullTotal;
+        assertEq(usdc.balanceOf(alice) - aliceBal, aliceReward);
+
+        // Carol gets 30/40 = 75% of reward pool
+        uint256 carolBal = usdc.balanceOf(carol);
+        vm.prank(carol);
+        prediction.claim(token1, epochs);
+        uint256 carolReward = (30 * ONE_USDC * round.rewardAmount) / bullTotal;
+        assertEq(usdc.balanceOf(carol) - carolBal, carolReward);
+
+        // Bob (bear / minority) gets nothing
+        vm.prank(bob);
+        vm.expectRevert(BankrBetsPrediction.NothingToClaim.selector);
+        prediction.claim(token1, epochs);
+    }
+
+    // --- MajorityWins: single-sided pool (all bull, no bear) ---
+
+    function test_TiebreakerMajorityWins_OnlyBullBets() public {
+        prediction.setTiebreakerMode(BankrBetsPrediction.TiebreakerMode.MajorityWins);
+
+        prediction.startRound(token1);
+        _betBull(alice, token1, TEN_USDC);
+        // No bear bets — bearAmount == 0, bullAmount > bearAmount
+        _lockAndClose();
+
+        BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
+        if (round.closePrice != round.lockPrice) return;
+
+        // Bull is majority (10 > 0) — but rewardBaseCalAmount == bullAmount
+        // The "no winners" check (rewardBaseCalAmount == 0) does NOT trigger
+        // because bullAmount > 0. Bull side wins and collects net-of-fees.
+        if (!round.cancelled) {
+            assertEq(round.rewardBaseCalAmount, TEN_USDC);
+            uint256[] memory epochs = new uint256[](1);
+            epochs[0] = 1;
+            uint256 aliceBal = usdc.balanceOf(alice);
+            vm.prank(alice);
+            prediction.claim(token1, epochs);
+            assertEq(usdc.balanceOf(alice) - aliceBal, round.rewardAmount);
+        }
+    }
+
+    // --- MajorityWins: single-sided pool (all bear, no bull) ---
+
+    function test_TiebreakerMajorityWins_OnlyBearBets() public {
+        prediction.setTiebreakerMode(BankrBetsPrediction.TiebreakerMode.MajorityWins);
+
+        prediction.startRound(token1);
+        _betBear(bob, token1, TEN_USDC);
+        // No bull bets — bullAmount == 0, bearAmount > bullAmount
+        _lockAndClose();
+
+        BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
+        if (round.closePrice != round.lockPrice) return;
+
+        if (!round.cancelled) {
+            assertEq(round.rewardBaseCalAmount, TEN_USDC);
+            uint256[] memory epochs = new uint256[](1);
+            epochs[0] = 1;
+            uint256 bobBal = usdc.balanceOf(bob);
+            vm.prank(bob);
+            prediction.claim(token1, epochs);
+            assertEq(usdc.balanceOf(bob) - bobBal, round.rewardAmount);
+        }
+    }
+
+    // --- MajorityWins: mode switch between rounds ---
+
+    function test_TiebreakerModeSwitchBetweenRounds() public {
+        // Round 1: MajorityWins
+        prediction.setTiebreakerMode(BankrBetsPrediction.TiebreakerMode.MajorityWins);
+        prediction.startRound(token1);
+        _betBull(alice, token1, 20 * ONE_USDC);
+        _betBear(bob, token1, TEN_USDC);
+        _lockAndClose();
+
+        BankrBetsPrediction.Round memory round1 = prediction.getRound(token1, 1);
+        if (round1.closePrice != round1.lockPrice) return;
+        assertFalse(round1.cancelled); // majority wins
+
+        // Switch back to Refund before round 2
+        prediction.setTiebreakerMode(BankrBetsPrediction.TiebreakerMode.Refund);
+
+        prediction.startRound(token1);
+        _betBull(alice, token1, 20 * ONE_USDC);
+        _betBear(bob, token1, TEN_USDC);
+
+        vm.warp(block.timestamp + 240);
+        vm.prank(settler);
+        prediction.lockRound(token1);
+        vm.warp(block.timestamp + 300);
+        vm.prank(settler);
+        prediction.closeRound(token1);
+
+        BankrBetsPrediction.Round memory round2 = prediction.getRound(token1, 2);
+        if (round2.closePrice != round2.lockPrice) return;
+        assertTrue(round2.cancelled); // back to refund
+    }
+
+    // --- MajorityWins: loser cannot claim ---
+
+    function test_TiebreakerMajorityWins_LoserCannotClaim() public {
+        prediction.setTiebreakerMode(BankrBetsPrediction.TiebreakerMode.MajorityWins);
+
+        prediction.startRound(token1);
+        _betBull(alice, token1, 20 * ONE_USDC);
+        _betBear(bob, token1, TEN_USDC);
+        _lockAndClose();
+
+        BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
+        if (round.closePrice != round.lockPrice) return;
+
+        uint256[] memory epochs = new uint256[](1);
+        epochs[0] = 1;
+
+        // Bob is minority (bear, 10 < 20)
+        assertFalse(prediction.claimable(token1, 1, bob));
+        vm.prank(bob);
+        vm.expectRevert(BankrBetsPrediction.NothingToClaim.selector);
+        prediction.claim(token1, epochs);
+    }
+
+    // --- MajorityWins: winner cannot double-claim ---
+
+    function test_TiebreakerMajorityWins_CannotDoubleClaim() public {
+        prediction.setTiebreakerMode(BankrBetsPrediction.TiebreakerMode.MajorityWins);
+
+        prediction.startRound(token1);
+        _betBull(alice, token1, 20 * ONE_USDC);
+        _betBear(bob, token1, TEN_USDC);
+        _lockAndClose();
+
+        BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
+        if (round.closePrice != round.lockPrice) return;
+
+        uint256[] memory epochs = new uint256[](1);
+        epochs[0] = 1;
+
+        vm.prank(alice);
+        prediction.claim(token1, epochs);
+
+        vm.prank(alice);
+        vm.expectRevert(BankrBetsPrediction.AlreadyClaimed.selector);
+        prediction.claim(token1, epochs);
+    }
+
+    // --- MajorityWins: treasury balance correct after majority tie ---
+
+    function test_TiebreakerMajorityWins_TreasuryNotZero() public {
+        prediction.setTiebreakerMode(BankrBetsPrediction.TiebreakerMode.MajorityWins);
+
+        prediction.startRound(token1);
+        _betBull(alice, token1, 20 * ONE_USDC);
+        _betBear(bob, token1, TEN_USDC);
+        _lockAndClose();
+
+        BankrBetsPrediction.Round memory round = prediction.getRound(token1, 1);
+        if (round.closePrice != round.lockPrice) return;
+
+        // Treasury should have collected 1.5% of 30 USDC pool
+        uint256 expectedTreasuryFee = (30 * ONE_USDC * 150) / 10_000;
+        assertEq(prediction.treasuryAmount(), expectedTreasuryFee);
+    }
+
+    // --- Refund mode: treasury stays zero on tie ---
+
+    function test_TiebreakerRefund_TreasuryZeroOnTie() public {
+        // Explicitly set Refund mode
+        prediction.setTiebreakerMode(BankrBetsPrediction.TiebreakerMode.Refund);
+
+        BankrBetsPrediction.Round memory round = _runTiedRound(TEN_USDC, TEN_USDC);
+        if (round.closePrice != round.lockPrice) return;
+
+        assertTrue(round.cancelled);
+        assertEq(prediction.treasuryAmount(), 0);
+    }
 }

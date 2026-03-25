@@ -41,6 +41,11 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
         Bear
     }
 
+    enum TiebreakerMode {
+        Refund, // 0 — cancel + full refund (default)
+        MajorityWins // 1 — side with more USDC wins; if equal, refund
+    }
+
     // --- Structs ---
 
     struct Round {
@@ -86,6 +91,7 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
     uint256 public settlerFeeBps = 10; // 0.1% settler reward
     uint256 public maxPriceMoveBps = 5000; // 50% max lock->close move, else cancel round
     uint256 public maxRoundPool; // 0 = no cap; non-zero caps total bets per round (flash loan risk bound)
+    TiebreakerMode public tiebreakerMode; // Configurable tie resolution
     uint256 public treasuryAmount; // Accumulated treasury
 
     // Creator earnings tracking
@@ -116,6 +122,7 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
     event TreasuryClaim(address indexed to, uint256 amount);
     event MarketCreated(address indexed token, address indexed creator);
     event MaxRoundPoolUpdated(uint256 newLimit);
+    event TiebreakerModeUpdated(TiebreakerMode mode);
 
     // --- Errors ---
 
@@ -397,12 +404,18 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
         } else if (price < round.lockPrice) {
             round.rewardBaseCalAmount = round.bearAmount;
         } else {
-            // Tie
-            round.cancelled = true;
-            round.rewardAmount = 0;
-            treasuryAmount -= treasuryFee;
-            emit RoundCancelled(_token, epoch);
-            return;
+            // Tie — resolve based on configurable tiebreaker mode
+            if (tiebreakerMode == TiebreakerMode.MajorityWins && round.bullAmount != round.bearAmount) {
+                // Side with more USDC wins
+                round.rewardBaseCalAmount = round.bullAmount > round.bearAmount ? round.bullAmount : round.bearAmount;
+            } else {
+                // Refund (default, or MajorityWins with exactly equal sides)
+                round.cancelled = true;
+                round.rewardAmount = 0;
+                treasuryAmount -= treasuryFee;
+                emit RoundCancelled(_token, epoch);
+                return;
+            }
         }
 
         // No winners
@@ -487,6 +500,11 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
     function _isWinner(Round storage _round, Position _position) internal view returns (bool) {
         if (_round.closePrice > _round.lockPrice && _position == Position.Bull) return true;
         if (_round.closePrice < _round.lockPrice && _position == Position.Bear) return true;
+        // Tie with MajorityWins tiebreaker — majority side wins
+        if (_round.closePrice == _round.lockPrice && !_round.cancelled) {
+            if (_round.bullAmount > _round.bearAmount && _position == Position.Bull) return true;
+            if (_round.bearAmount > _round.bullAmount && _position == Position.Bear) return true;
+        }
         return false;
     }
 
@@ -596,6 +614,11 @@ contract BankrBetsPrediction is ReentrancyGuard, Pausable, Ownable {
     function setMaxRoundPool(uint256 _maxRoundPool) external onlyOwner {
         maxRoundPool = _maxRoundPool;
         emit MaxRoundPoolUpdated(_maxRoundPool);
+    }
+
+    function setTiebreakerMode(TiebreakerMode _mode) external onlyOwner {
+        tiebreakerMode = _mode;
+        emit TiebreakerModeUpdated(_mode);
     }
 
     function claimTreasury() external onlyOwner {
