@@ -1006,7 +1006,7 @@ export function BetPanel({
               </div>
 
               <div className="flex gap-1.5 mb-2">
-                {[5, 10, 25, 50].map(v => (
+                {[50, 100, 500, 1000].map(v => (
                   <button
                     key={v}
                     onClick={() => setAmount(v.toString())}
