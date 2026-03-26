@@ -14,7 +14,7 @@ const STEPS = [
   {
     n: "02",
     t: "Bet UP or DOWN",
-    d: "Predict price direction in 4-minute betting windows",
+    d: "Predict price direction in 5-minute betting windows",
     color: "bg-pg-pink",
     shadow: "shadow-pop-pink",
   },
@@ -54,13 +54,13 @@ const Home: NextPage = () => {
                 Live on Base
               </span>
               <span className="inline-flex items-center text-[11px] font-bold bg-pg-amber/15 text-[#9a7200] rounded-full px-3 py-1 border border-pg-amber/30">
-                4-min bet rounds
+                5-min bet rounds
               </span>
             </div>
           </div>
 
           <p className="text-sm md:text-base text-pg-muted max-w-lg leading-relaxed">
-            4 min prediction markets for <span className="text-pg-violet font-semibold">Bankr</span> ecosystem tokens.
+            5 min prediction markets for <span className="text-pg-violet font-semibold">Bankr</span> ecosystem tokens.
           </p>
         </div>
       </div>
