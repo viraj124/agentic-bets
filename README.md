@@ -2,24 +2,27 @@
 
 Permissionless binary prediction markets for [Bankr](https://bankr.fun) ecosystem tokens on Base.
 
-Bet **UP** or **DOWN** on token prices in 4-minute rounds. Winners split the pool. No keeper needed for pricing — prices are read directly on-chain from Uniswap V4.
+Bet **UP** or **DOWN** on token prices in 5-minute betting rounds. Winners split the pool. No keeper needed for pricing — prices are read directly on-chain from Uniswap V4.
 
 ## How It Works
 
 1. **Pick a token** — Browse Bankr ecosystem tokens with active Uniswap V4 pools
-2. **Bet UP or DOWN** — Predict price direction within a 4-minute betting window using USDC
+2. **Bet UP or DOWN** — Predict price direction within a 5-minute betting window using USDC
 3. **Anyone settles** — Lock and close rounds on-chain to earn a 0.1% settler reward
 4. **Collect winnings** — Winners split the losers' pool. Market creators earn 0.5% forever
 
 ### Round Lifecycle
 
 ```
-Betting Open (4 min) → Bets Locked → Round Settled → Payouts
+Betting Open (5 min) → Price Locked → Price Observed (10 min) → Round Settled → Payouts
 ```
 
+- **Bet window**: 5 minutes — users place UP/DOWN bets with USDC
+- **Lock → Close**: 10 minutes — price is locked at the start, observed for 10 minutes, then closed
+- **Total round**: 15 minutes end-to-end
 - Prices are read on-chain from Uniswap V4 `PoolManager.getSlot0()` — no off-chain oracle needed
 - Settlement is permissionless: any wallet can call `lockRound` / `closeRound`
-- If the price doesn't change, the round is tied and all bets are refunded
+- If the price doesn't change, the side with more USDC wins (configurable tiebreaker)
 
 ### Fee Structure
 
@@ -65,8 +68,24 @@ bankr-bets/
 | Contract | Address |
 |----------|---------|
 | BankrBetsPrediction | `0xABADeb002247f2bd908Eeedb32918aEc304A0233` |
+| BankrBetsOracle | `0x57B83E00038CE7E890C003Fb3794fE6297596b60` |
 | USDC (bet token) | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
 | Uniswap V4 PoolManager | `0x498581fF718922c3f8e6A244956aF099B2652b2b` |
+
+### Round Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| Bet window | 300s (5 min) |
+| Round duration (lock → close) | 600s (10 min) |
+| Lock grace period | 60s |
+| Min bet | 1 USDC |
+| Max bet per user | 1,000 USDC |
+| Max round pool | 10,000 USDC |
+| Treasury fee | 1.5% |
+| Creator fee | 0.5% |
+| Settler fee | 0.1% |
+| Tiebreaker mode | MajorityWins |
 
 ## Getting Started
 
