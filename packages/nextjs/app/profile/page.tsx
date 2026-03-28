@@ -182,49 +182,24 @@ const ProfilePage: NextPage = () => {
   const earnings = creatorEarnings ? Number(creatorEarnings) / 1e6 : 0;
   const ongoingBets = userBets?.ongoing ?? [];
   const previousBets = userBets?.previous ?? [];
-  const allBets = useMemo(() => [...ongoingBets, ...previousBets], [ongoingBets, previousBets]);
 
-  // Compute stats from bets data so ongoing/pending bets don't skew PnL
-  const computedStats = useMemo(() => {
-    if (allBets.length === 0 && !userStats) return null;
-
-    const settled = allBets.filter(b => b.outcome === "won" || b.outcome === "lost" || b.outcome === "refund");
-    const wins = allBets.filter(b => b.outcome === "won").length;
-    const totalBets = userStats?.totalBets ?? allBets.length;
-    const settledCount = settled.length;
-
-    // PnL: only from settled bets
-    let netPnL = 0;
-    for (const bet of settled) {
-      const payout = bet.claimed ? bet.claimedAmount : bet.expectedPayout;
-      netPnL += payout - bet.amount;
-    }
-
-    return {
-      totalBets,
-      wins,
-      winRate: settledCount > 0 ? (wins / settledCount) * 100 : 0,
-      netPnL,
-    };
-  }, [allBets, userStats]);
-
-  const hasStats = computedStats !== null && computedStats.totalBets > 0;
-  const hasListedBets = allBets.length > 0;
+  const hasStats = !!userStats && userStats.totalBets > 0;
+  const hasListedBets = ongoingBets.length > 0 || previousBets.length > 0;
   const hasBets = hasStats || hasListedBets;
 
   const statCards = useMemo(
     () => [
-      { label: "Total bets", value: hasStats ? String(computedStats!.totalBets) : "--", color: "" },
-      { label: "Wins", value: hasStats ? String(computedStats!.wins) : "--", color: "" },
+      { label: "Total bets", value: hasStats ? String(userStats!.totalBets) : "--", color: "" },
+      { label: "Wins", value: hasStats ? String(userStats!.wins) : "--", color: "" },
       {
         label: "Win rate",
-        value: hasStats ? `${computedStats!.winRate.toFixed(0)}%` : "--",
+        value: hasStats ? `${userStats!.winRate.toFixed(0)}%` : "--",
         color: "",
       },
       {
         label: "Net P&L",
-        value: hasStats ? `${computedStats!.netPnL >= 0 ? "+" : ""}$${computedStats!.netPnL.toFixed(2)}` : "--",
-        color: hasStats ? (computedStats!.netPnL >= 0 ? "text-pg-mint" : "text-pg-pink") : "",
+        value: hasStats ? `${userStats!.netPnL >= 0 ? "+" : ""}$${userStats!.netPnL.toFixed(2)}` : "--",
+        color: hasStats ? (userStats!.netPnL >= 0 ? "text-pg-mint" : "text-pg-pink") : "",
       },
       {
         label: "Creator earnings",
@@ -232,7 +207,7 @@ const ProfilePage: NextPage = () => {
         color: "text-pg-violet",
       },
     ],
-    [hasStats, computedStats, earnings, isEarningsLoading],
+    [hasStats, userStats, earnings, isEarningsLoading],
   );
 
   if (!address) {

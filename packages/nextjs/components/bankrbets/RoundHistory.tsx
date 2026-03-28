@@ -82,7 +82,6 @@ function RoundRow({ entry, tokenAddress }: { entry: RoundHistoryEntry; tokenAddr
       }
     }
   }
-
   // Row tint
   let rowBg = "bg-base-200/20 border-pg-border/50";
   if (isLive) rowBg = "bg-pg-violet/5 border-pg-violet/20";

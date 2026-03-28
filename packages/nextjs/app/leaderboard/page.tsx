@@ -2,10 +2,13 @@
 
 import { useMemo } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { blo } from "blo";
 import type { NextPage } from "next";
 import { IdentityBadge } from "~~/components/bankrbets/IdentityBadge";
 import { useLeaderboard } from "~~/hooks/bankrbets/useLeaderboard";
 import { type ResolvedIdentity, useResolvedAddresses } from "~~/hooks/bankrbets/useResolvedAddresses";
+import { getAddressAvatar, getAddressDisplayName, shortenAddress } from "~~/lib/addressDisplay";
 
 const RESOLVED_NAMES_LIMIT = 25;
 
@@ -57,37 +60,36 @@ function PodiumCard({
       </div>
 
       {/* Avatar circle */}
-      <div
-        className={`${style.size} rounded-full bg-pg-border/30 border-2 border-pg-border/50 flex items-center justify-center mt-2 mb-3 overflow-hidden`}
-      >
-        {resolved?.ensAvatar || resolved?.baseAvatar ? (
-          <Image
-            src={(resolved.ensAvatar || resolved.baseAvatar)!}
-            alt=""
-            width={64}
-            height={64}
-            className="w-full h-full rounded-full object-cover"
-          />
-        ) : (
-          <svg
-            className="w-6 h-6 text-pg-muted/30"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"
-            />
-          </svg>
-        )}
+      <div className={`${style.size} rounded-full border-2 border-pg-border/50 mt-2 mb-3 overflow-hidden`}>
+        {(() => {
+          const avatarUrl = getAddressAvatar(resolved);
+          return avatarUrl ? (
+            <Image src={avatarUrl} alt="" width={64} height={64} className="w-full h-full rounded-full object-cover" />
+          ) : (
+            <img src={blo(entry.address as `0x${string}`)} alt="" className="w-full h-full rounded-full object-cover" />
+          );
+        })()}
       </div>
 
       {/* Name */}
-      <div className="mb-3 w-full min-w-0">
-        <IdentityBadge address={entry.address} resolved={resolved} />
+      <div className="mb-3 w-full min-w-0 text-center">
+        <Link
+          href={`https://basescan.org/address/${entry.address}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs font-semibold text-base-content hover:text-pg-violet transition-colors truncate block"
+        >
+          {getAddressDisplayName(entry.address, resolved)}
+        </Link>
+        {(() => {
+          const displayName = getAddressDisplayName(entry.address, resolved);
+          const short = shortenAddress(entry.address);
+          return displayName.toLowerCase() !== short.toLowerCase() ? (
+            <div className="text-[10px] text-pg-muted font-mono truncate" title={entry.address}>
+              {short}
+            </div>
+          ) : null;
+        })()}
       </div>
 
       {/* Stats */}

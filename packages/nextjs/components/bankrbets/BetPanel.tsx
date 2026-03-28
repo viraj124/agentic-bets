@@ -884,7 +884,7 @@ export function BetPanel({
                     : `You won 🎉 Claim $${claimAmountDisplay ?? "0.00"} USDC.`}
                 </p>
                 {roundCancelled && cancellationReason && (
-                  <p className="text-[11px] text-pg-amber/70 mt-0.5">{cancellationReason}</p>
+                  <p className="text-[11px] font-bold text-pg-amber mt-0.5">{cancellationReason}</p>
                 )}
                 <button
                   onClick={handleClaim}
@@ -912,7 +912,7 @@ export function BetPanel({
             ) : roundCancelled ? (
               <div className="mt-4 space-y-1">
                 <p className="text-xs font-bold text-pg-amber">Round cancelled — your bet will be refunded.</p>
-                {cancellationReason && <p className="text-[11px] text-pg-amber/70">{cancellationReason}</p>}
+                {cancellationReason && <p className="text-[11px] font-bold text-pg-amber">{cancellationReason}</p>}
                 <button
                   onClick={handleClaim}
                   disabled={isClaiming}

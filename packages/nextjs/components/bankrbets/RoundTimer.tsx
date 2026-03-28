@@ -106,7 +106,7 @@ export function RoundTimer({
       timer = "";
       sublabel = canClaim ? "Refund available" : "Settlement complete";
       chipClass = "bg-pg-amber/15 text-pg-amber border-pg-amber/35";
-      sublabelClass = "text-pg-amber/75";
+      sublabelClass = canClaim ? "font-bold text-pg-amber" : "text-pg-amber/75";
       if (cancellationReason) showCancellationTooltip = true;
     } else {
       label = "Round settled";

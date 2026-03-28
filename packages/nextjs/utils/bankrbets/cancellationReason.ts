@@ -41,8 +41,8 @@ export function getCancellationReason(round: {
 
   if (round.rewardBaseCalAmount === 0n && round.totalAmount > 0n) {
     const priceWentDown = round.closePrice < round.lockPrice;
-    if (priceWentDown && round.bearAmount === 0n) return "No DOWN bets to pay out";
-    if (!priceWentDown && round.bullAmount === 0n) return "No UP bets to pay out";
+    if (priceWentDown && round.bearAmount === 0n) return "No DOWN bet winners to pay out";
+    if (!priceWentDown && round.bullAmount === 0n) return "No UP bet winners to pay out";
     return "No bets on winning side";
   }
 
