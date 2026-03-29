@@ -1,10 +1,16 @@
 <p align="center">
-  <img src="./packages/nextjs/public/agentic-bets-wordmark.svg?raw=1" alt="Agentic Bets" />
+  <picture>
+    <img src="./packages/nextjs/public/agentic-bets-wordmark.svg?raw=1" alt="Agentic Bets" width="100%" />
+  </picture>
 </p>
 
-<img src="./packages/nextjs/public/readme/home-page.png?raw=1" alt="Agentic Bets home page" />
+<picture>
+  <img src="./packages/nextjs/public/readme/home-page.png?raw=1" alt="Agentic Bets home page" width="100%" />
+</picture>
 
-<img src="./packages/nextjs/public/readme/bet-panel.png?raw=1" alt="Agentic Bets market page and bet panel" />
+<picture>
+  <img src="./packages/nextjs/public/readme/bet-panel.png?raw=1" alt="Agentic Bets market page and bet panel" width="100%" />
+</picture>
 
 Permissionless binary prediction markets for [Bankr](https://bankr.fun) ecosystem tokens on Base.
 
