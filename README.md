@@ -1,17 +1,15 @@
-<h1 align="center">Agentic Bets</h1>
-
 <p align="center">
-  <img src="./packages/nextjs/public/agentic-bets-wordmark.svg?raw=1" alt="Agentic Bets wordmark" width="100%" />
+  <img src="./packages/nextjs/public/agentic-bets-wordmark.svg?raw=1" alt="Agentic Bets" />
 </p>
 
-<p align="center">
-  Permissionless binary prediction markets for <a href="https://bankr.fun">Bankr</a> ecosystem tokens on Base.
-  <br />
-  <br />
-  Bet <strong>UP</strong> or <strong>DOWN</strong> on token prices in 5-minute betting rounds. Winners split the pool.
-  <br />
-  No keeper needed for pricing because prices are read directly on-chain from Uniswap V4.
-</p>
+<img src="./packages/nextjs/public/readme/home-page.png?raw=1" alt="Agentic Bets home page" />
+
+<img src="./packages/nextjs/public/readme/bet-panel.png?raw=1" alt="Agentic Bets market page and bet panel" />
+
+Permissionless binary prediction markets for [Bankr](https://bankr.fun) ecosystem tokens on Base.
+
+Bet **UP** or **DOWN** on token prices in 5-minute betting rounds. Winners split the pool.
+No keeper needed for pricing because prices are read directly on-chain from Uniswap V4.
 
 ## Features
 
@@ -173,7 +171,7 @@ This project draws inspiration from on-chain prediction market protocols:
 - [Polymarket](https://github.com/polymarket) — CLOB-based prediction markets on Polygon
 - [CryptoPredict](https://github.com/CoderEren/CryptoPredict) — Decentralized prediction market for Bitcoin price movements
 
-Key differences in Bankr Bets:
+Key differences in Agentic Bets:
 - **No off-chain oracle** — prices read directly from Uniswap V4 pools on-chain
 - **Permissionless markets** — anyone can create a market for any token with a V4 pool
 - **Permissionless settlement** — anyone can settle rounds and earn rewards
