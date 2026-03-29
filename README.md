@@ -1,15 +1,16 @@
 <h1 align="center">Agentic Bets</h1>
 
 <p align="center">
-  <img src="./packages/nextjs/public/agentic-bets-wordmark.svg?raw=1" alt="Agentic Bets wordmark" width="720" />
+  <img src="./packages/nextjs/public/agentic-bets-wordmark.svg?raw=1" alt="Agentic Bets wordmark" width="100%" />
 </p>
 
 <p align="center">
   Permissionless binary prediction markets for <a href="https://bankr.fun">Bankr</a> ecosystem tokens on Base.
-</p>
-
-<p align="center">
-  Bet <strong>UP</strong> or <strong>DOWN</strong> on token prices in 5-minute betting rounds. Winners split the pool. No keeper needed for pricing because prices are read directly on-chain from Uniswap V4.
+  <br />
+  <br />
+  Bet <strong>UP</strong> or <strong>DOWN</strong> on token prices in 5-minute betting rounds. Winners split the pool.
+  <br />
+  No keeper needed for pricing because prices are read directly on-chain from Uniswap V4.
 </p>
 
 ## Features
