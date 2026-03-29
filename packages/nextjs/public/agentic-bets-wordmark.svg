@@ -75,7 +75,7 @@
   <path d="M1160 200H1300" stroke="#334155" stroke-width="2" stroke-linecap="round" stroke-opacity="0.3" />
 
   <!-- "A" logo mark -->
-  <g transform="translate(490 120) scale(2.2)">
+  <g transform="translate(490 132) scale(2.2)">
     <path d="M16 0L32 44H23.5L20 34H12L8.5 44H0L16 0Z" fill="url(#a-fill)" />
     <path d="M13.5 28H18.5L16 20.5L13.5 28Z" fill="#111827" />
     <circle cx="33" cy="6" r="3.7" fill="#F472B6" />
