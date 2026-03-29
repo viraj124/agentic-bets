@@ -1,7 +1,7 @@
 <h1 align="center">Agentic Bets</h1>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/viraj124/bankr-bets/main/packages/nextjs/public/agentic-bets-wordmark-preview-v6.svg" alt="Agentic Bets wordmark" width="720" />
+  <img src="./packages/nextjs/public/agentic-bets-wordmark.svg?raw=1" alt="Agentic Bets wordmark" width="720" />
 </p>
 
 <p align="center">

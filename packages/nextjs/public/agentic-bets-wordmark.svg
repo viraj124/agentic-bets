@@ -1,0 +1,56 @@
+<svg width="960" height="240" viewBox="0 0 960 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="agentic-bets-wordmark-a-fill-v6" x1="0" y1="0" x2="40" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EF71B5" />
+      <stop offset="0.52" stop-color="#9D6BF3" />
+      <stop offset="1" stop-color="#7757EE" />
+    </linearGradient>
+    <filter id="card-shadow-v6" x="22" y="18" width="916" height="204" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix" />
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+      <feOffset dy="8" />
+      <feGaussianBlur stdDeviation="14" />
+      <feComposite in2="hardAlpha" operator="out" />
+      <feColorMatrix type="matrix" values="0 0 0 0 0.121569 0 0 0 0 0.164706 0 0 0 0 0.266667 0 0 0 0.08 0" />
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_0_1" />
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_0_1" result="shape" />
+    </filter>
+  </defs>
+
+  <g filter="url(#card-shadow-v6)">
+    <rect x="50" y="38" width="860" height="148" rx="28" fill="#FFFFFF" />
+    <rect x="52" y="40" width="856" height="144" rx="26" stroke="#E2E8F0" stroke-width="4" />
+  </g>
+
+  <circle cx="110" cy="84" r="26" fill="#F472B6" fill-opacity="0.08" />
+  <circle cx="168" cy="62" r="8" fill="#F472B6" fill-opacity="0.3" />
+  <circle cx="142" cy="162" r="7" fill="#34D399" fill-opacity="0.32" />
+  <rect x="190" y="136" width="16" height="16" rx="4" transform="rotate(18 190 136)" fill="#8B5CF6" fill-opacity="0.2" />
+
+  <circle cx="848" cy="82" r="30" fill="#8B5CF6" fill-opacity="0.07" />
+  <circle cx="810" cy="152" r="9" fill="#34D399" fill-opacity="0.28" />
+  <circle cx="874" cy="150" r="7" fill="#F472B6" fill-opacity="0.28" />
+  <rect x="782" y="82" width="18" height="18" rx="4" transform="rotate(-20 782 82)" fill="#8B5CF6" fill-opacity="0.18" />
+
+  <path d="M110 120H188" stroke="#E2E8F0" stroke-width="6" stroke-linecap="round" />
+  <path d="M774 120H852" stroke="#E2E8F0" stroke-width="6" stroke-linecap="round" />
+
+  <g transform="translate(248 74) scale(1.72)">
+    <path d="M16 0L32 44H23.5L20 34H12L8.5 44H0L16 0Z" fill="url(#agentic-bets-wordmark-a-fill-v6)" />
+    <path d="M13.5 28H18.5L16 20.5L13.5 28Z" fill="#F7F3E8" />
+    <circle cx="33" cy="6" r="3.7" fill="#F472B6" />
+    <circle cx="1.5" cy="36" r="2.6" fill="#34D399" fill-opacity="0.95" />
+  </g>
+
+  <text
+    x="298"
+    y="149"
+    font-family="Outfit, system-ui, sans-serif"
+    font-size="76"
+    font-weight="800"
+    letter-spacing="-2.4"
+  >
+    <tspan fill="#1E293B">gentic </tspan>
+    <tspan fill="#8B5CF6">Bets</tspan>
+  </text>
+</svg>
