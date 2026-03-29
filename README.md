@@ -1,8 +1,26 @@
-# Bankr Bets
+<h1 align="center">Bankr Bets</h1>
 
-Permissionless binary prediction markets for [Bankr](https://bankr.fun) ecosystem tokens on Base.
+<p align="center">
+  <img src="./packages/nextjs/public/logo.svg" alt="Bankr Bets logo" width="120" />
+</p>
 
-Bet **UP** or **DOWN** on token prices in 5-minute betting rounds. Winners split the pool. No keeper needed for pricing — prices are read directly on-chain from Uniswap V4.
+<p align="center">
+  Permissionless binary prediction markets for <a href="https://bankr.fun">Bankr</a> ecosystem tokens on Base.
+</p>
+
+<p align="center">
+  Bet <strong>UP</strong> or <strong>DOWN</strong> on token prices in 5-minute betting rounds. Winners split the pool. No keeper needed for pricing because prices are read directly on-chain from Uniswap V4.
+</p>
+
+## Features
+
+- Permissionless market creation for Base tokens with valid Uniswap V4 pools
+- On-chain price reads from Uniswap V4 with no off-chain oracle dependency
+- 5-minute betting window plus 10-minute lock-to-close observation period
+- Permissionless round settlement with a 0.1% settler reward
+- 0.5% perpetual creator royalty on every round pool
+- MajorityWins tie-breaker when price finishes flat and one side has more USDC
+- Portfolio and leaderboard views for tracking bets, win rate, P&L, and creator earnings
 
 ## How It Works
 
@@ -59,7 +77,7 @@ bankr-bets/
 
 ### Smart Contracts
 
-**BankrBetsPrediction** — Core prediction market. Users call `betBull` / `betBear` with USDC. Anyone can `lockRound` (snapshot lock price) and `closeRound` (snapshot close price, distribute rewards). Uses SafeERC20, ReentrancyGuard, and the CEI pattern.
+**BankrBetsPrediction** — Core prediction market. Users call `bet()` or `betWithAuthorization()` with a position (`0 = UP`, `1 = DOWN`) and USDC. Market creation only registers the market; round 1 starts on the first bet. Anyone can `lockRound` (snapshot lock price) and `closeRound` (snapshot close price, distribute rewards). Uses SafeERC20, ReentrancyGuard, and the CEI pattern.
 
 **BankrBetsOracle** — Permissionless market registry. Anyone can register a token market if it has a Uniswap V4 pool. Supports Clanker V4 hooks, Bankr launcher hooks, and vanilla V4 pools. Reads prices directly from `PoolManager.getSlot0()`.
 
