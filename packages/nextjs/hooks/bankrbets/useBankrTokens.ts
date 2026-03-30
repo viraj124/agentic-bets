@@ -101,7 +101,11 @@ export function useBankrTokens() {
     staleTime: 5 * 60_000, // match server cache TTL
     gcTime: 30 * 60_000,
     refetchOnWindowFocus: false,
-    refetchInterval: 5 * 60_000,
+    // Retry quickly (10s) when tokens are empty (cold start), otherwise normal 5min interval
+    refetchInterval: query => {
+      const data = query.state.data;
+      return !data || data.length === 0 ? 10_000 : 5 * 60_000;
+    },
   });
 
   const allData = useMemo(() => allTokens || [], [allTokens]);

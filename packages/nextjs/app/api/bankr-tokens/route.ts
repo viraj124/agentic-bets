@@ -773,13 +773,53 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
   const withPoolKey = uniqueTokens.filter(t => !!t.poolKey);
   const withoutPoolKey = uniqueTokens.length - withPoolKey.length;
 
-  const { enriched, dexPriced, geckoPriced, geckoFallbackCandidates, clankerPriced } = await enrichWithPriceData(
-    uniqueTokens,
-    {
-      enableGeckoFallback: geckoEnabled,
-      geckoFallbackMaxAddresses: geckoEnabled ? GECKO_FALLBACK_MAX_ADDRESSES : 0,
-    },
-  );
+  // ── Fast bootstrap: use only clanker embedded price data, skip DexScreener/Gecko ──
+  // This returns results in ~2-3s instead of 30-60s on cold start.
+  // Full enrichment with DexScreener/Gecko runs in the background after bootstrap.
+  let enriched: EnrichedToken[];
+  let dexPriced: number;
+  let geckoPriced: number;
+  let geckoFallbackCandidates: number;
+  let clankerPriced: number;
+
+  if (mode === "bootstrap") {
+    const clankerOnly: EnrichedToken[] = [];
+    let cpCount = 0;
+    for (const token of uniqueTokens) {
+      const cp = token.clankerPriceData;
+      if (!cp || !cp.priceUsd) continue;
+      cpCount++;
+      const resolvedPoolKey = token.poolKey ?? deriveFallbackPoolKey(token.address);
+      clankerOnly.push({
+        address: token.address,
+        poolId: token.poolId || computePoolId(resolvedPoolKey),
+        poolKey: resolvedPoolKey,
+        ...cp,
+        poolKeyVerified: token.poolKey !== null,
+      });
+    }
+    // Keep tokens even with zero volume during bootstrap — full refresh will filter properly
+    clankerOnly.sort((a, b) => b.marketCap - a.marketCap);
+    console.log(`[bankr-tokens] Bootstrap fast path: ${clankerOnly.length} tokens from clanker embedded data`);
+    enriched = clankerOnly;
+    dexPriced = 0;
+    geckoPriced = 0;
+    geckoFallbackCandidates = 0;
+    clankerPriced = cpCount;
+  } else {
+    const result = await enrichWithPriceData(
+      uniqueTokens,
+      {
+        enableGeckoFallback: geckoEnabled,
+        geckoFallbackMaxAddresses: geckoEnabled ? GECKO_FALLBACK_MAX_ADDRESSES : 0,
+      },
+    );
+    enriched = result.enriched;
+    dexPriced = result.dexPriced;
+    geckoPriced = result.geckoPriced;
+    geckoFallbackCandidates = result.geckoFallbackCandidates;
+    clankerPriced = result.clankerPriced;
+  }
 
   // Replace BNKRW with WCHAN (WalletChan) — Bankr rebranded to WalletChan
   // WCHAN uses a vanilla V4 pool: native ETH + no hooks + fee=10000
