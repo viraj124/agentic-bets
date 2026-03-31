@@ -801,6 +801,25 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
     }
     // Keep tokens even with zero volume during bootstrap — full refresh will filter properly
     clankerOnly.sort((a, b) => b.marketCap - a.marketCap);
+
+    // Quick image patch: fetch DexScreener images for tokens missing imgUrl (single batch, ~1-2s)
+    const missingImg = clankerOnly.filter(t => !t.imgUrl);
+    if (missingImg.length > 0) {
+      const imgAddresses = missingImg.slice(0, DEX_BATCH).map(t => t.address);
+      try {
+        const dexData = await fetchDexBatch(imgAddresses);
+        for (const token of clankerOnly) {
+          if (!token.imgUrl) {
+            const dex = dexData.get(token.address);
+            if (dex?.imgUrl) token.imgUrl = dex.imgUrl;
+          }
+        }
+        console.log(`[bankr-tokens] Bootstrap image patch: ${imgAddresses.length} checked, ${[...dexData.values()].filter(d => d.imgUrl).length} resolved`);
+      } catch {
+        // Non-critical — tokens render with letter avatars as fallback
+      }
+    }
+
     console.log(`[bankr-tokens] Bootstrap fast path: ${clankerOnly.length} tokens from clanker embedded data`);
     enriched = clankerOnly;
     dexPriced = 0;
