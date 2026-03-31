@@ -917,5 +917,11 @@ export async function GET(req: Request) {
     };
   }
 
-  return NextResponse.json(payload);
+  return NextResponse.json(payload, {
+    headers: {
+      // CDN caches response for 5 min, serves stale for another 10 min while revalidating.
+      // This means after the very first cold start, all subsequent requests are instant from edge.
+      "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+    },
+  });
 }

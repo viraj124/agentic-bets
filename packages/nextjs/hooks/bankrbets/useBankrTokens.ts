@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { EnrichedToken } from "~~/app/api/bankr-tokens/route";
 
 const PAGE_SIZE = 10; // tokens visible per "page" in the UI
+const LS_KEY = "bankr-tokens-cache";
 
 export interface BankrToken {
   id: number;
@@ -96,12 +97,32 @@ export function useBankrTokens() {
       const res = await fetch("/api/bankr-tokens");
       if (!res.ok) return [];
       const json = (await res.json()) as { tokens?: EnrichedToken[] };
-      return (json.tokens || []).map((t, i) => toBankrToken(t, i));
+      const tokens = (json.tokens || []).map((t, i) => toBankrToken(t, i));
+      // Persist to localStorage so next page load is instant
+      if (tokens.length > 0) {
+        try {
+          localStorage.setItem(LS_KEY, JSON.stringify(tokens));
+        } catch {
+          /* quota exceeded — ignore */
+        }
+      }
+      return tokens;
     },
-    staleTime: 5 * 60_000, // match server cache TTL
+    // Seed from localStorage so tokens render before the API responds
+    initialData: () => {
+      if (typeof window === "undefined") return undefined;
+      try {
+        const cached = localStorage.getItem(LS_KEY);
+        if (!cached) return undefined;
+        return JSON.parse(cached) as BankrToken[];
+      } catch {
+        return undefined;
+      }
+    },
+    initialDataUpdatedAt: 0, // treat localStorage data as stale — triggers immediate fetch
+    staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     refetchOnWindowFocus: false,
-    // Retry quickly (10s) when tokens are empty (cold start), otherwise normal 5min interval
     refetchInterval: query => {
       const data = query.state.data;
       return !data || data.length === 0 ? 10_000 : 5 * 60_000;
