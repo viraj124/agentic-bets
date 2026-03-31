@@ -110,6 +110,7 @@ interface ClankerToken {
   pool_config?: { pairedToken?: string };
   name?: string;
   symbol?: string;
+  img_url?: string;
   pair?: string;
   deployed_at?: string;
   priceUsd?: number;
@@ -349,7 +350,7 @@ async function fetchFromClanker(maxPages = CLANKER_MAX_PAGES): Promise<TokenPool
           ? {
               name: item.name || "",
               symbol: item.symbol || "",
-              imgUrl: "",
+              imgUrl: item.img_url || "",
               priceUsd: clankerPrice,
               marketCap: toNumber(item.related?.market?.marketCap),
               volume24h: toNumber(item.related?.market?.volume24h),
@@ -807,13 +808,10 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
     geckoFallbackCandidates = 0;
     clankerPriced = cpCount;
   } else {
-    const result = await enrichWithPriceData(
-      uniqueTokens,
-      {
-        enableGeckoFallback: geckoEnabled,
-        geckoFallbackMaxAddresses: geckoEnabled ? GECKO_FALLBACK_MAX_ADDRESSES : 0,
-      },
-    );
+    const result = await enrichWithPriceData(uniqueTokens, {
+      enableGeckoFallback: geckoEnabled,
+      geckoFallbackMaxAddresses: geckoEnabled ? GECKO_FALLBACK_MAX_ADDRESSES : 0,
+    });
     enriched = result.enriched;
     dexPriced = result.dexPriced;
     geckoPriced = result.geckoPriced;
