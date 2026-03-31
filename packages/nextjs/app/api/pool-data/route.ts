@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 
+export const maxDuration = 15;
+
 const GECKO_BASE_URL = "https://api.geckoterminal.com/api/v2/networks/base/pools";
 const GECKO_TOKENS_URL = "https://api.geckoterminal.com/api/v2/networks/base/tokens";
 const DEXSCREENER_TOKENS_URL = "https://api.dexscreener.com/latest/dex/tokens";

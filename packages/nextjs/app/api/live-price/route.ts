@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 
+export const maxDuration = 15;
+
 type LivePriceSnapshot = {
   priceUsd: number;
   source: "gecko-pool" | "dexscreener-token" | "gecko-token-pools" | "zerox-price" | "uniswap-trading";
@@ -485,7 +487,7 @@ export async function GET(req: NextRequest) {
   if (cached && now - cached.updatedAt <= SOFT_TTL_MS) {
     return Response.json(
       { ...cached, ageMs: now - cached.updatedAt, isStale: false, isDelayed: false },
-      { headers: { "Cache-Control": "no-store" } },
+      { headers: { "Cache-Control": "public, s-maxage=5, stale-while-revalidate=15" } },
     );
   }
 
@@ -509,6 +511,6 @@ export async function GET(req: NextRequest) {
   const ageMs = now - resolved.updatedAt;
   return Response.json(
     { ...resolved, ageMs, isStale: ageMs > SOFT_TTL_MS, isDelayed: ageMs > DELAYED_AFTER_MS },
-    { headers: { "Cache-Control": "no-store" } },
+    { headers: { "Cache-Control": "public, s-maxage=5, stale-while-revalidate=15" } },
   );
 }

@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 
+export const maxDuration = 15;
+
 interface OhlcvCandle {
   time: number;
   open: number;

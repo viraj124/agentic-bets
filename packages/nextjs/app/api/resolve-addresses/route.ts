@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 import { isAddress } from "viem";
+
+export const maxDuration = 15;
 import { resolveBasename, resolveBasenameAvatar } from "~~/lib/basename";
 import { resolveEnsAvatar, resolveEnsName } from "~~/lib/ens";
 import { resolveWeiName } from "~~/lib/weiName";
@@ -81,5 +83,7 @@ export async function POST(req: NextRequest) {
 
   const highPriority = unique.length <= 2;
   const results = await Promise.all(unique.map(addr => resolveAddress(addr, highPriority)));
-  return Response.json({ data: results });
+  return Response.json({ data: results }, {
+    headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" },
+  });
 }

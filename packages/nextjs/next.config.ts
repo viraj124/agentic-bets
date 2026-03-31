@@ -16,6 +16,9 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: "https", hostname: "coin-images.coingecko.com" },
       { protocol: "https", hostname: "pbs.twimg.com" },
+      { protocol: "https", hostname: "cdn.dexscreener.com" },
+      { protocol: "https", hostname: "ipfs.io" },
+      { protocol: "https", hostname: "*.mypinata.cloud" },
     ],
   },
   webpack: config => {

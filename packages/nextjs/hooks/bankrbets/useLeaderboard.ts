@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
+const LS_KEY = "bankr-leaderboard-cache";
+
 export interface LeaderboardEntry {
   address: string;
   totalBets: number;
@@ -10,21 +12,36 @@ export interface LeaderboardEntry {
   winRate: number;
 }
 
+type LeaderboardData = { leaderboard?: LeaderboardEntry[]; updatedAt?: number };
+
 type UseLeaderboardOptions = {
   address?: string;
   watch?: boolean;
 };
 
 export function useLeaderboard({ watch = false }: UseLeaderboardOptions = {}) {
-  const query = useQuery<{ leaderboard?: LeaderboardEntry[]; updatedAt?: number }>({
+  const query = useQuery<LeaderboardData>({
     queryKey: ["leaderboard"],
     queryFn: async () => {
       const res = await fetch("/api/leaderboard", {
         signal: AbortSignal.timeout(12_000),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      const data = await res.json();
+      // Persist for instant load on next visit
+      try {
+        localStorage.setItem(LS_KEY, JSON.stringify(data));
+      } catch { /* ignore */ }
+      return data;
     },
+    initialData: () => {
+      if (typeof window === "undefined") return undefined;
+      try {
+        const cached = localStorage.getItem(LS_KEY);
+        return cached ? (JSON.parse(cached) as LeaderboardData) : undefined;
+      } catch { return undefined; }
+    },
+    initialDataUpdatedAt: 0,
     staleTime: watch ? 15_000 : 60_000,
     gcTime: 10 * 60_000,
     retry: 2,
