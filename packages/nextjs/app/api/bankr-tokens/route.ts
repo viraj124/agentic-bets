@@ -802,23 +802,28 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
     // Keep tokens even with zero volume during bootstrap — full refresh will filter properly
     clankerOnly.sort((a, b) => b.marketCap - a.marketCap);
 
-    // Quick image patch: fetch DexScreener images for tokens missing imgUrl (single batch, ~1-2s)
-    const missingImg = clankerOnly.filter(t => !t.imgUrl);
-    if (missingImg.length > 0) {
-      const imgAddresses = missingImg.slice(0, DEX_BATCH).map(t => t.address);
+    // Quick DexScreener enrichment: fill missing images, volume, and price changes (~1-2s per batch)
+    // Clanker embedded data often has zero volume and missing images — DexScreener has both.
+    const topAddresses = clankerOnly.slice(0, DEX_BATCH).map(t => t.address);
+    if (topAddresses.length > 0) {
       try {
-        const dexData = await fetchDexBatch(imgAddresses);
+        const dexData = await fetchDexBatch(topAddresses);
+        let patched = 0;
         for (const token of clankerOnly) {
-          if (!token.imgUrl) {
-            const dex = dexData.get(token.address);
-            if (dex?.imgUrl) token.imgUrl = dex.imgUrl;
-          }
+          const dex = dexData.get(token.address);
+          if (!dex) continue;
+          if (!token.imgUrl && dex.imgUrl) token.imgUrl = dex.imgUrl;
+          if (!token.volume24h && dex.volume24h) token.volume24h = dex.volume24h;
+          if (!token.topPoolAddress && dex.topPoolAddress) token.topPoolAddress = dex.topPoolAddress;
+          if (!token.change1h && dex.change1h) token.change1h = dex.change1h;
+          if (!token.change24h && dex.change24h) token.change24h = dex.change24h;
+          patched++;
         }
         console.log(
-          `[bankr-tokens] Bootstrap image patch: ${imgAddresses.length} checked, ${[...dexData.values()].filter(d => d.imgUrl).length} resolved`,
+          `[bankr-tokens] Bootstrap DexScreener patch: ${topAddresses.length} queried, ${patched} enriched`,
         );
       } catch {
-        // Non-critical — tokens render with letter avatars as fallback
+        // Non-critical — tokens still render with Clanker data as fallback
       }
     }
 
