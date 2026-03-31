@@ -3,7 +3,7 @@
   "crons": [
     {
       "path": "/api/cron/warm-tokens",
-      "schedule": "*/4 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
