@@ -41,7 +41,7 @@ const FETCH_TIMEOUT_MS = 12_000;
 const SNAPSHOT_PATH = "/tmp/bankr-tokens-cache-v1.json";
 const SNAPSHOT_MAX_AGE_MS = 24 * 60 * 60_000;
 
-const BOOTSTRAP_CLANKER_MAX_PAGES = 15;
+const BOOTSTRAP_CLANKER_MAX_PAGES = 5; // ~100 tokens — enough for initial render, full refresh fills rest
 const BOOTSTRAP_INDEXER_MAX_TOKENS = 2_000;
 
 const WETH = WETH_BASE;
@@ -784,18 +784,52 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
   let clankerPriced: number;
 
   if (mode === "bootstrap") {
-    // Bootstrap: use Clanker for token list + DexScreener for global market data (skip slow Gecko).
-    // DexScreener enrichment for all tokens takes ~5-8s (vs 30-60s with Gecko included).
-    const result = await enrichWithPriceData(uniqueTokens, {
-      enableGeckoFallback: false,
-      geckoFallbackMaxAddresses: 0,
-    });
-    enriched = result.enriched;
-    dexPriced = result.dexPriced;
+    // Bootstrap: serve Clanker embedded prices immediately (~2-3s), then patch top tokens
+    // with a single DexScreener call for volume/images (~1-2s). Full enrichment runs in background.
+    const clankerOnly: EnrichedToken[] = [];
+    let cpCount = 0;
+    for (const token of uniqueTokens) {
+      const cp = token.clankerPriceData;
+      if (!cp || !cp.priceUsd) continue;
+      cpCount++;
+      const resolvedPoolKey = token.poolKey ?? deriveFallbackPoolKey(token.address);
+      clankerOnly.push({
+        address: token.address,
+        poolId: token.poolId || computePoolId(resolvedPoolKey),
+        poolKey: resolvedPoolKey,
+        ...cp,
+        poolKeyVerified: token.poolKey !== null,
+      });
+    }
+    clankerOnly.sort((a, b) => b.marketCap - a.marketCap);
+
+    // Single DexScreener batch for top 30 tokens — fills volume, images, price changes
+    const topAddresses = clankerOnly.slice(0, DEX_BATCH).map(t => t.address);
+    if (topAddresses.length > 0) {
+      try {
+        const dexData = await fetchDexBatch(topAddresses);
+        for (const token of clankerOnly) {
+          const dex = dexData.get(token.address);
+          if (!dex) continue;
+          if (!token.imgUrl && dex.imgUrl) token.imgUrl = dex.imgUrl;
+          if (!token.volume24h && dex.volume24h) token.volume24h = dex.volume24h;
+          if (!token.topPoolAddress && dex.topPoolAddress) token.topPoolAddress = dex.topPoolAddress;
+          if (!token.change1h && dex.change1h) token.change1h = dex.change1h;
+          if (!token.change24h && dex.change24h) token.change24h = dex.change24h;
+        }
+      } catch {
+        // Non-critical — Clanker data is still usable
+      }
+    }
+
+    console.log(
+      `[bankr-tokens] Bootstrap: ${clankerOnly.length} tokens (${cpCount} priced), top ${topAddresses.length} DexScreener-patched`,
+    );
+    enriched = clankerOnly;
+    dexPriced = 0;
     geckoPriced = 0;
     geckoFallbackCandidates = 0;
-    clankerPriced = result.clankerPriced;
-    console.log(`[bankr-tokens] Bootstrap: ${enriched.length} tokens enriched via DexScreener (Gecko skipped)`);
+    clankerPriced = cpCount;
   } else {
     const result = await enrichWithPriceData(uniqueTokens, {
       enableGeckoFallback: geckoEnabled,
