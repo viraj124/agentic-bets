@@ -98,10 +98,11 @@ export function useBankrTokens() {
       if (!res.ok) return [];
       const json = (await res.json()) as { tokens?: EnrichedToken[] };
       const tokens = (json.tokens || []).map((t, i) => toBankrToken(t, i));
-      // Persist to localStorage so next page load is instant
-      if (tokens.length > 0) {
+      // Only cache tokens that have real volume data (>= $1 so they don't show "$0")
+      const withVolume = tokens.filter(t => t.volume24h >= 1);
+      if (withVolume.length > 0) {
         try {
-          localStorage.setItem(LS_KEY, JSON.stringify(tokens));
+          localStorage.setItem(LS_KEY, JSON.stringify(withVolume));
         } catch {
           /* quota exceeded — ignore */
         }
@@ -129,7 +130,8 @@ export function useBankrTokens() {
     },
   });
 
-  const allData = useMemo(() => allTokens || [], [allTokens]);
+  // Hide tokens that display "$0" volume — they'll appear once background refresh populates real data
+  const allData = useMemo(() => (allTokens || []).filter(t => t.volume24h >= 1), [allTokens]);
   const tokens = useMemo(() => allData.slice(0, visibleCount), [allData, visibleCount]);
 
   const totalCount = allData.length;

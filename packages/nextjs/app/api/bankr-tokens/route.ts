@@ -177,6 +177,7 @@ const cache = {
   updatedAt: 0,
   refreshInFlight: null as Promise<void> | null,
   lastError: null as string | null,
+  lastMode: null as RefreshMode | null,
   lastStats: null as RefreshStats | null,
   snapshotLoaded: false,
 };
@@ -674,8 +675,8 @@ async function enrichWithPriceData(
     });
   }
 
-  // Drop tokens with zero 24h volume — dead/inactive tokens clutter the list
-  const active = enriched.filter(t => t.volume24h > 0);
+  // Drop tokens that would display "$0" volume — fractional values < 1 round to $0 in formatCompact
+  const active = enriched.filter(t => t.volume24h >= 1);
   active.sort((a, b) => b.marketCap - a.marketCap);
 
   console.log(
@@ -822,10 +823,12 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
       }
     }
 
+    // Filter out $0 volume tokens — they'll appear once full refresh provides real volume
+    const activeBootstrap = clankerOnly.filter(t => t.volume24h >= 1);
     console.log(
-      `[bankr-tokens] Bootstrap: ${clankerOnly.length} tokens (${cpCount} priced), top ${topAddresses.length} DexScreener-patched`,
+      `[bankr-tokens] Bootstrap: ${activeBootstrap.length} active of ${clankerOnly.length} tokens (${cpCount} priced, ${clankerOnly.length - activeBootstrap.length} dropped for zero volume), top ${topAddresses.length} DexScreener-patched`,
     );
-    enriched = clankerOnly;
+    enriched = activeBootstrap;
     dexPriced = 0;
     geckoPriced = 0;
     geckoFallbackCandidates = 0;
@@ -878,6 +881,7 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
   cache.enrichedTokens = enriched;
   cache.updatedAt = Date.now();
   cache.lastError = null;
+  cache.lastMode = mode;
   cache.lastStats = {
     mode,
     clankerRaw: clankerTokens.length,
@@ -895,7 +899,10 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
     durationMs: Date.now() - startedAt,
   };
 
-  await persistSnapshot();
+  // Only persist full refreshes to /tmp — bootstrap data is incomplete (missing volume)
+  if (mode === "full") {
+    await persistSnapshot();
+  }
 }
 
 function triggerRefresh(mode: RefreshMode): Promise<void> {
@@ -951,11 +958,11 @@ export async function GET(req: Request) {
     };
   }
 
+  // Only CDN-cache full-refresh data — bootstrap data is incomplete (missing volume for most tokens)
+  const isFullData = cache.lastMode === "full" || (cache.snapshotLoaded && cache.lastMode === null);
+  const cacheControl = isFullData ? "public, s-maxage=300, stale-while-revalidate=600" : "private, no-store";
+
   return NextResponse.json(payload, {
-    headers: {
-      // CDN caches response for 5 min, serves stale for another 10 min while revalidating.
-      // This means after the very first cold start, all subsequent requests are instant from edge.
-      "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
-    },
+    headers: { "Cache-Control": cacheControl },
   });
 }
