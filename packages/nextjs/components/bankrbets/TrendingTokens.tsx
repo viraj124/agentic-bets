@@ -11,7 +11,7 @@ const COL_HEADER =
   "hidden sm:flex items-center gap-3 px-4 py-2.5 text-[10px] uppercase tracking-wider text-pg-muted font-bold border-b-2 border-pg-border mb-1";
 
 export function TrendingTokens() {
-  const { data: tokens, allData, isLoading, hasNextPage, fetchNextPage, totalCount } = useBankrTokens();
+  const { data: tokens, allData, isLoading, isFetching, hasNextPage, fetchNextPage, totalCount } = useBankrTokens();
   const { tokens: marketTokens } = useMarketTokens();
   const marketAddresses = useMemo(() => {
     const set = new Set<string>();
@@ -49,13 +49,23 @@ export function TrendingTokens() {
   const tokenCount = totalCount > 0 ? totalCount : tokens.length;
   const tokenCountHint = "Only tokens with an available price are displayed.";
 
-  if (isLoading) {
+  // Show loading skeleton while data is loading OR when we have no data yet (API cold start).
+  // The 10s refetch interval will keep retrying until tokens arrive — never show a dead-end empty state.
+  const showSkeleton = isLoading || (!tokens || tokens.length === 0);
+
+  if (showSkeleton) {
     return (
       <div>
         <div className="flex items-center gap-3 mb-5">
           <h2 className="text-lg font-extrabold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
             Agentic Tokens
           </h2>
+          {isFetching && (
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-pg-violet animate-pulse" />
+              <span className="text-[10px] text-pg-muted font-medium">Loading tokens…</span>
+            </div>
+          )}
         </div>
 
         <div className={COL_HEADER} style={{ fontFamily: "var(--font-heading)" }}>
@@ -93,34 +103,6 @@ export function TrendingTokens() {
               </div>
             </div>
           ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (!tokens || tokens.length === 0) {
-    return (
-      <div className="text-center py-20">
-        <div className="card-sticker inline-flex flex-col items-center px-10 py-8">
-          <div className="w-16 h-16 rounded-2xl bg-pg-violet/10 border-2 border-pg-violet/20 flex items-center justify-center mb-4">
-            <svg
-              className="w-8 h-8 text-pg-violet/40"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0 1 18 16.5h-2.25m-7.5 0h7.5m-7.5 0-1 3m8.5-3 1 3m0 0 .5 1.5m-.5-1.5h-9.5m0 0-.5 1.5"
-              />
-            </svg>
-          </div>
-          <p className="text-base font-bold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
-            No tokens found
-          </p>
-          <p className="text-sm text-pg-muted mt-1">Check back soon for Agentic ecosystem tokens</p>
         </div>
       </div>
     );
