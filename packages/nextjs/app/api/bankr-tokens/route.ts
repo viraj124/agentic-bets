@@ -784,55 +784,18 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
   let clankerPriced: number;
 
   if (mode === "bootstrap") {
-    const clankerOnly: EnrichedToken[] = [];
-    let cpCount = 0;
-    for (const token of uniqueTokens) {
-      const cp = token.clankerPriceData;
-      if (!cp || !cp.priceUsd) continue;
-      cpCount++;
-      const resolvedPoolKey = token.poolKey ?? deriveFallbackPoolKey(token.address);
-      clankerOnly.push({
-        address: token.address,
-        poolId: token.poolId || computePoolId(resolvedPoolKey),
-        poolKey: resolvedPoolKey,
-        ...cp,
-        poolKeyVerified: token.poolKey !== null,
-      });
-    }
-    // Keep tokens even with zero volume during bootstrap — full refresh will filter properly
-    clankerOnly.sort((a, b) => b.marketCap - a.marketCap);
-
-    // Quick DexScreener enrichment: fill missing images, volume, and price changes (~1-2s per batch)
-    // Clanker embedded data often has zero volume and missing images — DexScreener has both.
-    const topAddresses = clankerOnly.slice(0, DEX_BATCH).map(t => t.address);
-    if (topAddresses.length > 0) {
-      try {
-        const dexData = await fetchDexBatch(topAddresses);
-        let patched = 0;
-        for (const token of clankerOnly) {
-          const dex = dexData.get(token.address);
-          if (!dex) continue;
-          if (!token.imgUrl && dex.imgUrl) token.imgUrl = dex.imgUrl;
-          if (!token.volume24h && dex.volume24h) token.volume24h = dex.volume24h;
-          if (!token.topPoolAddress && dex.topPoolAddress) token.topPoolAddress = dex.topPoolAddress;
-          if (!token.change1h && dex.change1h) token.change1h = dex.change1h;
-          if (!token.change24h && dex.change24h) token.change24h = dex.change24h;
-          patched++;
-        }
-        console.log(
-          `[bankr-tokens] Bootstrap DexScreener patch: ${topAddresses.length} queried, ${patched} enriched`,
-        );
-      } catch {
-        // Non-critical — tokens still render with Clanker data as fallback
-      }
-    }
-
-    console.log(`[bankr-tokens] Bootstrap fast path: ${clankerOnly.length} tokens from clanker embedded data`);
-    enriched = clankerOnly;
-    dexPriced = 0;
+    // Bootstrap: use Clanker for token list + DexScreener for global market data (skip slow Gecko).
+    // DexScreener enrichment for all tokens takes ~5-8s (vs 30-60s with Gecko included).
+    const result = await enrichWithPriceData(uniqueTokens, {
+      enableGeckoFallback: false,
+      geckoFallbackMaxAddresses: 0,
+    });
+    enriched = result.enriched;
+    dexPriced = result.dexPriced;
     geckoPriced = 0;
     geckoFallbackCandidates = 0;
-    clankerPriced = cpCount;
+    clankerPriced = result.clankerPriced;
+    console.log(`[bankr-tokens] Bootstrap: ${enriched.length} tokens enriched via DexScreener (Gecko skipped)`);
   } else {
     const result = await enrichWithPriceData(uniqueTokens, {
       enableGeckoFallback: geckoEnabled,
