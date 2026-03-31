@@ -814,7 +814,9 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
             if (dex?.imgUrl) token.imgUrl = dex.imgUrl;
           }
         }
-        console.log(`[bankr-tokens] Bootstrap image patch: ${imgAddresses.length} checked, ${[...dexData.values()].filter(d => d.imgUrl).length} resolved`);
+        console.log(
+          `[bankr-tokens] Bootstrap image patch: ${imgAddresses.length} checked, ${[...dexData.values()].filter(d => d.imgUrl).length} resolved`,
+        );
       } catch {
         // Non-critical — tokens render with letter avatars as fallback
       }
