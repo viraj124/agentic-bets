@@ -22,6 +22,8 @@ const BANKR_INDEXER_API = "https://bankr-walletindexer-production.up.railway.app
 const BANKR_PAGE_SIZE = 200; // max allowed by indexer
 const BANKR_MAX_TOKENS = 25_000; // safety cap in case indexer reports unusually large totals
 
+const BANKR_LAUNCHES_API = "https://api.bankr.bot/token-launches";
+
 const DEX_TOKENS_ENDPOINT = "https://api.dexscreener.com/tokens/v1/base";
 const DEX_BATCH = 30; // endpoint max
 const DEX_CONCURRENCY = 1; // sequential to avoid DexScreener 429 rate limits
@@ -89,6 +91,7 @@ interface RefreshStats {
   mode: "bootstrap" | "full";
   clankerRaw: number;
   bankrRaw: number;
+  launchRaw: number;
   totalRaw: number;
   uniqueRaw: number;
   withPoolKey: number;
@@ -137,6 +140,22 @@ interface BankrCoin {
 
 interface BankrStats {
   totalCoins?: number;
+}
+
+interface BankrLaunch {
+  tokenAddress?: string;
+  tokenName?: string;
+  tokenSymbol?: string;
+  poolId?: string;
+  imageUri?: string;
+  launchType?: string;
+  chain?: string;
+  status?: string;
+  timestamp?: number;
+}
+
+interface BankrLaunchesResponse {
+  launches?: BankrLaunch[];
 }
 
 interface DexPair {
@@ -418,6 +437,57 @@ async function fetchFromBankrIndexer(maxTokens = BANKR_MAX_TOKENS): Promise<Toke
     }
 
     if (items.length < BANKR_PAGE_SIZE) break;
+  }
+
+  return tokens;
+}
+
+async function fetchFromBankrLaunches(): Promise<TokenPoolInfo[]> {
+  const tokens: TokenPoolInfo[] = [];
+  const seen = new Set<string>();
+
+  const json = await fetchJson<BankrLaunchesResponse>(BANKR_LAUNCHES_API, 2);
+  const launches = Array.isArray(json?.launches) ? json.launches : [];
+
+  for (const launch of launches) {
+    if (launch.status !== "deployed" || launch.chain !== "base") continue;
+    const addr = (launch.tokenAddress || "").toLowerCase();
+    if (!isHexAddress(addr) || seen.has(addr)) continue;
+    seen.add(addr);
+
+    const poolRef = (launch.poolId || "").toLowerCase();
+    const poolKey = resolvePoolKey(addr, WETH, poolRef);
+
+    // Convert IPFS URI to gateway URL for images
+    let imgUrl = "";
+    if (launch.imageUri) {
+      imgUrl = launch.imageUri.startsWith("ipfs://")
+        ? launch.imageUri.replace("ipfs://", "https://ipfs.io/ipfs/")
+        : launch.imageUri;
+    }
+
+    tokens.push({
+      address: addr,
+      poolId: poolKey ? computePoolId(poolKey) : poolRef,
+      poolKey,
+      fromClanker: false,
+      fromIndexer: false,
+      clankerPriceData: {
+        name: launch.tokenName || "",
+        symbol: launch.tokenSymbol || "",
+        imgUrl,
+        priceUsd: 0, // will be filled by DexScreener/Gecko
+        marketCap: 0,
+        volume24h: 0,
+        change1h: 0,
+        change24h: 0,
+        topPoolAddress: "",
+        deployedAt: launch.timestamp ? new Date(launch.timestamp).toISOString() : "",
+        pair: "WETH",
+        priceSource: "dexscreener",
+        poolKeyVerified: poolKey !== null,
+      },
+    });
   }
 
   return tokens;
@@ -735,7 +805,7 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
   const indexerTokenLimit = mode === "full" ? BANKR_MAX_TOKENS : BOOTSTRAP_INDEXER_MAX_TOKENS;
   const geckoEnabled = true; // always enable Gecko fallback since DexScreener rate-limits aggressively
 
-  const [clankerTokens, bankrTokens] = await Promise.all([
+  const [clankerTokens, bankrTokens, launchTokens] = await Promise.all([
     fetchFromClanker(clankerPageLimit).catch(err => {
       console.warn(`[bankr-tokens] Clanker fetch failed: ${err instanceof Error ? err.message : "unknown"}`);
       return [] as TokenPoolInfo[];
@@ -744,10 +814,16 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
       console.warn(`[bankr-tokens] Bankr indexer fetch failed: ${err instanceof Error ? err.message : "unknown"}`);
       return [] as TokenPoolInfo[];
     }),
+    fetchFromBankrLaunches().catch(err => {
+      console.warn(`[bankr-tokens] Bankr launches fetch failed: ${err instanceof Error ? err.message : "unknown"}`);
+      return [] as TokenPoolInfo[];
+    }),
   ]);
-  console.log(`[bankr-tokens] Sources: ${clankerTokens.length} clanker, ${bankrTokens.length} indexer (mode=${mode})`);
+  console.log(
+    `[bankr-tokens] Sources: ${clankerTokens.length} clanker, ${bankrTokens.length} indexer, ${launchTokens.length} launches (mode=${mode})`,
+  );
 
-  const allRaw = [...clankerTokens, ...bankrTokens];
+  const allRaw = [...clankerTokens, ...bankrTokens, ...launchTokens];
   const tokenMap = new Map<string, TokenPoolInfo>();
 
   for (const token of allRaw) {
@@ -785,16 +861,18 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
   let clankerPriced: number;
 
   if (mode === "bootstrap") {
-    // Bootstrap: serve Clanker embedded prices immediately (~2-3s), then patch top tokens
-    // with a single DexScreener call for volume/images (~1-2s). Full enrichment runs in background.
-    const clankerOnly: EnrichedToken[] = [];
+    // Bootstrap: serve Clanker embedded prices immediately (~2-3s), then patch tokens
+    // with DexScreener calls for volume/images (~1-2s). Full enrichment runs in background.
+    const bootstrapped: EnrichedToken[] = [];
     let cpCount = 0;
+
+    // Tokens with Clanker embedded prices
     for (const token of uniqueTokens) {
       const cp = token.clankerPriceData;
       if (!cp || !cp.priceUsd) continue;
       cpCount++;
       const resolvedPoolKey = token.poolKey ?? deriveFallbackPoolKey(token.address);
-      clankerOnly.push({
+      bootstrapped.push({
         address: token.address,
         poolId: token.poolId || computePoolId(resolvedPoolKey),
         poolKey: resolvedPoolKey,
@@ -802,31 +880,77 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
         poolKeyVerified: token.poolKey !== null,
       });
     }
-    clankerOnly.sort((a, b) => b.marketCap - a.marketCap);
 
-    // Single DexScreener batch for top 30 tokens — fills volume, images, price changes
-    const topAddresses = clankerOnly.slice(0, DEX_BATCH).map(t => t.address);
-    if (topAddresses.length > 0) {
+    // Tokens without embedded prices (e.g. Doppler launches) — need DexScreener
+    const unpriced: EnrichedToken[] = [];
+    for (const token of uniqueTokens) {
+      const cp = token.clankerPriceData;
+      if (cp && cp.priceUsd) continue; // already in bootstrapped
+      const resolvedPoolKey = token.poolKey ?? deriveFallbackPoolKey(token.address);
+      unpriced.push({
+        address: token.address,
+        poolId: token.poolId || computePoolId(resolvedPoolKey),
+        poolKey: resolvedPoolKey,
+        name: cp?.name || "",
+        symbol: cp?.symbol || "",
+        imgUrl: cp?.imgUrl || "",
+        priceUsd: 0,
+        marketCap: 0,
+        volume24h: 0,
+        change1h: 0,
+        change24h: 0,
+        topPoolAddress: "",
+        deployedAt: cp?.deployedAt || "",
+        pair: cp?.pair || "WETH",
+        priceSource: "dexscreener",
+        poolKeyVerified: token.poolKey !== null,
+      });
+    }
+
+    bootstrapped.sort((a, b) => b.marketCap - a.marketCap);
+
+    // DexScreener batch for top Clanker tokens + all unpriced launch tokens
+    const topClankerAddrs = bootstrapped.slice(0, DEX_BATCH).map(t => t.address);
+    const launchAddrs = unpriced.map(t => t.address);
+    const allDexAddrs = [...new Set([...topClankerAddrs, ...launchAddrs])];
+
+    // Fetch in batches of DEX_BATCH
+    const dexData = new Map<string, PriceEnrichment>();
+    for (let i = 0; i < allDexAddrs.length; i += DEX_BATCH) {
       try {
-        const dexData = await fetchDexBatch(topAddresses);
-        for (const token of clankerOnly) {
-          const dex = dexData.get(token.address);
-          if (!dex) continue;
-          if (!token.imgUrl && dex.imgUrl) token.imgUrl = dex.imgUrl;
-          if (!token.volume24h && dex.volume24h) token.volume24h = dex.volume24h;
-          if (!token.topPoolAddress && dex.topPoolAddress) token.topPoolAddress = dex.topPoolAddress;
-          if (!token.change1h && dex.change1h) token.change1h = dex.change1h;
-          if (!token.change24h && dex.change24h) token.change24h = dex.change24h;
-        }
+        const chunk = allDexAddrs.slice(i, i + DEX_BATCH);
+        const batch = await fetchDexBatch(chunk);
+        for (const [k, v] of batch) dexData.set(k, v);
       } catch {
-        // Non-critical — Clanker data is still usable
+        // Non-critical
       }
     }
 
+    // Patch bootstrapped tokens
+    for (const token of bootstrapped) {
+      const dex = dexData.get(token.address);
+      if (!dex) continue;
+      if (!token.imgUrl && dex.imgUrl) token.imgUrl = dex.imgUrl;
+      if (!token.volume24h && dex.volume24h) token.volume24h = dex.volume24h;
+      if (!token.topPoolAddress && dex.topPoolAddress) token.topPoolAddress = dex.topPoolAddress;
+      if (!token.change1h && dex.change1h) token.change1h = dex.change1h;
+      if (!token.change24h && dex.change24h) token.change24h = dex.change24h;
+    }
+
+    // Fill unpriced tokens with DexScreener data
+    for (const token of unpriced) {
+      const dex = dexData.get(token.address);
+      if (!dex || !dex.priceUsd) continue; // skip if DexScreener has no data
+      Object.assign(token, dex);
+      bootstrapped.push(token);
+    }
+
+    bootstrapped.sort((a, b) => b.marketCap - a.marketCap);
+
     // Filter out truly zero volume tokens — they'll appear once full refresh provides real volume
-    const activeBootstrap = clankerOnly.filter(t => t.volume24h > 0);
+    const activeBootstrap = bootstrapped.filter(t => t.volume24h > 0);
     console.log(
-      `[bankr-tokens] Bootstrap: ${activeBootstrap.length} active of ${clankerOnly.length} tokens (${cpCount} priced, ${clankerOnly.length - activeBootstrap.length} dropped for zero volume), top ${topAddresses.length} DexScreener-patched`,
+      `[bankr-tokens] Bootstrap: ${activeBootstrap.length} active of ${bootstrapped.length} tokens (${cpCount} clanker-priced, ${unpriced.length} launch-only, ${bootstrapped.length - activeBootstrap.length} dropped for zero volume), ${allDexAddrs.length} DexScreener-queried`,
     );
     enriched = activeBootstrap;
     dexPriced = 0;
@@ -886,6 +1010,7 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
     mode,
     clankerRaw: clankerTokens.length,
     bankrRaw: bankrTokens.length,
+    launchRaw: launchTokens.length,
     totalRaw: allRaw.length,
     uniqueRaw: uniqueTokens.length,
     withPoolKey: withPoolKey.length,
