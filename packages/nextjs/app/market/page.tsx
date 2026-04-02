@@ -456,6 +456,7 @@ function MarketView({
           <BetPanel
             tokenAddress={tokenAddress}
             tokenSymbol={poolData?.tokenName?.split("/")[0]}
+            tokenImgUrl={poolData?.imageUrl}
             lockPrice={isLocked && lockPrice > 0 ? lockPrice : undefined}
             marketCreated={marketCreated}
             epoch={epochInView}

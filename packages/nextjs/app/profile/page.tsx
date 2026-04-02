@@ -385,30 +385,32 @@ const ProfilePage: NextPage = () => {
                           </p>
                           <p className="text-[11px] text-pg-muted mt-0.5">{formatBetDate(bet.placedAt)}</p>
                         </div>
-                        <div className="text-right shrink-0">
-                          <p
-                            className="text-xs font-extrabold text-base-content"
-                            style={{ fontFamily: "var(--font-heading)" }}
-                          >
-                            ${bet.amount.toFixed(2)}
-                          </p>
-                          {bet.outcome === "won" ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border bg-pg-mint/15 text-pg-mint border-pg-mint/30 mt-0.5">
-                              Won ${(bet.claimed ? bet.claimedAmount : bet.expectedPayout).toFixed(2)}
-                            </span>
-                          ) : bet.outcome === "refund" ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border bg-pg-amber/15 text-pg-amber border-pg-amber/30 mt-0.5">
-                              {bet.claimed ? "Refunded" : "Refund available"}
-                            </span>
-                          ) : bet.outcome === "pending" ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border bg-pg-violet/15 text-pg-violet border-pg-violet/30 mt-0.5">
-                              {bet.side === "up" ? "\u2191 UP" : "\u2193 DOWN"} · Pending
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border bg-pg-pink/15 text-pg-pink border-pg-pink/30 mt-0.5">
-                              {bet.side === "up" ? "\u2191 UP" : "\u2193 DOWN"} · Lost
-                            </span>
-                          )}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="text-right">
+                            <p
+                              className="text-xs font-extrabold text-base-content"
+                              style={{ fontFamily: "var(--font-heading)" }}
+                            >
+                              ${bet.amount.toFixed(2)}
+                            </p>
+                            {bet.outcome === "won" ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border bg-pg-mint/15 text-pg-mint border-pg-mint/30 mt-0.5">
+                                Won ${(bet.claimed ? bet.claimedAmount : bet.expectedPayout).toFixed(2)}
+                              </span>
+                            ) : bet.outcome === "refund" ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border bg-pg-amber/15 text-pg-amber border-pg-amber/30 mt-0.5">
+                                {bet.claimed ? "Refunded" : "Refund available"}
+                              </span>
+                            ) : bet.outcome === "pending" ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border bg-pg-violet/15 text-pg-violet border-pg-violet/30 mt-0.5">
+                                {bet.side === "up" ? "\u2191 UP" : "\u2193 DOWN"} · Pending
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border bg-pg-pink/15 text-pg-pink border-pg-pink/30 mt-0.5">
+                                {bet.side === "up" ? "\u2191 UP" : "\u2193 DOWN"} · Lost
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </Link>

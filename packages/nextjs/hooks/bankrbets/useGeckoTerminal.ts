@@ -10,6 +10,7 @@ export interface PoolData {
   poolAddress: string;
   tokenName: string;
   tokenSymbol: string;
+  imageUrl: string;
 }
 
 /**
@@ -56,6 +57,7 @@ function toPoolData(raw: any): PoolData {
     poolAddress: raw.poolAddress ?? "",
     tokenName: raw.tokenName ?? "",
     tokenSymbol: raw.tokenSymbol ?? "",
+    imageUrl: raw.imageUrl ?? "",
   };
 }
 

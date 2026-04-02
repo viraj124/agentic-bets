@@ -104,6 +104,7 @@ function geckoAttrsToPoolData(attrs: any, poolAddress: string) {
     poolAddress,
     tokenName: attrs.name || "",
     tokenSymbol: "",
+    imageUrl: attrs.image_url || "",
   };
 }
 
@@ -118,6 +119,7 @@ function dexPairToPoolData(pair: any) {
       ? `${pair.baseToken.symbol}/${pair.quoteToken?.symbol || "USD"}`
       : pair.baseToken?.name || "",
     tokenSymbol: pair.baseToken?.symbol || "",
+    imageUrl: pair.info?.imageUrl || "",
   };
 }
 

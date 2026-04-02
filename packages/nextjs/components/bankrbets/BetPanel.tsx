@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { RoundProgressBar } from "./RoundProgressBar";
 import { RoundTimer } from "./RoundTimer";
-import { ShareButton } from "./ShareButton";
+import { type BetCardParams, ShareButton } from "./ShareButton";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useQueryClient } from "@tanstack/react-query";
+import confetti from "canvas-confetti";
 import { erc20Abi, formatUnits, parseErc6492Signature, parseUnits, toHex } from "viem";
 import { base } from "viem/chains";
 import {
@@ -32,6 +33,7 @@ import { getWalletActionErrorMessage, isUserRejectedRequestError, notification }
 interface BetPanelProps {
   tokenAddress: string;
   tokenSymbol?: string;
+  tokenImgUrl?: string;
   lockPrice?: number;
   marketCreated?: boolean;
   epoch?: bigint;
@@ -135,6 +137,7 @@ function parseAuthorizationSignatureParts(signature: `0x${string}`): {
 export function BetPanel({
   tokenAddress,
   tokenSymbol,
+  tokenImgUrl,
   lockPrice,
   marketCreated,
   epoch,
@@ -270,6 +273,27 @@ export function BetPanel({
 
     return `I just bet $${amount} ${side} on ${tokenSymbol || "a token"} on AgenticBets!`;
   }, [claimAmountDisplay, didWin, hasClaimed, roundSettled, tokenSymbol, userBet]);
+
+  const betCardParams = useMemo<BetCardParams | undefined>(() => {
+    if (!userBet || !tokenSymbol) return undefined;
+    const amt = (Number(userBet.amount) / 1e6).toFixed(2);
+    const side = userBet.position === 0 ? "UP" : "DOWN";
+    const outcome: BetCardParams["outcome"] =
+      roundOutcome === "won" || roundOutcome === "claimed"
+        ? roundOutcome
+        : roundOutcome === "lost"
+          ? "lost"
+          : "pending";
+    return {
+      token: tokenSymbol,
+      side,
+      amount: amt,
+      outcome,
+      payout: claimAmountDisplay || undefined,
+      img: tokenImgUrl || undefined,
+      marketToken: tokenAddress,
+    };
+  }, [userBet, tokenSymbol, roundOutcome, claimAmountDisplay, tokenImgUrl, tokenAddress]);
 
   const isSmartWallet = useMemo(
     () =>
@@ -542,10 +566,18 @@ export function BetPanel({
         await publicClient.waitForTransactionReceipt({ hash });
       }
       await queryClient.invalidateQueries();
+
+      // Confetti burst on successful claim
+      if (didWin) {
+        const burst = (opts: confetti.Options) => confetti({ ...opts, disableForReducedMotion: true });
+        burst({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
+        setTimeout(() => burst({ particleCount: 50, spread: 100, origin: { y: 0.65, x: 0.3 } }), 150);
+        setTimeout(() => burst({ particleCount: 50, spread: 100, origin: { y: 0.65, x: 0.7 } }), 300);
+      }
     } catch (e) {
       console.error("Claim failed:", e);
     }
-  }, [claim, currentEpoch, publicClient, queryClient, tokenAddress]);
+  }, [claim, currentEpoch, didWin, publicClient, queryClient, tokenAddress]);
 
   const handleRefundTrigger = useCallback(async () => {
     if (!currentEpoch) return;
@@ -936,7 +968,7 @@ export function BetPanel({
 
             {showShareButton && (
               <div className="mt-4">
-                <ShareButton message={shareMessage} />
+                <ShareButton message={shareMessage} betCard={betCardParams} />
               </div>
             )}
 

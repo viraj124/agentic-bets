@@ -1,6 +1,9 @@
 # dependencies
 node_modules
 
+#demo
+packages/video
+
 # yarn
 .yarn/*
 !.yarn/patches
@@ -29,3 +32,4 @@ dist
 # env
 .env
 .env.local
+.vercel

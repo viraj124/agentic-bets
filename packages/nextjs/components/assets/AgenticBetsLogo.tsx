@@ -1,6 +1,15 @@
-export const AgenticBetsLogo = ({ className }: { className?: string }) => {
+import type { CSSProperties } from "react";
+
+export const AgenticBetsLogo = ({ className, style }: { className?: string; style?: CSSProperties }) => {
   return (
-    <svg className={className} viewBox="0 0 84 84" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <svg
+      className={className}
+      style={style}
+      viewBox="0 0 84 84"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
       <rect x="6" y="6" width="72" height="72" rx="24" fill="#1F2A44" />
       <rect x="10" y="10" width="64" height="64" rx="20" fill="url(#agentic-bets-fill)" />
       <path d="M42 22L58 66H49.5L46 56H38L34.5 66H26L42 22Z" fill="#F7F3E8" />

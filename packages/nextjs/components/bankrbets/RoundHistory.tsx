@@ -169,15 +169,17 @@ function RoundRow({ entry, tokenAddress }: { entry: RoundHistoryEntry; tokenAddr
                 {userBet.position === 0 ? "UP" : "DOWN"}
               </span>
             </div>
-            {userOutcome === "won" ? (
-              <span className="font-bold text-pg-mint">Won {userWinnings > 0n ? formatUSDC(userWinnings) : ""}</span>
-            ) : userOutcome === "lost" ? (
-              <span className="font-bold text-pg-pink">Lost</span>
-            ) : userOutcome === "refund" ? (
-              <span className="font-bold text-[#9a7200]">{userBet.claimed ? "Refunded" : "Refund available"}</span>
-            ) : (
-              <span className="font-bold text-pg-violet">In progress</span>
-            )}
+            <div className="flex items-center gap-1.5">
+              {userOutcome === "won" ? (
+                <span className="font-bold text-pg-mint">Won {userWinnings > 0n ? formatUSDC(userWinnings) : ""}</span>
+              ) : userOutcome === "lost" ? (
+                <span className="font-bold text-pg-pink">Lost</span>
+              ) : userOutcome === "refund" ? (
+                <span className="font-bold text-[#9a7200]">{userBet.claimed ? "Refunded" : "Refund available"}</span>
+              ) : (
+                <span className="font-bold text-pg-violet">In progress</span>
+              )}
+            </div>
           </div>
         </div>
       )}
