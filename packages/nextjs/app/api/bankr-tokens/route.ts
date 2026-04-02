@@ -675,8 +675,8 @@ async function enrichWithPriceData(
     });
   }
 
-  // Drop tokens that would display "$0" volume — fractional values < 1 round to $0 in formatCompact
-  const active = enriched.filter(t => t.volume24h >= 1);
+  // Drop tokens with truly zero volume
+  const active = enriched.filter(t => t.volume24h > 0);
   active.sort((a, b) => b.marketCap - a.marketCap);
 
   console.log(
@@ -823,8 +823,8 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
       }
     }
 
-    // Filter out $0 volume tokens — they'll appear once full refresh provides real volume
-    const activeBootstrap = clankerOnly.filter(t => t.volume24h >= 1);
+    // Filter out truly zero volume tokens — they'll appear once full refresh provides real volume
+    const activeBootstrap = clankerOnly.filter(t => t.volume24h > 0);
     console.log(
       `[bankr-tokens] Bootstrap: ${activeBootstrap.length} active of ${clankerOnly.length} tokens (${cpCount} priced, ${clankerOnly.length - activeBootstrap.length} dropped for zero volume), top ${topAddresses.length} DexScreener-patched`,
     );

@@ -52,7 +52,8 @@ function formatCompact(value: number): string {
   if (value >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(2)}B`;
   if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
   if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
-  if (value > 0) return `$${value.toFixed(0)}`;
+  if (value >= 1) return `$${value.toFixed(0)}`;
+  if (value > 0) return "<$1";
   return "$0";
 }
 
@@ -99,7 +100,7 @@ export function useBankrTokens() {
       const json = (await res.json()) as { tokens?: EnrichedToken[] };
       const tokens = (json.tokens || []).map((t, i) => toBankrToken(t, i));
       // Only cache tokens that have real volume data (>= $1 so they don't show "$0")
-      const withVolume = tokens.filter(t => t.volume24h >= 1);
+      const withVolume = tokens.filter(t => t.volume24h > 0);
       if (withVolume.length > 0) {
         try {
           localStorage.setItem(LS_KEY, JSON.stringify(withVolume));
@@ -131,7 +132,7 @@ export function useBankrTokens() {
   });
 
   // Hide tokens that display "$0" volume — they'll appear once background refresh populates real data
-  const allData = useMemo(() => (allTokens || []).filter(t => t.volume24h >= 1), [allTokens]);
+  const allData = useMemo(() => (allTokens || []).filter(t => t.volume24h > 0), [allTokens]);
   const tokens = useMemo(() => allData.slice(0, visibleCount), [allData, visibleCount]);
 
   const totalCount = allData.length;
