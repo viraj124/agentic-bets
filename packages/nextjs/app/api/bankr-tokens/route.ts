@@ -446,7 +446,21 @@ async function fetchFromBankrLaunches(): Promise<TokenPoolInfo[]> {
   const tokens: TokenPoolInfo[] = [];
   const seen = new Set<string>();
 
-  const json = await fetchJson<BankrLaunchesResponse>(BANKR_LAUNCHES_API, 0);
+  // No retries + generous timeout — this runs in background so it can take its time
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 120_000); // 2 min timeout
+  let json: BankrLaunchesResponse | null = null;
+  try {
+    const res = await fetch(BANKR_LAUNCHES_API, {
+      signal: controller.signal,
+      headers: { accept: "application/json" },
+    });
+    if (res.ok) json = (await res.json()) as BankrLaunchesResponse;
+  } catch {
+    // timeout or network error — acceptable for background task
+  } finally {
+    clearTimeout(timeout);
+  }
   const launches = Array.isArray(json?.launches) ? json.launches : [];
 
   for (const launch of launches) {
@@ -808,13 +822,79 @@ async function persistSnapshot(): Promise<void> {
   }
 }
 
+async function mergeLaunchTokensInBackground(): Promise<void> {
+  try {
+    const launchTokens = await fetchFromBankrLaunches();
+    if (launchTokens.length === 0) return;
+
+    // Get addresses that aren't already in the cache
+    const existingAddresses = new Set(cache.enrichedTokens.map(t => t.address));
+    const newTokens = launchTokens.filter(t => !existingAddresses.has(t.address));
+    if (newTokens.length === 0) {
+      console.log(`[bankr-tokens] Launches: all ${launchTokens.length} tokens already in cache`);
+      return;
+    }
+
+    // Enrich new tokens via DexScreener
+    const addresses = newTokens.map(t => t.address);
+    const dexData = new Map<string, PriceEnrichment>();
+    for (let i = 0; i < addresses.length; i += DEX_BATCH) {
+      try {
+        const batch = await fetchDexBatch(addresses.slice(i, i + DEX_BATCH));
+        for (const [k, v] of batch) dexData.set(k, v);
+      } catch {
+        /* non-critical */
+      }
+    }
+
+    const enriched: EnrichedToken[] = [];
+    for (const token of newTokens) {
+      const dex = dexData.get(token.address);
+      const cp = token.clankerPriceData;
+      const resolvedPoolKey = token.poolKey ?? deriveFallbackPoolKey(token.address);
+      const priceData = dex || cp;
+      if (!priceData || !priceData.priceUsd) continue; // skip if no price data at all
+
+      enriched.push({
+        address: token.address,
+        poolId: token.poolId || computePoolId(resolvedPoolKey),
+        poolKey: resolvedPoolKey,
+        name: dex?.name || cp?.name || "",
+        symbol: dex?.symbol || cp?.symbol || "",
+        imgUrl: dex?.imgUrl || cp?.imgUrl || "",
+        priceUsd: dex?.priceUsd || 0,
+        marketCap: dex?.marketCap || 0,
+        volume24h: dex?.volume24h || 0,
+        change1h: dex?.change1h || 0,
+        change24h: dex?.change24h || 0,
+        topPoolAddress: dex?.topPoolAddress || "",
+        deployedAt: cp?.deployedAt || "",
+        pair: cp?.pair || "WETH",
+        priceSource: "dexscreener",
+        poolKeyVerified: token.poolKey !== null,
+      });
+    }
+
+    if (enriched.length > 0) {
+      cache.enrichedTokens = [...cache.enrichedTokens, ...enriched];
+      cache.enrichedTokens.sort((a, b) => b.marketCap - a.marketCap);
+      cache.updatedAt = Date.now();
+      console.log(
+        `[bankr-tokens] Launches: merged ${enriched.length} new tokens into cache (total: ${cache.enrichedTokens.length})`,
+      );
+    }
+  } catch (err) {
+    console.warn(`[bankr-tokens] Background launches merge failed: ${err instanceof Error ? err.message : "unknown"}`);
+  }
+}
+
 async function rebuildCache(mode: RefreshMode): Promise<void> {
   const startedAt = Date.now();
   const clankerPageLimit = mode === "full" ? CLANKER_MAX_PAGES : BOOTSTRAP_CLANKER_MAX_PAGES;
   const indexerTokenLimit = mode === "full" ? BANKR_MAX_TOKENS : BOOTSTRAP_INDEXER_MAX_TOKENS;
   const geckoEnabled = true; // always enable Gecko fallback since DexScreener rate-limits aggressively
 
-  const [clankerTokens, bankrTokens, launchTokens] = await Promise.all([
+  const [clankerTokens, bankrTokens] = await Promise.all([
     fetchFromClanker(clankerPageLimit).catch(err => {
       console.warn(`[bankr-tokens] Clanker fetch failed: ${err instanceof Error ? err.message : "unknown"}`);
       return [] as TokenPoolInfo[];
@@ -823,16 +903,17 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
       console.warn(`[bankr-tokens] Bankr indexer fetch failed: ${err instanceof Error ? err.message : "unknown"}`);
       return [] as TokenPoolInfo[];
     }),
-    fetchFromBankrLaunches().catch(err => {
-      console.warn(`[bankr-tokens] Bankr launches fetch failed: ${err instanceof Error ? err.message : "unknown"}`);
-      return [] as TokenPoolInfo[];
-    }),
   ]);
+
+  // Fire off Bankr Launches in background — it's slow (~2+ min) so we don't block on it.
+  // When it completes, we enrich those tokens via DexScreener and merge them into the cache.
+  void mergeLaunchTokensInBackground();
+
   console.log(
-    `[bankr-tokens] Sources: ${clankerTokens.length} clanker, ${bankrTokens.length} indexer, ${launchTokens.length} launches (mode=${mode})`,
+    `[bankr-tokens] Sources: ${clankerTokens.length} clanker, ${bankrTokens.length} indexer (mode=${mode}), launches loading in background`,
   );
 
-  const allRaw = [...clankerTokens, ...bankrTokens, ...launchTokens];
+  const allRaw = [...clankerTokens, ...bankrTokens];
   const tokenMap = new Map<string, TokenPoolInfo>();
 
   for (const token of allRaw) {
@@ -1019,7 +1100,7 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
     mode,
     clankerRaw: clankerTokens.length,
     bankrRaw: bankrTokens.length,
-    launchRaw: launchTokens.length,
+    launchRaw: 0, // launches merge in background
     totalRaw: allRaw.length,
     uniqueRaw: uniqueTokens.length,
     withPoolKey: withPoolKey.length,
