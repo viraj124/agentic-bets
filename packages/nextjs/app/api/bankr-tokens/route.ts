@@ -614,6 +614,8 @@ async function fetchGeckoBatch(chunkAddresses: string[]): Promise<Map<string, Pr
   return out;
 }
 
+const DEX_MAX_ADDRESSES = 300; // cap DexScreener queries to stay within function timeout
+
 async function enrichWithPriceData(
   tokens: TokenPoolInfo[],
   opts?: { enableGeckoFallback?: boolean; geckoFallbackMaxAddresses?: number },
@@ -624,12 +626,19 @@ async function enrichWithPriceData(
   geckoFallbackCandidates: number;
   clankerPriced: number;
 }> {
-  const eligible = tokens;
-  const allAddresses = eligible.map(t => t.address);
-  const clankerPricedCount = eligible.filter(t => !!t.clankerPriceData).length;
-  console.log(`[bankr-tokens] Clanker API: ${clankerPricedCount} tokens have embedded price data (may be incomplete)`);
+  // Prioritize tokens: those with Clanker price data first (likely active), then the rest
+  const withPrice = tokens.filter(t => !!t.clankerPriceData);
+  const withoutPrice = tokens.filter(t => !t.clankerPriceData);
+  const eligible = [...withPrice, ...withoutPrice];
 
-  // 1) DexScreener — fetch for ALL tokens so we can fill gaps in Clanker data (e.g. volume=0)
+  // Cap addresses sent to DexScreener to avoid function timeout
+  const allAddresses = eligible.slice(0, DEX_MAX_ADDRESSES).map(t => t.address);
+  const clankerPricedCount = withPrice.length;
+  console.log(
+    `[bankr-tokens] Enrichment: ${eligible.length} total, ${clankerPricedCount} clanker-priced, ${allAddresses.length} queued for DexScreener`,
+  );
+
+  // 1) DexScreener — fetch for prioritized tokens to fill gaps (e.g. volume=0)
   const dexChunks = chunk(allAddresses, DEX_BATCH);
   const dexMap = new Map<string, PriceEnrichment>();
   const dexHost = "api.dexscreener.com";
@@ -1030,12 +1039,19 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
   }
 }
 
+const REFRESH_TIMEOUT_MS = 55_000; // must complete before Vercel's 60s function timeout
+
 function triggerRefresh(mode: RefreshMode): Promise<void> {
   if (cache.refreshInFlight) return cache.refreshInFlight;
 
-  cache.refreshInFlight = rebuildCache(mode)
+  const timeout = new Promise<void>((_, reject) =>
+    setTimeout(() => reject(new Error(`${mode} refresh timed out after ${REFRESH_TIMEOUT_MS}ms`)), REFRESH_TIMEOUT_MS),
+  );
+
+  cache.refreshInFlight = Promise.race([rebuildCache(mode), timeout])
     .catch(err => {
       cache.lastError = err instanceof Error ? err.message : "Failed to refresh token cache";
+      console.warn(`[bankr-tokens] Refresh failed: ${cache.lastError}`);
     })
     .finally(() => {
       cache.refreshInFlight = null;
