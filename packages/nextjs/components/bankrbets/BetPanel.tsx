@@ -785,7 +785,8 @@ export function BetPanel({
   }, [actionState.tone]);
 
   // No active round and no market (or still loading) — show empty state
-  if (!currentIsActive && !canBetToStart) {
+  // Skip this for historical views of existing markets — let the main UI render the settled round.
+  if (!currentIsActive && !canBetToStart && marketCreated !== true) {
     const isLoading = marketCreated === undefined;
 
     return (
