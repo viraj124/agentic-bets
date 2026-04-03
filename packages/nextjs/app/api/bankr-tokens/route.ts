@@ -16,11 +16,11 @@ export const maxDuration = 60;
 
 const CLANKER_API = "https://www.clanker.world/api/tokens";
 const CLANKER_PAGE_SIZE = 20;
-const CLANKER_MAX_PAGES = 80; // safety cap, cursor-based pagination
+const CLANKER_MAX_PAGES = 10; // ~200 tokens — top by market cap, keeps fetch time reasonable
 
 const BANKR_INDEXER_API = "https://bankr-walletindexer-production.up.railway.app";
 const BANKR_PAGE_SIZE = 200; // max allowed by indexer
-const BANKR_MAX_TOKENS = 25_000; // safety cap in case indexer reports unusually large totals
+const BANKR_MAX_TOKENS = 500; // only need tokens that overlap with Clanker/Launches for pool key resolution
 
 const BANKR_LAUNCHES_API = "https://api.bankr.bot/token-launches";
 
@@ -34,9 +34,9 @@ const GECKO_BASE = "https://api.geckoterminal.com/api/v2/networks/base";
 const GECKO_TOKENS_ENDPOINT = `${GECKO_BASE}/tokens/multi`;
 const GECKO_BATCH = 30;
 const GECKO_CONCURRENCY = 1; // strict to avoid rate limit
-const GECKO_DELAY_MS = 1500; // generous gap — free tier allows ~30 req/min
+const GECKO_DELAY_MS = 1000; // free tier allows ~30 req/min
 const GECKO_MAX_RETRIES = 1; // don't hammer on 429
-const GECKO_FALLBACK_MAX_ADDRESSES = 300; // top tokens only — keeps total batches ≤ 10
+const GECKO_FALLBACK_MAX_ADDRESSES = 150; // top tokens only — keeps total batches ≤ 5
 
 const CACHE_TTL_MS = 5 * 60_000; // serve stale cache immediately and refresh in background
 const FETCH_TIMEOUT_MS = 12_000;
