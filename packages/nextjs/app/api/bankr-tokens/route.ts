@@ -44,7 +44,7 @@ const SNAPSHOT_PATH = "/tmp/bankr-tokens-cache-v1.json";
 const SNAPSHOT_MAX_AGE_MS = 24 * 60 * 60_000;
 
 const BOOTSTRAP_CLANKER_MAX_PAGES = 5; // ~100 tokens — enough for initial render, full refresh fills rest
-const BOOTSTRAP_INDEXER_MAX_TOKENS = 2_000;
+const BOOTSTRAP_INDEXER_MAX_TOKENS = 200; // single page — just need pool key overlap
 
 const WETH = WETH_BASE;
 
