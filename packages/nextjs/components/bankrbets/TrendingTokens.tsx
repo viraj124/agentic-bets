@@ -47,11 +47,11 @@ export function TrendingTokens() {
   }, [tokens, allData, search, showMarketsOnly, marketAddresses]);
 
   const tokenCount = totalCount > 0 ? totalCount : tokens.length;
-  const tokenCountHint = "Only tokens with an available price are displayed.";
+  const tokenCountHint = "Only tokens with an available price and non-zero 24h volume are displayed.";
 
   // Show loading skeleton while data is loading OR when we have no data yet (API cold start).
   // The 10s refetch interval will keep retrying until tokens arrive — never show a dead-end empty state.
-  const showSkeleton = isLoading || (!tokens || tokens.length === 0);
+  const showSkeleton = isLoading || !tokens || tokens.length === 0;
 
   if (showSkeleton) {
     return (
