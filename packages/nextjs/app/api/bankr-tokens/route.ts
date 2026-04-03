@@ -406,7 +406,7 @@ async function fetchFromBankrIndexer(maxTokens = BANKR_MAX_TOKENS): Promise<Toke
   const tokens: TokenPoolInfo[] = [];
   const seen = new Set<string>();
 
-  const stats = await fetchJson<BankrStats>(`${BANKR_INDEXER_API}/stats`, 2);
+  const stats = await fetchJson<BankrStats>(`${BANKR_INDEXER_API}/stats`, 1);
   const reportedTotal = Math.max(0, toNumber(stats?.totalCoins));
   const cappedTotal = Math.min(reportedTotal || maxTokens, maxTokens);
   const maxPages = Math.max(1, Math.ceil(cappedTotal / BANKR_PAGE_SIZE));
@@ -415,7 +415,7 @@ async function fetchFromBankrIndexer(maxTokens = BANKR_MAX_TOKENS): Promise<Toke
     const offset = page * BANKR_PAGE_SIZE;
     const items = await fetchJson<BankrCoin[]>(
       `${BANKR_INDEXER_API}/coins?limit=${BANKR_PAGE_SIZE}&offset=${offset}`,
-      2,
+      1,
     );
     if (!Array.isArray(items) || items.length === 0) break;
 
@@ -446,7 +446,7 @@ async function fetchFromBankrLaunches(): Promise<TokenPoolInfo[]> {
   const tokens: TokenPoolInfo[] = [];
   const seen = new Set<string>();
 
-  const json = await fetchJson<BankrLaunchesResponse>(BANKR_LAUNCHES_API, 2);
+  const json = await fetchJson<BankrLaunchesResponse>(BANKR_LAUNCHES_API, 0);
   const launches = Array.isArray(json?.launches) ? json.launches : [];
 
   for (const launch of launches) {
