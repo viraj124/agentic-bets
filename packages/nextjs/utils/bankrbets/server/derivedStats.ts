@@ -87,6 +87,8 @@ type RoundResult = {
   cancelled: boolean;
   rewardAmount: bigint;
   rewardBaseCalAmount: bigint;
+  bullAmount: bigint;
+  bearAmount: bigint;
 };
 
 export type BetOutcome = "ongoing" | "won" | "lost" | "refund" | "pending";
@@ -338,9 +340,17 @@ export async function enrichBetRows(rows: BetRow[]): Promise<EnrichedBet[]> {
       continue;
     }
 
-    const upWon = round.closePrice > round.lockPrice;
     const userBetUp = bet.side === "up";
-    const won = (userBetUp && upWon) || (!userBetUp && !upWon);
+    const isTie = round.closePrice === round.lockPrice;
+    let won: boolean;
+    if (isTie) {
+      // MajorityWins tiebreaker: side with more USDC wins
+      const bullWon = round.bullAmount > round.bearAmount;
+      won = (userBetUp && bullWon) || (!userBetUp && !bullWon);
+    } else {
+      const upWon = round.closePrice > round.lockPrice;
+      won = (userBetUp && upWon) || (!userBetUp && !upWon);
+    }
     if (won && Number(round.rewardBaseCalAmount) > 0) {
       bet.outcome = "won";
       bet.expectedPayout = bet.amount * (Number(round.rewardAmount) / Number(round.rewardBaseCalAmount));

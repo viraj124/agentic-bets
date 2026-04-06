@@ -226,8 +226,16 @@ export function BetPanel({
     if (!currentRound || !userBet || userBet.amount <= 0n || !currentRound.oracleCalled) return 0n;
     if (currentRound.cancelled) return userBet.amount;
 
-    const upWon = currentRound.closePrice > currentRound.lockPrice;
-    const won = (upWon && userBet.position === 0) || (!upWon && userBet.position === 1);
+    const isTie = currentRound.closePrice === currentRound.lockPrice;
+    let won: boolean;
+    if (isTie) {
+      // MajorityWins tiebreaker: side with more USDC wins
+      const bullWon = currentRound.bullAmount > currentRound.bearAmount;
+      won = (bullWon && userBet.position === 0) || (!bullWon && userBet.position === 1);
+    } else {
+      const upWon = currentRound.closePrice > currentRound.lockPrice;
+      won = (upWon && userBet.position === 0) || (!upWon && userBet.position === 1);
+    }
     if (!won || currentRound.rewardBaseCalAmount === 0n) return 0n;
 
     return (userBet.amount * currentRound.rewardAmount) / currentRound.rewardBaseCalAmount;
@@ -241,9 +249,24 @@ export function BetPanel({
   const hasClaimed = Boolean(userBet?.claimed);
   const didWin = useMemo(() => {
     if (!currentRound?.oracleCalled || roundCancelled || !userBet || !hasBet) return false;
+    const isTie = currentRound.closePrice === currentRound.lockPrice;
+    if (isTie) {
+      // MajorityWins tiebreaker: side with more USDC wins
+      const bullWon = currentRound.bullAmount > currentRound.bearAmount;
+      return (bullWon && userBet.position === 0) || (!bullWon && userBet.position === 1);
+    }
     const upWon = currentRound.closePrice > currentRound.lockPrice;
     return (upWon && userBet.position === 0) || (!upWon && userBet.position === 1);
-  }, [currentRound?.closePrice, currentRound?.lockPrice, currentRound?.oracleCalled, hasBet, roundCancelled, userBet]);
+  }, [
+    currentRound?.closePrice,
+    currentRound?.lockPrice,
+    currentRound?.bullAmount,
+    currentRound?.bearAmount,
+    currentRound?.oracleCalled,
+    hasBet,
+    roundCancelled,
+    userBet,
+  ]);
   const roundOutcome = useMemo<
     "pending" | "won" | "lost" | "refund" | "refunded" | "claimed" | "cancelled" | "settled"
   >(() => {

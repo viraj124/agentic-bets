@@ -365,8 +365,12 @@ function MarketView({
             (() => {
               const isSettled = roundInView.oracleCalled;
               const isCancelled = roundInView.cancelled;
-              const upWon = isSettled && !isCancelled && roundInView.closePrice > roundInView.lockPrice;
-              const downWon = isSettled && !isCancelled && roundInView.closePrice < roundInView.lockPrice;
+              const priceTie = roundInView.closePrice === roundInView.lockPrice;
+              const tieBullWon = priceTie && !isCancelled && roundInView.bullAmount > roundInView.bearAmount;
+              const tieBearWon = priceTie && !isCancelled && roundInView.bearAmount > roundInView.bullAmount;
+              const upWon = isSettled && !isCancelled && (roundInView.closePrice > roundInView.lockPrice || tieBullWon);
+              const downWon =
+                isSettled && !isCancelled && (roundInView.closePrice < roundInView.lockPrice || tieBearWon);
               const closePriceNum = Number(roundInView.closePrice) / 1e18;
               const lockPriceNum = Number(roundInView.lockPrice) / 1e18;
 

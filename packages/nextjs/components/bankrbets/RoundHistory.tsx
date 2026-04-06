@@ -55,9 +55,15 @@ function RoundRow({ entry, tokenAddress }: { entry: RoundHistoryEntry; tokenAddr
   const isSettled = round.oracleCalled;
   const isCancelled = round.cancelled;
   const isLive = !isSettled && !isCancelled;
-  const upWon = isSettled && !isCancelled && round.closePrice > round.lockPrice;
-  const downWon = isSettled && !isCancelled && round.closePrice < round.lockPrice;
-  const isTie = isSettled && !isCancelled && round.closePrice === round.lockPrice;
+  const priceUp = round.closePrice > round.lockPrice;
+  const priceDown = round.closePrice < round.lockPrice;
+  const priceTie = round.closePrice === round.lockPrice;
+  // MajorityWins tiebreaker: if price is flat but not cancelled, the side with more USDC wins
+  const tieBullWon = priceTie && !isCancelled && round.bullAmount > round.bearAmount;
+  const tieBearWon = priceTie && !isCancelled && round.bearAmount > round.bullAmount;
+  const upWon = isSettled && !isCancelled && (priceUp || tieBullWon);
+  const downWon = isSettled && !isCancelled && (priceDown || tieBearWon);
+  const isTie = isSettled && !isCancelled && priceTie && !tieBullWon && !tieBearWon;
 
   // Price change
   const lockPriceNum = Number(round.lockPrice) / 1e18;
