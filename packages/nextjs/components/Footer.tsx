@@ -1,10 +1,12 @@
-import React from "react";
+import React, { useCallback, useState } from "react";
 import Link from "next/link";
 import { hardhat } from "viem/chains";
-import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
+import { CheckIcon, ClipboardDocumentIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { AgenticBetsLogo } from "~~/components/assets/AgenticBetsLogo";
 import { Faucet } from "~~/components/scaffold-eth";
 import { useTargetNetwork } from "~~/hooks/scaffold-eth/useTargetNetwork";
+
+const AGBETS_TOKEN_CA = "0xBa5ED0000e1CA9136a695f0a848012A16008B032"; // TODO: replace with actual AGBETS CA
 
 const footerLinks = [
   { label: "Markets", href: "/" },
@@ -52,6 +54,40 @@ const BaseLogo = () => (
     />
   </svg>
 );
+
+const TokenCA = () => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(AGBETS_TOKEN_CA);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, []);
+
+  const short = `${AGBETS_TOKEN_CA.slice(0, 10)}...${AGBETS_TOKEN_CA.slice(-4)}`;
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="group inline-flex items-center gap-2.5 rounded-xl border-2 border-pg-border bg-white/80 px-4 py-2.5 shadow-pop-soft transition-all hover:border-pg-violet/40 hover:shadow-md active:scale-[0.98]"
+    >
+      <span
+        className="text-[11px] font-extrabold uppercase tracking-widest text-pg-violet"
+        style={{ fontFamily: "var(--font-heading)" }}
+      >
+        CA
+      </span>
+      <span className="h-4 w-px bg-pg-border" />
+      <span className="font-mono text-sm font-bold text-base-content/70 hidden sm:inline">{AGBETS_TOKEN_CA}</span>
+      <span className="font-mono text-sm font-bold text-base-content/70 sm:hidden">{short}</span>
+      {copied ? (
+        <CheckIcon className="h-4 w-4 text-pg-mint" />
+      ) : (
+        <ClipboardDocumentIcon className="h-4 w-4 text-pg-muted group-hover:text-pg-violet transition-colors" />
+      )}
+    </button>
+  );
+};
 
 export const Footer = () => {
   const { targetNetwork } = useTargetNetwork();
@@ -129,6 +165,9 @@ export const Footer = () => {
             <p className="mt-2 max-w-sm text-sm leading-relaxed text-pg-muted">
               Prediction markets for Base tokens. Pick a side, place your bet, and win.
             </p>
+            <div className="mt-5">
+              <TokenCA />
+            </div>
           </div>
 
           {/* Geometric separator */}
