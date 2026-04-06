@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 const LS_KEY = "bankr-leaderboard-cache";
 
@@ -20,6 +21,7 @@ type UseLeaderboardOptions = {
 };
 
 export function useLeaderboard({ watch = false }: UseLeaderboardOptions = {}) {
+  const queryClient = useQueryClient();
   const query = useQuery<LeaderboardData>({
     queryKey: ["leaderboard"],
     queryFn: async () => {
@@ -31,17 +33,11 @@ export function useLeaderboard({ watch = false }: UseLeaderboardOptions = {}) {
       // Persist for instant load on next visit
       try {
         localStorage.setItem(LS_KEY, JSON.stringify(data));
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       return data;
     },
-    initialData: () => {
-      if (typeof window === "undefined") return undefined;
-      try {
-        const cached = localStorage.getItem(LS_KEY);
-        return cached ? (JSON.parse(cached) as LeaderboardData) : undefined;
-      } catch { return undefined; }
-    },
-    initialDataUpdatedAt: 0,
     staleTime: watch ? 15_000 : 60_000,
     gcTime: 10 * 60_000,
     retry: 2,
@@ -50,6 +46,19 @@ export function useLeaderboard({ watch = false }: UseLeaderboardOptions = {}) {
     refetchInterval: watch ? 2 * 60_000 : false,
     refetchOnWindowFocus: false,
   });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (queryClient.getQueryData(["leaderboard"])) return;
+
+    try {
+      const cached = localStorage.getItem(LS_KEY);
+      if (!cached) return;
+      queryClient.setQueryData(["leaderboard"], JSON.parse(cached) as LeaderboardData);
+    } catch {
+      // ignore corrupted local cache
+    }
+  }, [queryClient]);
 
   return {
     leaderboard: Array.isArray(query.data?.leaderboard) ? query.data!.leaderboard : [],
