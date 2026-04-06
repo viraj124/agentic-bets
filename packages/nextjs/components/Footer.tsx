@@ -6,7 +6,7 @@ import { AgenticBetsLogo } from "~~/components/assets/AgenticBetsLogo";
 import { Faucet } from "~~/components/scaffold-eth";
 import { useTargetNetwork } from "~~/hooks/scaffold-eth/useTargetNetwork";
 
-const AGBETS_TOKEN_CA = "0xBa5ED0000e1CA9136a695f0a848012A16008B032"; // TODO: replace with actual AGBETS CA
+const AGBETS_TOKEN_CA = "0x37d183FCf1DA460a64D21E754b3E6144C4e11BA3";
 
 const footerLinks = [
   { label: "Markets", href: "/" },
