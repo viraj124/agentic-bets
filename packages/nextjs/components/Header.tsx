@@ -27,6 +27,14 @@ export const menuLinks: HeaderMenuLink[] = [
     label: "Portfolio",
     href: "/profile",
   },
+  {
+    label: "Liquidity",
+    href: "/#liquidity",
+  },
+  {
+    label: "FAQ",
+    href: "/#faq",
+  },
 ];
 
 export const HeaderMenuLinks = () => {
@@ -35,7 +43,8 @@ export const HeaderMenuLinks = () => {
   return (
     <>
       {menuLinks.map(({ label, href, icon }) => {
-        const isActive = pathname === href;
+        const isSectionLink = href.includes("#");
+        const isActive = !isSectionLink && pathname === href;
         return (
           <li key={href}>
             <Link
