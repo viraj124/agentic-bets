@@ -14,8 +14,8 @@
 
 Permissionless binary prediction markets for [Bankr](https://bankr.fun) ecosystem tokens on Base.
 
-Bet **UP** or **DOWN** on token prices in 5-minute betting rounds. Winners split the pool.
-No keeper needed for pricing because prices are read directly on-chain from Uniswap V4.
+Bet **UP** or **DOWN** on token prices. 5-minute betting window, 10-minute observation, 15 minutes end-to-end. Winners split the pool.
+Prices are read directly on-chain from Uniswap V4 — no off-chain oracle needed.
 
 ## Features
 
