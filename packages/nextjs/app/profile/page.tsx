@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import type { NextPage } from "next";
 import { useAccount } from "wagmi";
 import { IdentityBadge } from "~~/components/bankrbets/IdentityBadge";
+import { useReferralLink, useReferralStats } from "~~/hooks/bankrbets/useReferral";
 import { useResolvedAddresses } from "~~/hooks/bankrbets/useResolvedAddresses";
 import { useScaffoldReadContract } from "~~/hooks/scaffold-eth";
 
@@ -142,6 +143,9 @@ const ProfilePage: NextPage = () => {
     refetch: refetchStats,
   } = useUserStats(address);
   const { data: userBets, isLoading: isBetsLoading, isError: isBetsError, refetch: refetchBets } = useUserBets(address);
+  const { referralLink, copyReferralLink } = useReferralLink();
+  const { data: referralStats } = useReferralStats();
+  const [linkCopied, setLinkCopied] = useState(false);
   const { data: resolvedMap } = useResolvedAddresses(address ? [address] : []);
   const { data: tokenSymbolMap } = useQuery<Map<string, string>>({
     queryKey: ["bankr-token-symbols"],
@@ -277,6 +281,103 @@ const ProfilePage: NextPage = () => {
                 </p>
               </div>
             ))}
+      </div>
+
+      {/* Referral */}
+      <div className="bg-base-100 rounded-2xl border-2 border-pg-border overflow-hidden mb-6 sm:mb-8">
+        <div className="px-5 py-3.5 border-b-2 border-pg-border flex items-center justify-between">
+          <h2 className="text-sm font-extrabold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
+            Referrals
+          </h2>
+          <span className="text-[10px] font-bold text-pg-violet bg-pg-violet/10 border border-pg-violet/20 rounded-full px-2.5 py-0.5">
+            Earn 0.5% of referred volume
+          </span>
+        </div>
+
+        <div className="p-4 sm:p-5 space-y-4">
+          {/* Copy link */}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex-1 flex items-center bg-base-200/50 rounded-xl border border-pg-border px-3 py-2.5 min-w-0">
+              <span className="text-xs text-pg-muted truncate">
+                {referralLink || "Connect wallet to get your link"}
+              </span>
+            </div>
+            <button
+              onClick={async () => {
+                const ok = await copyReferralLink();
+                if (ok) {
+                  setLinkCopied(true);
+                  setTimeout(() => setLinkCopied(false), 2000);
+                }
+              }}
+              disabled={!referralLink}
+              className="shrink-0 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm bg-pg-violet hover:bg-pg-violet/90 text-white disabled:opacity-40 transition-colors border-2 border-pg-slate shadow-pop hover:shadow-pop-active active:translate-x-[2px] active:translate-y-[2px]"
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
+              {linkCopied ? (
+                <>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                    />
+                  </svg>
+                  Copy Referral Link
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            <div className="bg-base-200/30 rounded-xl border border-pg-border p-3">
+              <p
+                className="text-[10px] text-pg-muted uppercase tracking-wider font-bold mb-1"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                Referrals
+              </p>
+              <p className="text-lg font-extrabold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
+                {referralStats?.referralCount ?? 0}
+              </p>
+            </div>
+            <div className="bg-base-200/30 rounded-xl border border-pg-border p-3">
+              <p
+                className="text-[10px] text-pg-muted uppercase tracking-wider font-bold mb-1"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                Referred Vol.
+              </p>
+              <p className="text-lg font-extrabold text-base-content" style={{ fontFamily: "var(--font-heading)" }}>
+                ${referralStats?.totalReferredVolume?.toFixed(2) ?? "0.00"}
+              </p>
+            </div>
+            <div className="bg-base-200/30 rounded-xl border border-pg-border p-3">
+              <p
+                className="text-[10px] text-pg-violet uppercase tracking-wider font-bold mb-1"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                Est. Reward
+              </p>
+              <p className="text-lg font-extrabold text-pg-violet" style={{ fontFamily: "var(--font-heading)" }}>
+                ${referralStats?.estimatedReward?.toFixed(2) ?? "0.00"}
+              </p>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-pg-muted/70">
+            Share your link. When someone places a bet through it, you earn 0.5% of their bet volume as a reward.
+          </p>
+        </div>
       </div>
 
       {/* Activity */}
