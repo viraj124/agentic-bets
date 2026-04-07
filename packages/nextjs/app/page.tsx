@@ -75,21 +75,17 @@ const FAQ_ITEMS = [
   {
     question: "How do ties work?",
     answer:
-      "The protocol supports two tie modes. In Refund mode, a flat finish cancels the round and both sides claim back their stake. In MajorityWins mode, a flat finish pays the side with more USDC; if both sides are exactly equal, the round is cancelled and refunded.",
+      "If the close price equals the lock price, the round is cancelled and both sides get a full refund. No fees are taken on tied rounds.",
   },
   {
     question: "What is the live tie mode right now?",
-    answer: "The current Base deployment uses MajorityWins. So a flat price does not automatically mean a refund.",
+    answer:
+      "The current Base deployment uses Refund mode. A flat price means both bulls and bears get their full stake back.",
   },
   {
     question: "When do both sides get refunded?",
     answer:
-      "Both sides refund when the round is cancelled. That includes equal-sided ties under MajorityWins, any tie under Refund mode, expired rounds that enter the refund path, no-winner rounds, and rounds cancelled by safety checks.",
-  },
-  {
-    question: "Why can a flat round still show a winner?",
-    answer:
-      "Under MajorityWins, if the close price equals the lock price but one side had more USDC in the pool, that side wins the round.",
+      "Both sides are refunded whenever a round is cancelled. That includes ties (flat price), expired rounds that were never settled, no-winner rounds, and rounds cancelled by safety checks (e.g. extreme price movement).",
   },
   {
     question: "Why does Rabby show the market token as the receiver on claim?",
@@ -241,7 +237,7 @@ const Home: NextPage = () => {
                   A valid initialized V4 pool is required to create and price a market.
                 </li>
                 <li className="rounded-2xl border border-pg-border bg-base-200/35 px-4 py-3">
-                  Thin pools can finish flat more often, which makes tie handling more visible.
+                  Thin pools can finish flat more often, which means more rounds end in a refund.
                 </li>
                 <li className="rounded-2xl border border-pg-border bg-base-200/35 px-4 py-3">
                   Safety checks can cancel rounds when price movement looks too extreme for a healthy market.

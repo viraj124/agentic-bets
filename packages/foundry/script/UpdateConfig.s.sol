@@ -29,8 +29,8 @@ contract UpdateConfig is Script {
         // 10-minute lock-to-close (up from 5 min) — matches CLAWD/MOLT swap frequency
         prediction.setRoundDuration(600);
 
-        // MajorityWins tiebreaker — side with more USDC wins on ties
-        prediction.setTiebreakerMode(BankrBetsPrediction.TiebreakerMode.MajorityWins);
+        // Refund tiebreaker — both sides get refunded on ties
+        prediction.setTiebreakerMode(BankrBetsPrediction.TiebreakerMode.Refund);
 
         vm.stopBroadcast();
 
