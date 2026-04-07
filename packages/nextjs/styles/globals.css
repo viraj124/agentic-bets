@@ -241,6 +241,15 @@
 .stagger-5 { animation-delay: 250ms; }
 .stagger-6 { animation-delay: 300ms; }
 
+/* Horizontal ticker / marquee */
+@keyframes ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.animate-ticker {
+  animation: ticker 30s linear infinite;
+}
+
 /* ── Scrollbar & Utility ─────────────────────────────────────────── */
 
 .scrollbar-hide {
@@ -257,6 +266,7 @@
   .animate-pop-in,
   .animate-float,
   .animate-float-slow,
+  .animate-ticker,
   .card-expand-enter {
     animation: none !important;
     opacity: 1 !important;

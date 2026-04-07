@@ -8,6 +8,7 @@ import {
   QuestionMarkCircleIcon,
   ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
+import { MarketStats } from "~~/components/bankrbets/MarketStats";
 import { TrendingTokens } from "~~/components/bankrbets/TrendingTokens";
 
 const STEPS = [
@@ -130,6 +131,8 @@ const Home: NextPage = () => {
           <p className="text-sm md:text-base text-pg-muted max-w-lg leading-relaxed">
             5 min prediction markets for <span className="text-pg-violet font-semibold">Bankr</span> ecosystem tokens.
           </p>
+
+          <MarketStats />
         </div>
       </div>
 

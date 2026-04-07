@@ -187,11 +187,12 @@ async function fetchBetRowsPage(address: string | undefined, after?: string) {
   };
 }
 
-export async function fetchAllBetRows(address?: string) {
+export async function fetchAllBetRows(address?: string, maxPages?: number) {
   const rows: BetRow[] = [];
   let cursor: string | undefined;
+  const limit = maxPages ?? MAX_GRAPHQL_PAGES;
 
-  for (let page = 0; page < MAX_GRAPHQL_PAGES; page++) {
+  for (let page = 0; page < limit; page++) {
     const { items, pageInfo } = await fetchBetRowsPage(address, cursor);
     rows.push(...items);
 
@@ -200,6 +201,92 @@ export async function fetchAllBetRows(address?: string) {
   }
 
   return rows;
+}
+
+/**
+ * Fetch only the most recent N bet rows (single page, no enrichment).
+ * Much faster than fetchAllBetRows for use cases that only need recent activity.
+ */
+export async function fetchRecentBetRows(limit: number = 20) {
+  const res = await fetch(`${PONDER_URL}/graphql`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    signal: AbortSignal.timeout(6_000),
+    body: JSON.stringify({
+      query: `{
+        betParticipations(orderBy: "placedAt", orderDirection: "desc", limit: ${limit}) {
+          items {
+            id user token epoch amount position claimed claimedAmount placedAt
+          }
+        }
+      }`,
+    }),
+  });
+
+  if (!res.ok) throw new Error(`Ponder error: ${res.status}`);
+  const json = await res.json();
+  if (json.errors?.length) throw new Error(json.errors[0].message || "Ponder query failed");
+
+  const items = (json.data?.betParticipations?.items ?? []) as BetRow[];
+
+  return items.map(
+    (
+      row,
+    ): {
+      id: string;
+      user: string;
+      tokenAddress: string;
+      epoch: number;
+      amount: number;
+      side: "up" | "down";
+      placedAt: number;
+    } => ({
+      id: row.id,
+      user: row.user.toLowerCase(),
+      tokenAddress: row.token.toLowerCase(),
+      epoch: Number(BigInt(row.epoch)),
+      amount: toNumberFromUSDC(row.amount),
+      side: row.position === 0 ? "up" : "down",
+      placedAt: Number(BigInt(row.placedAt)),
+    }),
+  );
+}
+
+// ── Shared enriched-bets cache ──────────────────────────────────
+// Used by both /api/leaderboard and /api/activity (enriched mode)
+// so we don't double-fetch + double-enrich.
+
+const _enrichedCache: {
+  data: EnrichedBet[];
+  updatedAt: number;
+  refreshInFlight: Promise<EnrichedBet[]> | null;
+} = { data: [], updatedAt: 0, refreshInFlight: null };
+
+const ENRICHED_CACHE_TTL_MS = 2 * 60_000;
+
+export async function getEnrichedBetsCached(): Promise<EnrichedBet[]> {
+  const hasCache = _enrichedCache.data.length > 0;
+  const isFresh = hasCache && Date.now() - _enrichedCache.updatedAt < ENRICHED_CACHE_TTL_MS;
+
+  if (isFresh) return _enrichedCache.data;
+
+  if (_enrichedCache.refreshInFlight) {
+    return hasCache ? _enrichedCache.data : _enrichedCache.refreshInFlight;
+  }
+
+  _enrichedCache.refreshInFlight = fetchAllBetRows()
+    .then(rows => enrichBetRows(rows))
+    .then(enriched => {
+      _enrichedCache.data = enriched;
+      _enrichedCache.updatedAt = Date.now();
+      return enriched;
+    })
+    .catch(() => _enrichedCache.data)
+    .finally(() => {
+      _enrichedCache.refreshInFlight = null;
+    });
+
+  return hasCache ? _enrichedCache.data : _enrichedCache.refreshInFlight;
 }
 
 export async function enrichBetRows(rows: BetRow[]): Promise<EnrichedBet[]> {

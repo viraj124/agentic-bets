@@ -8,6 +8,7 @@ import { Toaster } from "react-hot-toast";
 import { WagmiProvider } from "wagmi";
 import { Footer } from "~~/components/Footer";
 import { Header } from "~~/components/Header";
+import { LiveActivityFeed } from "~~/components/bankrbets/LiveActivityFeed";
 import { BlockieAvatar } from "~~/components/scaffold-eth";
 import scaffoldConfig from "~~/scaffold.config";
 import { wagmiConfig } from "~~/services/web3/wagmiConfig";
@@ -17,6 +18,9 @@ const ScaffoldEthApp = ({ children }: { children: React.ReactNode }) => {
     <>
       <div className={`flex flex-col min-h-screen `}>
         <Header />
+        <div className="w-full border-b border-pg-border/50">
+          <LiveActivityFeed />
+        </div>
         <main className="relative flex flex-col flex-1">{children}</main>
         <Footer />
       </div>
