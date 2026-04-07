@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { useEffect } from "react";
 import { RainbowKitProvider, lightTheme } from "@rainbow-me/rainbowkit";
 import { DehydratedState, Query, QueryClient, QueryClientProvider, dehydrate, hydrate } from "@tanstack/react-query";
 import { AppProgressBar as ProgressBar } from "next-nprogress-bar";
@@ -10,21 +10,12 @@ import { Footer } from "~~/components/Footer";
 import { Header } from "~~/components/Header";
 import { LiveActivityFeed } from "~~/components/bankrbets/LiveActivityFeed";
 import { BlockieAvatar } from "~~/components/scaffold-eth";
-import { useReferralCapture } from "~~/hooks/bankrbets/useReferral";
 import scaffoldConfig from "~~/scaffold.config";
 import { wagmiConfig } from "~~/services/web3/wagmiConfig";
-
-function ReferralCapture() {
-  useReferralCapture();
-  return null;
-}
 
 const ScaffoldEthApp = ({ children }: { children: React.ReactNode }) => {
   return (
     <>
-      <Suspense>
-        <ReferralCapture />
-      </Suspense>
       <div className={`flex flex-col min-h-screen `}>
         <Header />
         <div className="w-full border-b border-pg-border/50">
