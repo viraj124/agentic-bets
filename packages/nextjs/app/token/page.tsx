@@ -152,6 +152,15 @@ const TokenPage: NextPage = () => {
           >
             GeckoTerminal
           </a>
+          <a
+            href="https://dexscreener.com/base/0x9b2a0a54f851edd8241717a77a5cd5fad1f688770f2435cd77bfd46cc71b6b30"
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-xl border-2 border-pg-border bg-white/80 px-4 py-2 text-sm font-bold text-base-content/70 shadow-pop-soft transition-all hover:border-pg-violet/40 hover:text-pg-violet hover:shadow-md"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            DexScreener
+          </a>
         </div>
       </div>
     </div>
