@@ -246,6 +246,55 @@ export function BetPanel({
     if (Number.isNaN(value)) return null;
     return value.toFixed(value < 0.01 ? 4 : 2);
   }, [claimAmountRaw]);
+  const payoutBreakdown = useMemo(() => {
+    if (!currentRound || !userBet || userBet.amount <= 0n || !currentRound.oracleCalled || currentRound.cancelled)
+      return null;
+
+    const totalPool = Number(currentRound.totalAmount) / 1e6;
+    const bullPool = Number(currentRound.bullAmount) / 1e6;
+    const bearPool = Number(currentRound.bearAmount) / 1e6;
+    const rewardPool = Number(currentRound.rewardAmount) / 1e6;
+    const yourBet = Number(userBet.amount) / 1e6;
+    const winningSidePool = Number(currentRound.rewardBaseCalAmount) / 1e6;
+    const losingSidePool = totalPool - winningSidePool;
+    const totalFees = totalPool - rewardPool;
+    const feePercent = totalPool > 0 ? (totalFees / totalPool) * 100 : 0;
+    const yourShare = winningSidePool > 0 ? yourBet / winningSidePool : 0;
+    const payout = yourShare * rewardPool;
+    const profit = payout - yourBet;
+    const multiplier = yourBet > 0 ? payout / yourBet : 0;
+
+    // Determine winning side
+    const isTie = currentRound.closePrice === currentRound.lockPrice;
+    let bullsWon: boolean;
+    if (isTie) {
+      bullsWon = currentRound.bullAmount > currentRound.bearAmount;
+    } else {
+      bullsWon = currentRound.closePrice > currentRound.lockPrice;
+    }
+
+    // Check if this user actually won
+    const userWon = (bullsWon && userBet.position === 0) || (!bullsWon && userBet.position === 1);
+    if (!userWon) return null;
+
+    return {
+      totalPool,
+      bullPool,
+      bearPool,
+      rewardPool,
+      yourBet,
+      winningSidePool,
+      losingSidePool,
+      totalFees,
+      feePercent,
+      yourShare,
+      payout,
+      profit,
+      multiplier,
+      bullsWon,
+    };
+  }, [currentRound, userBet]);
+
   const hasClaimed = Boolean(userBet?.claimed);
   const didWin = useMemo(() => {
     if (!currentRound?.oracleCalled || roundCancelled || !userBet || !hasBet) return false;
@@ -988,6 +1037,92 @@ export function BetPanel({
               <p className="text-xs font-bold text-pg-pink mt-3">Better luck next time</p>
             ) : (
               <p className="text-xs text-pg-muted/50 mt-3">Waiting for settlement</p>
+            )}
+
+            {/* Winner payout breakdown */}
+            {payoutBreakdown && (didWin || hasClaimed) && (
+              <div className="mt-4 rounded-xl border-2 border-pg-mint/20 bg-pg-mint/[0.04] overflow-hidden">
+                <div className="flex items-center justify-between px-3.5 py-2 border-b border-pg-mint/15">
+                  <span
+                    className="text-[10px] font-bold text-pg-mint uppercase tracking-widest"
+                    style={{ fontFamily: "var(--font-heading)" }}
+                  >
+                    Payout Breakdown
+                  </span>
+                  <span
+                    className="text-[10px] font-extrabold text-pg-mint bg-pg-mint/15 border border-pg-mint/25 rounded-full px-2 py-0.5"
+                    style={{ fontFamily: "var(--font-heading)" }}
+                  >
+                    {payoutBreakdown.multiplier.toFixed(2)}x
+                  </span>
+                </div>
+                <div className="px-3.5 py-2.5 space-y-1.5 text-[11px]">
+                  {/* Pool split */}
+                  <div className="flex justify-between">
+                    <span className="text-pg-muted">Total pool</span>
+                    <span className="font-bold text-base-content">${payoutBreakdown.totalPool.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-pg-muted">
+                      {payoutBreakdown.bullsWon ? "↑ Bulls" : "↓ Bears"}
+                      <span className="text-pg-mint ml-1">(winners)</span>
+                    </span>
+                    <span className="font-bold text-base-content">${payoutBreakdown.winningSidePool.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-pg-muted">
+                      {payoutBreakdown.bullsWon ? "↓ Bears" : "↑ Bulls"}
+                      <span className="text-pg-pink ml-1">(losers)</span>
+                    </span>
+                    <span className="font-bold text-base-content">${payoutBreakdown.losingSidePool.toFixed(2)}</span>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="border-t border-pg-border/50 my-1" />
+
+                  {/* Fees + reward pool */}
+                  <div className="flex justify-between">
+                    <span className="text-pg-muted">Fees ({payoutBreakdown.feePercent.toFixed(1)}%)</span>
+                    <span className="font-bold text-base-content">−${payoutBreakdown.totalFees.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-pg-muted">Reward pool</span>
+                    <span className="font-bold text-base-content">${payoutBreakdown.rewardPool.toFixed(2)}</span>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="border-t border-pg-border/50 my-1" />
+
+                  {/* Your share */}
+                  <div className="flex justify-between">
+                    <span className="text-pg-muted">Your bet</span>
+                    <span className="font-bold text-base-content">${payoutBreakdown.yourBet.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-pg-muted">Your win share</span>
+                    <span className="font-bold text-base-content">{(payoutBreakdown.yourShare * 100).toFixed(1)}%</span>
+                  </div>
+
+                  {/* Final payout */}
+                  <div className="border-t border-pg-mint/20 my-1" />
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-pg-mint" style={{ fontFamily: "var(--font-heading)" }}>
+                      Payout
+                    </span>
+                    <span className="text-sm font-extrabold text-pg-mint" style={{ fontFamily: "var(--font-heading)" }}>
+                      ${payoutBreakdown.payout.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-pg-mint/70" style={{ fontFamily: "var(--font-heading)" }}>
+                      Profit
+                    </span>
+                    <span className="text-sm font-extrabold text-pg-mint" style={{ fontFamily: "var(--font-heading)" }}>
+                      +${payoutBreakdown.profit.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
             )}
 
             {showShareButton && (
