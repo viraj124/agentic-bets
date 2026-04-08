@@ -8,18 +8,26 @@ import { getReferralsByReferrer, registerReferral } from "~~/utils/bankrbets/ser
  * Body: { referee: "0x…", referrer: "0x…" }
  */
 export async function POST(req: NextRequest) {
+  let body: { referee?: string; referrer?: string };
+
   try {
-    const body = await req.json();
-    const { referee, referrer } = body as { referee?: string; referrer?: string };
-
-    if (!referee || !referrer || !isAddress(referee) || !isAddress(referrer)) {
-      return NextResponse.json({ error: "Invalid addresses" }, { status: 400 });
-    }
-
-    const result = registerReferral(referee, referrer);
-    return NextResponse.json(result);
+    body = (await req.json()) as { referee?: string; referrer?: string };
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+
+  const { referee, referrer } = body;
+
+  if (!referee || !referrer || !isAddress(referee) || !isAddress(referrer)) {
+    return NextResponse.json({ error: "Invalid addresses" }, { status: 400 });
+  }
+
+  try {
+    const result = await registerReferral(referee, referrer);
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error("Failed to register referral", error);
+    return NextResponse.json({ error: "Referral store unavailable" }, { status: 503 });
   }
 }
 
@@ -34,7 +42,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Invalid referrer address" }, { status: 400 });
   }
 
-  const referrals = getReferralsByReferrer(referrer);
+  let referrals;
+  try {
+    referrals = await getReferralsByReferrer(referrer);
+  } catch (error) {
+    console.error("Failed to fetch referral stats", error);
+    return NextResponse.json({ error: "Referral store unavailable" }, { status: 503 });
+  }
+
   const refereeAddresses = new Set(referrals.map(r => r.referee));
 
   let totalReferredVolume = 0;
@@ -63,6 +78,6 @@ export async function GET(req: NextRequest) {
       totalReferredBets,
       estimatedReward: totalReferredVolume * 0.005, // 0.5% of referred volume
     },
-    { headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=60" } },
+    { headers: { "Cache-Control": "no-store" } },
   );
 }
