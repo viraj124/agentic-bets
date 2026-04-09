@@ -3,13 +3,18 @@ import { oracleAbi, predictionAbi, erc20Abi } from "./abis.js";
 import {
   type Config,
   ORACLE_ADDRESS,
+  ORACLE_ADDRESS_V2,
   PREDICTION_ADDRESS,
+  PREDICTION_ADDRESS_V2,
   USDC_ADDRESS,
+  ZERO_ADDRESS,
   MARKET_REFRESH_TICKS,
 } from "./config.js";
 import { type HealthState } from "./health.js";
 import { type Clients, submitLockRound, submitCloseRound, sweepUsdc } from "./tx.js";
 import { logger } from "./logger.js";
+
+type TokenMarket = { token: Address; predictionAddress: Address };
 
 export function startKeeper(
   clients: Clients,
@@ -17,7 +22,7 @@ export function startKeeper(
   health: HealthState,
 ): { stop: () => void } {
   let tick = 0;
-  let activeTokens: Address[] = [];
+  let activeTokens: TokenMarket[] = [];
   let running = true;
   let timeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -72,53 +77,76 @@ export function startKeeper(
   };
 }
 
-async function refreshActiveTokens(publicClient: Clients["public"]): Promise<Address[]> {
-  const tokens = await publicClient.readContract({
+async function refreshActiveTokens(publicClient: Clients["public"]): Promise<TokenMarket[]> {
+  const result: TokenMarket[] = [];
+
+  // V1 Oracle — existing markets
+  const v1Tokens = (await publicClient.readContract({
     address: ORACLE_ADDRESS,
     abi: oracleAbi,
     functionName: "getActiveTokens",
-  });
-  return [...tokens];
+  })) as Address[];
+  for (const token of v1Tokens) {
+    result.push({ token, predictionAddress: PREDICTION_ADDRESS });
+  }
+
+  // V2 Oracle — only if deployed (not the zero placeholder)
+  if (ORACLE_ADDRESS_V2 !== ZERO_ADDRESS && PREDICTION_ADDRESS_V2 !== ZERO_ADDRESS) {
+    try {
+      const v2Tokens = (await publicClient.readContract({
+        address: ORACLE_ADDRESS_V2,
+        abi: oracleAbi,
+        functionName: "getActiveTokens",
+      })) as Address[];
+      for (const token of v2Tokens) {
+        result.push({ token, predictionAddress: PREDICTION_ADDRESS_V2 });
+      }
+    } catch (err) {
+      logger.warn("V2 oracle read failed", { error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  return result;
 }
 
 async function checkAndSettle(
   clients: Clients,
-  tokens: Address[],
+  markets: TokenMarket[],
   health: HealthState,
 ): Promise<void> {
-  if (tokens.length === 0) return;
+  if (markets.length === 0) return;
 
-  // Batch read isLockable and isClosable for all tokens
+  // Batch read isLockable and isClosable for all (token, predictionAddress) pairs
   const checks = await Promise.all(
-    tokens.map(async token => {
+    markets.map(async ({ token, predictionAddress }) => {
       const [lockable, closable] = await Promise.all([
         clients.public.readContract({
-          address: PREDICTION_ADDRESS,
+          address: predictionAddress,
           abi: predictionAbi,
           functionName: "isLockable",
           args: [token],
         }),
         clients.public.readContract({
-          address: PREDICTION_ADDRESS,
+          address: predictionAddress,
           abi: predictionAbi,
           functionName: "isClosable",
           args: [token],
         }),
       ]);
-      return { token, lockable, closable };
+      return { token, predictionAddress, lockable, closable };
     }),
   );
 
   // Submit transactions sequentially to avoid nonce issues
-  for (const { token, lockable, closable } of checks) {
+  for (const { token, predictionAddress, lockable, closable } of checks) {
     if (lockable) {
-      logger.info("Locking round", { token });
-      const result = await submitLockRound(clients, token);
+      logger.info("Locking round", { token, predictionAddress });
+      const result = await submitLockRound(clients, token, predictionAddress);
       if (result.status === "sent") health.totalLocks++;
     }
     if (closable) {
-      logger.info("Closing round", { token });
-      const result = await submitCloseRound(clients, token);
+      logger.info("Closing round", { token, predictionAddress });
+      const result = await submitCloseRound(clients, token, predictionAddress);
       if (result.status === "sent") health.totalCloses++;
     }
   }

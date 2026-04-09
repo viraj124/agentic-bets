@@ -11,9 +11,16 @@ export type Config = {
   minEthBalance: bigint;
 };
 
-// Hardcoded constants
+// Hardcoded constants — V1 (existing markets: CLAWD, MOLT, WCHAN, etc.)
 export const PREDICTION_ADDRESS: Address = "0xABADeb002247f2bd908Eeedb32918aEc304A0233";
 export const ORACLE_ADDRESS: Address = "0x57B83E00038CE7E890C003Fb3794fE6297596b60";
+
+// V2 contracts (AGBETS market)
+export const PREDICTION_ADDRESS_V2: Address = "0x2CD785Ba87e0841A8458141bc43d23a56a00557f";
+export const ORACLE_ADDRESS_V2: Address = "0xd45360693a3769f0E80EA901F4698dCC9FcC917C";
+
+export const ZERO_ADDRESS: Address = "0x0000000000000000000000000000000000000000";
+
 export const USDC_ADDRESS: Address = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 export const CHAIN_ID = 8453;
 export const GAS_LIMIT = 300_000n;

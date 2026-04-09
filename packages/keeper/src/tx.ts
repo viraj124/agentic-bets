@@ -1,6 +1,6 @@
 import { type Address, BaseError, ContractFunctionRevertedError } from "viem";
 import { predictionAbi, erc20Abi } from "./abis.js";
-import { PREDICTION_ADDRESS, USDC_ADDRESS, GAS_LIMIT, TX_TIMEOUT_MS } from "./config.js";
+import { USDC_ADDRESS, GAS_LIMIT, TX_TIMEOUT_MS } from "./config.js";
 import { logger } from "./logger.js";
 
 // Reverts that mean someone else already settled — not an error
@@ -17,12 +17,20 @@ export type Clients = { wallet: any; public: any };
 
 export type TxResult = { status: "sent"; hash: string } | { status: "already_settled" } | { status: "error"; reason: string };
 
-export async function submitLockRound(clients: Clients, token: Address): Promise<TxResult> {
-  return submitTx(clients, "lockRound", token);
+export async function submitLockRound(
+  clients: Clients,
+  token: Address,
+  predictionAddress: Address,
+): Promise<TxResult> {
+  return submitTx(clients, "lockRound", token, predictionAddress);
 }
 
-export async function submitCloseRound(clients: Clients, token: Address): Promise<TxResult> {
-  return submitTx(clients, "closeRound", token);
+export async function submitCloseRound(
+  clients: Clients,
+  token: Address,
+  predictionAddress: Address,
+): Promise<TxResult> {
+  return submitTx(clients, "closeRound", token, predictionAddress);
 }
 
 export async function sweepUsdc(clients: Clients, recipient: Address, amount: bigint): Promise<TxResult> {
@@ -50,10 +58,11 @@ async function submitTx(
   clients: Clients,
   fn: "lockRound" | "closeRound",
   token: Address,
+  predictionAddress: Address,
 ): Promise<TxResult> {
   try {
     const hash = await clients.wallet.writeContract({
-      address: PREDICTION_ADDRESS,
+      address: predictionAddress,
       abi: predictionAbi,
       functionName: fn,
       args: [token],
