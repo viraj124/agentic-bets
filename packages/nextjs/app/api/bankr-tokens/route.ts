@@ -47,6 +47,8 @@ const BOOTSTRAP_CLANKER_MAX_PAGES = 5; // ~100 tokens — enough for initial ren
 const BOOTSTRAP_INDEXER_MAX_TOKENS = 200; // single page — just need pool key overlap
 
 const WETH = WETH_BASE;
+const AGBETS_ADDRESS = "0x37d183fcf1da460a64d21e754b3e6144c4e11ba3";
+const AGBETS_POOL_ID = "0x9b2a0a54f851edd8241717a77a5cd5fad1f688770f2435cd77bfd46cc71b6b30";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -507,6 +509,39 @@ async function fetchFromBankrLaunches(): Promise<TokenPoolInfo[]> {
   return tokens;
 }
 
+/**
+ * Markets that must appear on the homepage even if external discovery sources
+ * (Clanker / Bankr indexer / launches) have not picked them up yet.
+ */
+function getForcedMarketTokens(): TokenPoolInfo[] {
+  const poolKey = resolvePoolKey(AGBETS_ADDRESS, WETH, AGBETS_POOL_ID);
+
+  return [
+    {
+      address: AGBETS_ADDRESS,
+      poolId: poolKey ? computePoolId(poolKey) : AGBETS_POOL_ID,
+      poolKey,
+      fromClanker: false,
+      fromIndexer: false,
+      clankerPriceData: {
+        name: "AgenticBets",
+        symbol: "AGBETS",
+        imgUrl: "",
+        priceUsd: 0,
+        marketCap: 0,
+        volume24h: 0,
+        change1h: 0,
+        change24h: 0,
+        topPoolAddress: AGBETS_POOL_ID,
+        deployedAt: "",
+        pair: "WETH",
+        priceSource: "dexscreener",
+        poolKeyVerified: poolKey !== null,
+      },
+    },
+  ];
+}
+
 // ── Price enrichment ─────────────────────────────────────────────────
 
 async function fetchDexBatch(chunkAddresses: string[]): Promise<Map<string, PriceEnrichment>> {
@@ -913,7 +948,7 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
     `[bankr-tokens] Sources: ${clankerTokens.length} clanker, ${bankrTokens.length} indexer (mode=${mode}), launches loading in background`,
   );
 
-  const allRaw = [...clankerTokens, ...bankrTokens];
+  const allRaw = [...getForcedMarketTokens(), ...clankerTokens, ...bankrTokens];
   const tokenMap = new Map<string, TokenPoolInfo>();
 
   for (const token of allRaw) {
@@ -931,8 +966,12 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
       existing.poolKey = token.poolKey;
       existing.poolId = token.poolId;
     }
-    // Preserve Clanker embedded price data
-    if (!existing.clankerPriceData && token.clankerPriceData) {
+    // Preserve embedded token metadata, but allow later sources with real prices
+    // to replace zeroed fallback entries (used for forced market seeds like AGBETS).
+    if (
+      token.clankerPriceData &&
+      (!existing.clankerPriceData || (!existing.clankerPriceData.priceUsd && !!token.clankerPriceData.priceUsd))
+    ) {
       existing.clankerPriceData = token.clankerPriceData;
     }
   }
