@@ -20,7 +20,7 @@ export function CreateMarketModal({
   onClose,
   onSuccess,
 }: CreateMarketModalProps) {
-  const { createMarket, isCreating, hasVerifiedPoolKey } = useCreateMarket();
+  const { createMarket, isCreating, hasVerifiedPoolKey } = useCreateMarket(tokenAddress);
   const marketCreated = useMarketCreated(tokenAddress);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);

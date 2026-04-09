@@ -12,6 +12,7 @@ import { RoundHistory } from "~~/components/bankrbets/RoundHistory";
 import { useGeckoTerminal } from "~~/hooks/bankrbets/useGeckoTerminal";
 import { useCreatorEarnings, useCurrentRound } from "~~/hooks/bankrbets/usePredictionContract";
 import { useDeployedContractInfo, useScaffoldReadContract } from "~~/hooks/scaffold-eth";
+import { getOracleContractName, getPredictionContractName } from "~~/lib/contractResolver";
 
 const PriceChart = dynamic(() => import("~~/components/bankrbets/PriceChart").then(m => m.PriceChart), {
   ssr: false,
@@ -113,11 +114,14 @@ function MarketViewGate({
   focusEpoch: bigint | null;
   clearFocusEpoch: () => void;
 }) {
+  const predictionContractName = getPredictionContractName(tokenAddress);
+  const oracleContractName = getOracleContractName(tokenAddress);
+
   const { data: predictionContract, isLoading: predictionLoading } = useDeployedContractInfo({
-    contractName: "BankrBetsPrediction",
+    contractName: predictionContractName,
   });
   const { data: oracleContract, isLoading: oracleLoading } = useDeployedContractInfo({
-    contractName: "BankrBetsOracle",
+    contractName: oracleContractName,
   });
 
   if (predictionLoading || oracleLoading) {
@@ -184,10 +188,13 @@ function MarketView({
 }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
 
+  const oracleContract = getOracleContractName(tokenAddress);
+  const predictionContract = getPredictionContractName(tokenAddress);
+
   // Read pool address from on-chain Oracle when not provided in URL hash
   // (e.g. navigating from profile page which only has the token address)
   const { data: onChainMarket } = useScaffoldReadContract({
-    contractName: "BankrBetsOracle",
+    contractName: oracleContract,
     functionName: "markets",
     args: [tokenAddress],
     query: { staleTime: 60_000 },
@@ -216,7 +223,7 @@ function MarketView({
 
   const { epoch, round, isActive } = useCurrentRound(tokenAddress);
   const { data: focusedRound } = useScaffoldReadContract({
-    contractName: "BankrBetsPrediction",
+    contractName: predictionContract,
     functionName: "getRound",
     args: [tokenAddress, focusEpoch ?? 0n],
     query: {

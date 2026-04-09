@@ -27,6 +27,7 @@ import {
 } from "~~/hooks/bankrbets/usePredictionContract";
 import { useUsdcApproval } from "~~/hooks/bankrbets/useUsdcApproval";
 import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
+import { getPredictionContractName } from "~~/lib/contractResolver";
 import { getCancellationReason } from "~~/utils/bankrbets/cancellationReason";
 import { getWalletActionErrorMessage, isUserRejectedRequestError, notification } from "~~/utils/scaffold-eth";
 
@@ -159,7 +160,7 @@ export function BetPanel({
       staleTime: 30_000,
     },
   });
-  const { data: predictionContract } = useDeployedContractInfo("BankrBetsPrediction");
+  const { data: predictionContract } = useDeployedContractInfo(getPredictionContractName(tokenAddress));
   const { signTypedDataAsync, isPending: isSigningAuthorization } = useSignTypedData();
   const { writeContractAsync, isPending: isSubmittingWriteContract } = useWriteContract();
   const { writeContractsAsync, isPending: isSubmittingBatchedCalls } = useWriteContracts();
@@ -175,8 +176,8 @@ export function BetPanel({
   const currentIsActive = isActive ?? (currentEpoch !== undefined && currentEpoch > 0n);
   const userBet = useUserBet(tokenAddress, currentEpoch, address);
   const claimable = useClaimable(tokenAddress, currentEpoch, address);
-  const { claim, refundRound, isClaiming, isRefunding } = usePredictionActions();
-  const { lockRound, closeRound, isLocking, isClosing } = useSettlementActions();
+  const { claim, refundRound, isClaiming, isRefunding } = usePredictionActions(tokenAddress);
+  const { lockRound, closeRound, isLocking, isClosing } = useSettlementActions(tokenAddress);
   const { isLockable, isClosable } = useSettlementStatus(tokenAddress);
 
   const betAmountRaw = useMemo(() => {
@@ -188,7 +189,7 @@ export function BetPanel({
     }
   }, [amount]);
 
-  const { hasBalance, balance, needsApproval, usdcAddress } = useUsdcApproval(betAmountRaw);
+  const { hasBalance, balance, needsApproval, usdcAddress } = useUsdcApproval(betAmountRaw, tokenAddress);
 
   const isWrongNetwork = address && chainId !== base.id;
   const isLocked = currentRound ? currentRound.locked : false;

@@ -170,7 +170,7 @@ const ProfilePage: NextPage = () => {
     retry: 1,
   });
 
-  const { data: creatorEarnings, isLoading: isEarningsLoading } = useScaffoldReadContract({
+  const { data: creatorEarningsV1, isLoading: isEarningsLoading } = useScaffoldReadContract({
     contractName: "BankrBetsPrediction",
     functionName: "creatorEarnings",
     args: [address ?? "0x0000000000000000000000000000000000000000"],
@@ -182,8 +182,22 @@ const ProfilePage: NextPage = () => {
       refetchOnWindowFocus: false,
     },
   });
+  const { data: creatorEarningsV2 } = useScaffoldReadContract({
+    contractName: "BankrBetsPredictionV2",
+    functionName: "creatorEarnings",
+    args: [address ?? "0x0000000000000000000000000000000000000000"],
+    watch: false,
+    query: {
+      enabled: !!address,
+      staleTime: 60_000,
+      gcTime: 30 * 60_000,
+      refetchOnWindowFocus: false,
+    },
+  });
 
-  const earnings = creatorEarnings ? Number(creatorEarnings) / 1e6 : 0;
+  const earnings =
+    (creatorEarningsV1 ? Number(creatorEarningsV1) / 1e6 : 0) +
+    (creatorEarningsV2 ? Number(creatorEarningsV2) / 1e6 : 0);
   const ongoingBets = userBets?.ongoing ?? [];
   const previousBets = userBets?.previous ?? [];
 

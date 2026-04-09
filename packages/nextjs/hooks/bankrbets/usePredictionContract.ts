@@ -1,4 +1,5 @@
 import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
+import { getOracleContractName, getPredictionContractName } from "~~/lib/contractResolver";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 /** 1 hour grace period before a stale round can be marked as refundable */
@@ -7,11 +8,13 @@ const REFUND_GRACE_PERIOD_S = 60 * 60;
 /**
  * Hook to check if a market has been created for a token.
  * Returns undefined while loading, true if market exists, false if not.
- * Uses BankrBetsOracle.getMarketCreator — returns zero address for unregistered tokens.
+ * Uses the correct Oracle contract (V1 or V2) based on the token address.
  */
 export function useMarketCreated(tokenAddress: string) {
+  const oracleContract = getOracleContractName(tokenAddress);
+
   const { data: creator, isLoading } = useScaffoldReadContract({
-    contractName: "BankrBetsOracle",
+    contractName: oracleContract,
     functionName: "getMarketCreator",
     args: [tokenAddress],
     query: { refetchInterval: 5000 },
@@ -27,8 +30,10 @@ export function useMarketCreated(tokenAddress: string) {
  * Pass enabled=false to skip all RPC calls (e.g. for tokens without markets).
  */
 export function useCurrentRound(tokenAddress: string, enabled = true) {
+  const predictionContract = getPredictionContractName(tokenAddress);
+
   const { data: currentEpoch } = useScaffoldReadContract({
-    contractName: "BankrBetsPrediction",
+    contractName: predictionContract,
     functionName: "getCurrentEpoch",
     args: [tokenAddress],
     query: { enabled, refetchInterval: 5000 },
@@ -36,7 +41,7 @@ export function useCurrentRound(tokenAddress: string, enabled = true) {
   });
 
   const { data: round } = useScaffoldReadContract({
-    contractName: "BankrBetsPrediction",
+    contractName: predictionContract,
     functionName: "getRound",
     args: [tokenAddress, currentEpoch ?? 0n],
     query: {
@@ -57,8 +62,10 @@ export function useCurrentRound(tokenAddress: string, enabled = true) {
  * Hook to read a user's bet for a specific round
  */
 export function useUserBet(tokenAddress: string, epoch: bigint | undefined, userAddress: string | undefined) {
+  const predictionContract = getPredictionContractName(tokenAddress);
+
   const { data: bet } = useScaffoldReadContract({
-    contractName: "BankrBetsPrediction",
+    contractName: predictionContract,
     functionName: "getUserBet",
     args: [tokenAddress, epoch ?? 0n, userAddress ?? "0x0000000000000000000000000000000000000000"],
     query: {
@@ -75,8 +82,10 @@ export function useUserBet(tokenAddress: string, epoch: bigint | undefined, user
  * Hook to check if a user can claim
  */
 export function useClaimable(tokenAddress: string, epoch: bigint | undefined, userAddress: string | undefined) {
+  const predictionContract = getPredictionContractName(tokenAddress);
+
   const { data: canClaim } = useScaffoldReadContract({
-    contractName: "BankrBetsPrediction",
+    contractName: predictionContract,
     functionName: "claimable",
     args: [tokenAddress, epoch ?? 0n, userAddress ?? "0x0000000000000000000000000000000000000000"],
     query: {
@@ -92,9 +101,11 @@ export function useClaimable(tokenAddress: string, epoch: bigint | undefined, us
 /**
  * Hook to place bets, claim winnings, and trigger refunds
  */
-export function usePredictionActions() {
-  const { writeContractAsync: writeClaim, isPending: isClaiming } = useScaffoldWriteContract("BankrBetsPrediction");
-  const { writeContractAsync: writeRefund, isPending: isRefunding } = useScaffoldWriteContract("BankrBetsPrediction");
+export function usePredictionActions(tokenAddress: string) {
+  const predictionContract = getPredictionContractName(tokenAddress);
+
+  const { writeContractAsync: writeClaim, isPending: isClaiming } = useScaffoldWriteContract(predictionContract);
+  const { writeContractAsync: writeRefund, isPending: isRefunding } = useScaffoldWriteContract(predictionContract);
 
   const claim = async (token: string, epochs: bigint[]) => {
     return writeClaim({
@@ -122,8 +133,10 @@ export function usePredictionActions() {
  * Hook to get user's round history
  */
 export function useUserRounds(tokenAddress: string, userAddress: string | undefined) {
+  const predictionContract = getPredictionContractName(tokenAddress);
+
   const { data: rounds } = useScaffoldReadContract({
-    contractName: "BankrBetsPrediction",
+    contractName: predictionContract,
     functionName: "getUserRounds",
     args: [tokenAddress, userAddress ?? "0x0000000000000000000000000000000000000000"],
     query: {
@@ -138,10 +151,12 @@ export function useUserRounds(tokenAddress: string, userAddress: string | undefi
 /**
  * Hook for settlement actions — callable by anyone to earn 0.1% reward
  */
-export function useSettlementActions() {
-  const { writeContractAsync: writeLock, isPending: isLocking } = useScaffoldWriteContract("BankrBetsPrediction");
-  const { writeContractAsync: writeClose, isPending: isClosing } = useScaffoldWriteContract("BankrBetsPrediction");
-  const { writeContractAsync: writeStart, isPending: isStarting } = useScaffoldWriteContract("BankrBetsPrediction");
+export function useSettlementActions(tokenAddress: string) {
+  const predictionContract = getPredictionContractName(tokenAddress);
+
+  const { writeContractAsync: writeLock, isPending: isLocking } = useScaffoldWriteContract(predictionContract);
+  const { writeContractAsync: writeClose, isPending: isClosing } = useScaffoldWriteContract(predictionContract);
+  const { writeContractAsync: writeStart, isPending: isStarting } = useScaffoldWriteContract(predictionContract);
 
   const lockRound = async (token: string) => {
     return writeLock({ functionName: "lockRound", args: [token] });
@@ -191,8 +206,11 @@ export function useRefundStatus(tokenAddress: string) {
  * Shows the total lifetime creator fee (0.5% per settled round pool).
  */
 export function useCreatorEarnings(tokenAddress: string) {
+  const oracleContract = getOracleContractName(tokenAddress);
+  const predictionContract = getPredictionContractName(tokenAddress);
+
   const { data: creator } = useScaffoldReadContract({
-    contractName: "BankrBetsOracle",
+    contractName: oracleContract,
     functionName: "getMarketCreator",
     args: [tokenAddress],
     query: {
@@ -202,7 +220,7 @@ export function useCreatorEarnings(tokenAddress: string) {
   });
 
   const { data: earnings } = useScaffoldReadContract({
-    contractName: "BankrBetsPrediction",
+    contractName: predictionContract,
     functionName: "creatorEarnings",
     args: [creator as `0x${string}`],
     query: {
@@ -223,8 +241,10 @@ export function useCreatorEarnings(tokenAddress: string) {
  * Hook to read settlement eligibility for frontend "Settle" button
  */
 export function useSettlementStatus(tokenAddress: string) {
+  const predictionContract = getPredictionContractName(tokenAddress);
+
   const { data: lockable } = useScaffoldReadContract({
-    contractName: "BankrBetsPrediction",
+    contractName: predictionContract,
     functionName: "isLockable",
     args: [tokenAddress],
     query: {
@@ -234,7 +254,7 @@ export function useSettlementStatus(tokenAddress: string) {
   });
 
   const { data: closable } = useScaffoldReadContract({
-    contractName: "BankrBetsPrediction",
+    contractName: predictionContract,
     functionName: "isClosable",
     args: [tokenAddress],
     query: {
@@ -244,7 +264,7 @@ export function useSettlementStatus(tokenAddress: string) {
   });
 
   const { data: settlerReward } = useScaffoldReadContract({
-    contractName: "BankrBetsPrediction",
+    contractName: predictionContract,
     functionName: "getSettlerReward",
     args: [tokenAddress],
     query: {

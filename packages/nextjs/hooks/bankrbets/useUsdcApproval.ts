@@ -3,6 +3,7 @@ import { erc20Abi, maxUint256 } from "viem";
 import { base } from "viem/chains";
 import { useAccount, useReadContract, useSwitchChain, useWriteContract } from "wagmi";
 import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
+import { getPredictionContractName } from "~~/lib/contractResolver";
 import { getWalletActionErrorMessage, notification } from "~~/utils/scaffold-eth";
 
 // USDC addresses by chain
@@ -15,10 +16,10 @@ const USDC_ADDRESS: Record<number, `0x${string}`> = {
  * Hook to manage USDC approval for the BankrBetsPrediction contract.
  * Returns current allowance, whether approval is needed, and an approve function.
  */
-export function useUsdcApproval(requiredAmount: bigint) {
+export function useUsdcApproval(requiredAmount: bigint, tokenAddress = "") {
   const { address, chainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
-  const { data: predictionContract } = useDeployedContractInfo("BankrBetsPrediction");
+  const { data: predictionContract } = useDeployedContractInfo(getPredictionContractName(tokenAddress));
 
   const spenderAddress = predictionContract?.address;
 

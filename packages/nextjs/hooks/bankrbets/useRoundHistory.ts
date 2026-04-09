@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useReadContracts } from "wagmi";
 import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
+import { getPredictionContractName } from "~~/lib/contractResolver";
 
 const PAGE_SIZE = 5;
 
@@ -102,7 +103,7 @@ export function useRoundHistory(
   page: number,
   userAddress?: string,
 ) {
-  const { data: predictionContract } = useDeployedContractInfo("BankrBetsPrediction");
+  const { data: predictionContract } = useDeployedContractInfo(getPredictionContractName(tokenAddress));
   const contractAddress = predictionContract?.address;
 
   const totalRounds = currentEpoch !== undefined ? Number(currentEpoch) : 0;

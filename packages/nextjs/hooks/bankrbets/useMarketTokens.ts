@@ -25,64 +25,97 @@ export interface MarketToken {
   poolData?: PoolData;
 }
 
+/** Fetch all active markets from a single Oracle, handling pagination & fallback. */
+async function fetchOracleMarkets(
+  publicClient: any,
+  oracleAddress: `0x${string}`,
+  oracleAbi: readonly any[],
+): Promise<OracleMarketView[]> {
+  try {
+    const all: OracleMarketView[] = [];
+    let offset = 0n;
+
+    for (let i = 0; i < ORACLE_MAX_PAGES; i++) {
+      const page = (await publicClient.readContract({
+        address: oracleAddress,
+        abi: oracleAbi,
+        functionName: "getActiveMarketsInfoPage",
+        args: [offset, BigInt(ORACLE_PAGE_SIZE)],
+      } as any)) as OracleMarketView[];
+
+      if (!page || page.length === 0) break;
+      all.push(...page);
+      if (page.length < ORACLE_PAGE_SIZE) break;
+      offset += BigInt(page.length);
+    }
+
+    return all;
+  } catch {
+    // Backward compatibility with older Oracle deployments.
+    const all = (await publicClient.readContract({
+      address: oracleAddress,
+      abi: oracleAbi,
+      functionName: "getActiveMarketsInfo",
+    } as any)) as OracleMarketView[];
+    return all || [];
+  }
+}
+
 /**
- * Hook to read all active Bankr markets from the Oracle registry
+ * Hook to read all active Bankr markets from both V1 and V2 Oracle registries
  * and enrich with GeckoTerminal price data.
- * This replaces useClankerTokens — only on-chain registered markets are shown.
  */
 export function useMarketTokens() {
   const selectedNetwork = useSelectedNetwork();
   const publicClient = usePublicClient({ chainId: selectedNetwork.id });
-  const { data: oracleContract, isLoading: isContractLoading } = useDeployedContractInfo({
+
+  // V1 Oracle
+  const { data: oracleV1, isLoading: isV1Loading } = useDeployedContractInfo({
     contractName: "BankrBetsOracle",
   });
-  const configuredOracleContract = contracts?.[selectedNetwork.id]?.BankrBetsOracle as
-    | { address: `0x${string}`; abi: any[] }
+  const configuredV1 = contracts?.[selectedNetwork.id]?.BankrBetsOracle as
+    | { address: `0x${string}`; abi: readonly any[] }
     | undefined;
+  const v1Address = oracleV1?.address || configuredV1?.address;
+  const v1Abi = oracleV1?.abi || configuredV1?.abi;
 
-  // Use the static deployed config immediately on mount, while still allowing
-  // deployed contract hook data to take precedence when available.
-  const oracleAddress = oracleContract?.address || configuredOracleContract?.address;
-  const oracleAbi = oracleContract?.abi || configuredOracleContract?.abi;
+  // V2 Oracle
+  const { data: oracleV2, isLoading: isV2Loading } = useDeployedContractInfo({
+    contractName: "BankrBetsOracleV2",
+  });
+  const configuredV2 = contracts?.[selectedNetwork.id]?.BankrBetsOracleV2 as
+    | { address: `0x${string}`; abi: readonly any[] }
+    | undefined;
+  const v2Address = oracleV2?.address || configuredV2?.address;
+  const v2Abi = oracleV2?.abi || configuredV2?.abi;
+
+  const v2Ready = !!v2Address && !!v2Abi;
 
   const { data: markets = [], isLoading: isMarketsLoading } = useQuery({
-    queryKey: ["oracle-active-markets-paged", selectedNetwork.id, oracleAddress],
-    enabled: !!publicClient && !!oracleAddress && !!oracleAbi,
+    queryKey: ["oracle-active-markets-merged", selectedNetwork.id, v1Address, v2Address],
+    enabled: !!publicClient && !!v1Address && !!v1Abi,
     staleTime: 10_000,
     gcTime: 30 * 60_000,
     placeholderData: previousData => previousData,
     refetchInterval: 15000,
     queryFn: async (): Promise<OracleMarketView[]> => {
-      if (!publicClient || !oracleAddress || !oracleAbi) return [];
+      if (!publicClient || !v1Address || !v1Abi) return [];
 
-      try {
-        const all: OracleMarketView[] = [];
-        let offset = 0n;
+      const promises: Promise<OracleMarketView[]>[] = [fetchOracleMarkets(publicClient, v1Address, v1Abi)];
 
-        for (let i = 0; i < ORACLE_MAX_PAGES; i++) {
-          const page = (await publicClient.readContract({
-            address: oracleAddress,
-            abi: oracleAbi,
-            functionName: "getActiveMarketsInfoPage",
-            args: [offset, BigInt(ORACLE_PAGE_SIZE)],
-          } as any)) as OracleMarketView[];
-
-          if (!page || page.length === 0) break;
-          all.push(...page);
-          if (page.length < ORACLE_PAGE_SIZE) break;
-          offset += BigInt(page.length);
-        }
-
-        return all;
-      } catch {
-        // Backward compatibility with older Oracle deployments.
-        const all = (await publicClient.readContract({
-          address: oracleAddress,
-          abi: oracleAbi,
-          functionName: "getActiveMarketsInfo",
-        } as any)) as OracleMarketView[];
-        return all || [];
+      if (v2Ready) {
+        promises.push(fetchOracleMarkets(publicClient, v2Address!, v2Abi!));
       }
+
+      const results = await Promise.all(promises);
+      const merged = results.flat();
+
+      // Deduplicate by token address (V2 takes precedence if same token in both)
+      const seen = new Map<string, OracleMarketView>();
+      for (const m of merged) {
+        seen.set(m.token.toLowerCase(), m);
+      }
+      return Array.from(seen.values());
     },
   });
 
@@ -114,7 +147,7 @@ export function useMarketTokens() {
 
   return {
     tokens,
-    isLoading: isContractLoading && isMarketsLoading,
+    isLoading: (isV1Loading || isV2Loading) && isMarketsLoading,
     marketCount: markets.length,
   };
 }
