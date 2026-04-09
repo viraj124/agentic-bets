@@ -69,6 +69,9 @@ contract BankrBetsOracle is Ownable {
     mapping(address => MarketInfo) public markets;
     address[] public marketList;
 
+    // Admin-configurable hook allowlist (in addition to hardcoded hooks)
+    mapping(address => bool) public allowedHooks;
+
     // Minimum pool liquidity required for market registration (0 = no minimum)
     uint128 public minLiquidity;
 
@@ -84,6 +87,8 @@ contract BankrBetsOracle is Ownable {
     event MinLiquidityUpdated(uint128 newMinLiquidity);
     event PredictionContractUpdated(address newPredictionContract);
     event PoolUpdated(address indexed token, address poolAddress, PoolId poolId);
+    event HookAllowed(address indexed hook);
+    event HookRemoved(address indexed hook);
 
     // --- Errors ---
 
@@ -157,10 +162,10 @@ contract BankrBetsOracle is Ownable {
         emit MarketCreated(_token, _creator, canonicalPoolAddress, poolId);
     }
 
-    function isSupportedHook(address _hook) public pure returns (bool) {
+    function isSupportedHook(address _hook) public view returns (bool) {
         return _hook == address(0) // Vanilla V4 (no hooks)
             || _hook == CLANKER_DYNAMIC_FEE_V2_HOOK || _hook == CLANKER_STATIC_FEE_V2_HOOK || _hook == CLANKER_DYNAMIC_FEE_HOOK || _hook == CLANKER_STATIC_FEE_HOOK || _hook == BANKR_SCHEDULED_MULTICURVE_HOOK
-            || _hook == BANKR_DECAY_MULTICURVE_HOOK;
+            || _hook == BANKR_DECAY_MULTICURVE_HOOK || allowedHooks[_hook];
     }
 
     function isValidQuoteToken(address _token) public pure returns (bool) {
@@ -176,7 +181,7 @@ contract BankrBetsOracle is Ownable {
      *      Supports both Bankr/Clanker hooked pools (WETH quote, dynamic fee)
      *      and vanilla V4 pools (native ETH or WETH, standard fee tiers, no hooks).
      */
-    function _validatePoolKey(PoolKey calldata _poolKey, address c0, address c1) internal pure {
+    function _validatePoolKey(PoolKey calldata _poolKey, address c0, address c1) internal view {
         // Quote token must be WETH or native ETH
         if (!isValidQuoteToken(c0) && !isValidQuoteToken(c1)) revert InvalidQuoteToken();
 
@@ -496,5 +501,16 @@ contract BankrBetsOracle is Ownable {
         if (_predictionContract == address(0)) revert ZeroAddress();
         predictionContract = _predictionContract;
         emit PredictionContractUpdated(_predictionContract);
+    }
+
+    function allowHook(address _hook) external onlyOwner {
+        if (_hook == address(0)) revert ZeroAddress();
+        allowedHooks[_hook] = true;
+        emit HookAllowed(_hook);
+    }
+
+    function removeHook(address _hook) external onlyOwner {
+        allowedHooks[_hook] = false;
+        emit HookRemoved(_hook);
     }
 }
