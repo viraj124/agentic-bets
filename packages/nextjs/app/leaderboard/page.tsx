@@ -196,6 +196,22 @@ const LeaderboardPage: NextPage = () => {
               <span className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-pg-amber/10 text-pg-amber rounded-full px-3 py-1 border border-pg-amber/20">
                 ${totalVolume.toFixed(2)} volume
               </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const text = `${totalPlayers} player${totalPlayers !== 1 ? "s" : ""} are battling for the top spot on @0xAgenticBets\n${totalBets} bets placed · $${totalVolume.toFixed(2)} in volume 📈\n\nCan you beat the leaderboard? 👇`;
+                  const url = typeof window !== "undefined" ? `${window.location.origin}/leaderboard` : "/leaderboard";
+                  const intent = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+                  window.open(intent, "_blank", "noopener,noreferrer");
+                }}
+                className="sm:ml-auto inline-flex items-center gap-1.5 text-[11px] font-bold bg-black text-white rounded-full px-3 py-1 border border-pg-slate hover:bg-neutral-800 transition-colors"
+                aria-label="Share leaderboard on X"
+              >
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                </svg>
+                Share on X
+              </button>
             </div>
           )}
         </div>

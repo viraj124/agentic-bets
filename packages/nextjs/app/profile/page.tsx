@@ -349,6 +349,25 @@ const ProfilePage: NextPage = () => {
                 </>
               )}
             </button>
+            <button
+              onClick={() => {
+                if (!referralLink) return;
+                const text = hasStats
+                  ? `I've placed ${userStats!.totalBets} bets on @0xAgenticBets\n${userStats!.winRate.toFixed(0)}% win rate · ${userStats!.netPnL >= 0 ? "+" : ""}$${userStats!.netPnL.toFixed(2)} net P&L 🎯\n\nMake your prediction 👇`
+                  : `Predict if Bankr tokens pump or dump on @0xAgenticBets 🎯\n\nJoin me 👇`;
+                const intent = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(referralLink)}`;
+                window.open(intent, "_blank", "noopener,noreferrer");
+              }}
+              disabled={!referralLink}
+              className="shrink-0 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm bg-black hover:bg-neutral-800 text-white disabled:opacity-40 transition-colors border-2 border-pg-slate shadow-pop hover:shadow-pop-active active:translate-x-[2px] active:translate-y-[2px]"
+              style={{ fontFamily: "var(--font-heading)" }}
+              aria-label="Share on X"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
+              Share on X
+            </button>
           </div>
 
           {/* Stats */}
