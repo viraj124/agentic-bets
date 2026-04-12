@@ -51,7 +51,10 @@
     "verify": "yarn foundry:verify",
     "keeper:dev": "yarn workspace @se-2/keeper dev",
     "keeper:build": "yarn workspace @se-2/keeper build",
-    "keeper:start": "yarn workspace @se-2/keeper start"
+    "keeper:start": "yarn workspace @se-2/keeper start",
+    "alerts-agent:dev": "yarn workspace @se-2/alerts-agent dev",
+    "alerts-agent:build": "yarn workspace @se-2/alerts-agent build",
+    "alerts-agent:start": "yarn workspace @se-2/alerts-agent start"
   },
   "devDependencies": {
     "husky": "~9.1.6",

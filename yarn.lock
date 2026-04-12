@@ -5024,6 +5024,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@se-2/alerts-agent@workspace:packages/alerts-agent":
+  version: 0.0.0-use.local
+  resolution: "@se-2/alerts-agent@workspace:packages/alerts-agent"
+  dependencies:
+    "@types/node": ^20.0.0
+    "@types/pg": ^8.11.0
+    pg: ^8.13.0
+    tsx: ^4.19.0
+    typescript: ^5.5.0
+  languageName: unknown
+  linkType: soft
+
 "@se-2/foundry@workspace:packages/foundry":
   version: 0.0.0-use.local
   resolution: "@se-2/foundry@workspace:packages/foundry"
@@ -5097,6 +5109,18 @@ __metadata:
     viem: 2.39.0
     wagmi: 2.19.5
     zustand: ~5.0.0
+  languageName: unknown
+  linkType: soft
+
+"@se-2/telegram-agent@workspace:packages/telegram-agent":
+  version: 0.0.0-use.local
+  resolution: "@se-2/telegram-agent@workspace:packages/telegram-agent"
+  dependencies:
+    "@types/node": ^20.0.0
+    "@types/pg": ^8.11.0
+    pg: ^8.13.0
+    tsx: ^4.19.0
+    typescript: ^5.5.0
   languageName: unknown
   linkType: soft
 
@@ -6339,6 +6363,17 @@ __metadata:
   dependencies:
     undici-types: ~5.26.4
   checksum: b7032363581c416e721a88cffdc2b47662337cacd20f8294f5619a1abf79615c7fef1521964c2aa9d36ed6aae733e1a03e8c704661bd5a0c2f34b390f41ea395
+  languageName: node
+  linkType: hard
+
+"@types/pg@npm:^8.11.0":
+  version: 8.20.0
+  resolution: "@types/pg@npm:8.20.0"
+  dependencies:
+    "@types/node": "*"
+    pg-protocol: "*"
+    pg-types: ^2.2.0
+  checksum: e3610a00e38d52a0b9069bda48a9a5746d198f0aaa72710898fe6c277777ca3ef5190725afa61f53adb4ddd624e48267133b691f4ae7076dbef5d83aa31c2cf0
   languageName: node
   linkType: hard
 
@@ -15970,7 +16005,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"pg-protocol@npm:^1.13.0":
+"pg-protocol@npm:*, pg-protocol@npm:^1.13.0":
   version: 1.13.0
   resolution: "pg-protocol@npm:1.13.0"
   checksum: 93f3d82804b6471961f97a1747e8a793c89defb3266fcc5659d842f36e022b2f7ea574490fa4e23cf1c9acafadb77642d388d9140581f94e23e19a8699fcd6a0
@@ -15984,7 +16019,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"pg-types@npm:2.2.0":
+"pg-types@npm:2.2.0, pg-types@npm:^2.2.0":
   version: 2.2.0
   resolution: "pg-types@npm:2.2.0"
   dependencies:
@@ -15997,7 +16032,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"pg@npm:^8.11.3":
+"pg@npm:^8.11.3, pg@npm:^8.13.0":
   version: 8.20.0
   resolution: "pg@npm:8.20.0"
   dependencies:
