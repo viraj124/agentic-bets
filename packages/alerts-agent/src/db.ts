@@ -10,7 +10,6 @@ export type Db = {
   hasPost: (id: string) => Promise<boolean>;
   recordPost: (id: string, trigger: TriggerKind, content: string, messageId: string | null) => Promise<void>;
   countSince: (trigger: TriggerKind, since: Date) => Promise<number>;
-  lastPostAt: (trigger: TriggerKind) => Promise<Date | null>;
   close: () => Promise<void>;
 };
 
@@ -63,16 +62,6 @@ export function createDb(connectionString: string): Db {
         [trigger, since],
       );
       return parseInt(r.rows[0]?.count ?? "0", 10);
-    },
-    async lastPostAt(trigger) {
-      const r = await pool.query<{ posted_at: Date }>(
-        `SELECT posted_at FROM alerts_agent.posts
-          WHERE trigger = $1
-          ORDER BY posted_at DESC
-          LIMIT 1`,
-        [trigger],
-      );
-      return r.rows[0]?.posted_at ?? null;
     },
     async close() {
       await pool.end();

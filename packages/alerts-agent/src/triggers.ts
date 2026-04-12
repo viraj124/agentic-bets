@@ -15,12 +15,6 @@ async function runT2(
   telegram: TelegramClient,
   db: Db,
 ): Promise<void> {
-  const lastAt = await db.lastPostAt("t2");
-  if (lastAt && Date.now() - lastAt.getTime() < config.t2CooldownMs) {
-    logger.info("T2 cooldown active", { lastAt: lastAt.toISOString() });
-    return;
-  }
-
   const todayStart = startOfDayUtc();
   const todayCount = await db.countSince("t2", todayStart);
   if (todayCount >= config.t2DailyCap) {
@@ -49,21 +43,26 @@ async function runT2(
   }
 
   candidates.sort((a, b) => b.poolUsdc - a.poolUsdc);
-  const winner = candidates[0]!;
-  const content = formatT2(winner);
+  let posted = 0;
+  const remaining = config.t2DailyCap - todayCount;
 
-  const id = `t2:${winner.token.toLowerCase()}:${winner.epoch}`;
-  try {
-    const messageId = await telegram.post(content);
-    // Dry-run returns null — skip DB write so cooldown/dedup stay stateless.
-    if (messageId === null) {
-      logger.info("T2 dry-run (not recorded)", { id, pool: winner.poolUsdc, symbol: winner.symbol });
-      return;
+  for (const candidate of candidates) {
+    if (posted >= remaining) break;
+
+    const id = `t2:${candidate.token.toLowerCase()}:${candidate.epoch}`;
+    const content = formatT2(candidate);
+    try {
+      const messageId = await telegram.post(content);
+      if (messageId === null) {
+        logger.info("T2 dry-run (not recorded)", { id, pool: candidate.poolUsdc, symbol: candidate.symbol });
+        continue;
+      }
+      await db.recordPost(id, "t2", content, messageId);
+      logger.info("T2 posted", { id, pool: candidate.poolUsdc, symbol: candidate.symbol });
+      posted++;
+    } catch (err) {
+      logger.error("T2 post failed", { id, error: err instanceof Error ? err.message : String(err) });
     }
-    await db.recordPost(id, "t2", content, messageId);
-    logger.info("T2 posted", { id, pool: winner.poolUsdc, symbol: winner.symbol });
-  } catch (err) {
-    logger.error("T2 post failed", { id, error: err instanceof Error ? err.message : String(err) });
   }
 }
 

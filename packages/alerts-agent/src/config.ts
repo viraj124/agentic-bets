@@ -5,7 +5,6 @@ export type Config = {
   telegramBotToken: string | undefined;
   telegramChatId: string | undefined;
   pollIntervalMs: number;
-  t2CooldownMs: number;
   t2DailyCap: number;
   t2MinPoolUsdc: number;
   t2WindowMinSec: number;
@@ -31,9 +30,8 @@ export function loadConfig(): Config {
     telegramBotToken,
     telegramChatId,
     pollIntervalMs: intEnv("POLL_INTERVAL_MS", 60_000),
-    t2CooldownMs: intEnv("T2_COOLDOWN_MS", 100 * 60 * 1000),
     t2DailyCap: intEnv("T2_DAILY_CAP", 13),
-    t2MinPoolUsdc: floatEnv("T2_MIN_POOL_USDC", 10),
+    t2MinPoolUsdc: floatEnv("T2_MIN_POOL_USDC", 5),
     t2WindowMinSec: intEnv("T2_WINDOW_MIN_SEC", 30),
     t2WindowMaxSec: intEnv("T2_WINDOW_MAX_SEC", 120),
   };
