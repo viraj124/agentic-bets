@@ -4,6 +4,7 @@ import { memo, useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useAccount } from "wagmi";
+import { TokenCountdown } from "~~/components/bankrbets/TokenCountdown";
 import { BankrToken } from "~~/hooks/bankrbets/useBankrTokens";
 
 const CHUNK_RELOAD_GUARD_KEY = "__bankrbets_chunk_retry__";
@@ -138,18 +139,21 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
                 {token.symbol}
               </span>
               {hasMarket ? (
-                <span
-                  className="inline-flex items-center gap-1 text-[9px] font-extrabold px-2 py-0.5 rounded-full"
-                  style={{
-                    background: "linear-gradient(135deg, rgba(139,92,246,0.15) 0%, rgba(168,35,196,0.12) 100%)",
-                    border: "1px solid rgba(139,92,246,0.3)",
-                    color: "#7c3aed",
-                    boxShadow: "0 0 6px rgba(139,92,246,0.15)",
-                  }}
-                >
-                  <span className="text-[9px] leading-none">$</span>
-                  BET
-                </span>
+                <>
+                  <span
+                    className="inline-flex items-center gap-1 text-[9px] font-extrabold px-2 py-0.5 rounded-full"
+                    style={{
+                      background: "linear-gradient(135deg, rgba(139,92,246,0.15) 0%, rgba(168,35,196,0.12) 100%)",
+                      border: "1px solid rgba(139,92,246,0.3)",
+                      color: "#7c3aed",
+                      boxShadow: "0 0 6px rgba(139,92,246,0.15)",
+                    }}
+                  >
+                    <span className="text-[9px] leading-none">$</span>
+                    BET
+                  </span>
+                  <TokenCountdown tokenAddress={token.contractAddress} />
+                </>
               ) : null}
             </div>
             <p className="text-[11px] text-pg-muted truncate">{token.name}</p>
