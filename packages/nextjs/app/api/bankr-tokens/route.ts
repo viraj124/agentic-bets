@@ -1161,8 +1161,22 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
 
 const REFRESH_TIMEOUT_MS = 55_000; // must complete before Vercel's 60s function timeout
 
+let refreshStartedAt = 0;
+
 function triggerRefresh(mode: RefreshMode): Promise<void> {
-  if (cache.refreshInFlight) return cache.refreshInFlight;
+  // If a refresh is in-flight, check if it's stale (orphaned by a previous Vercel timeout).
+  // Vercel kills function invocations at maxDuration but may reuse the process,
+  // leaving refreshInFlight as a dead promise that never resolves.
+  if (cache.refreshInFlight) {
+    const elapsed = Date.now() - refreshStartedAt;
+    if (elapsed < REFRESH_TIMEOUT_MS) {
+      return cache.refreshInFlight;
+    }
+    console.warn(`[bankr-tokens] Stale refresh detected (${elapsed}ms old), restarting`);
+    cache.refreshInFlight = null;
+  }
+
+  refreshStartedAt = Date.now();
 
   const timeout = new Promise<void>((_, reject) =>
     setTimeout(() => reject(new Error(`${mode} refresh timed out after ${REFRESH_TIMEOUT_MS}ms`)), REFRESH_TIMEOUT_MS),
