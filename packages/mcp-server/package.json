@@ -1,0 +1,54 @@
+{
+  "name": "agenticbets-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for AgenticBets — AI agents can discover, analyze, and place bets on prediction markets on Base",
+  "type": "module",
+  "bin": {
+    "agenticbets-mcp": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "dist",
+    "README.md",
+    "SKILL.md",
+    "skill.json",
+    "smithery.yaml"
+  ],
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "prepublishOnly": "tsc"
+  },
+  "keywords": [
+    "mcp",
+    "agenticbets",
+    "prediction-market",
+    "base",
+    "ai-agent",
+    "coinbase",
+    "agentkit",
+    "claude",
+    "cursor"
+  ],
+  "author": "AgenticBets",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/viraj124/agentic-bets",
+    "directory": "bankr-bets/packages/mcp-server"
+  },
+  "homepage": "https://agenticbets.dev",
+  "dependencies": {
+    "@coinbase/agentkit": "^0.10.4",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "graphql": "^16.13.2",
+    "viem": "^2.38.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0"
+  }
+}

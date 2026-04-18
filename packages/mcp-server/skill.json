@@ -1,0 +1,149 @@
+{
+  "name": "agenticbets",
+  "display_name": "AgenticBets",
+  "description": "Discover, analyze, and place bets on prediction markets on Base chain. AI agents can check market odds, place UP/DOWN bets with USDC, and claim winnings — all autonomously via Coinbase AgentKit MPC wallets.",
+  "version": "0.1.0",
+  "author": "AgenticBets",
+  "homepage": "https://agenticbets.dev",
+  "repository": "https://github.com/viraj124/agentic-bets",
+  "license": "MIT",
+  "icon": "https://agenticbets.dev/favicon.png",
+  "categories": ["defi", "prediction-market", "trading", "base", "onchain"],
+  "chains": ["base"],
+  "protocol": "mcp",
+  "transport": "stdio",
+  "install": {
+    "npx": "npx -y agenticbets-mcp",
+    "claude_code": "claude mcp add agenticbets -- npx -y agenticbets-mcp",
+    "npm": "npm install -g agenticbets-mcp"
+  },
+  "tools": [
+    {
+      "name": "list_markets",
+      "description": "List all prediction markets with status, pool size, odds, and seconds to lock",
+      "category": "read",
+      "requires_auth": false,
+      "parameters": {
+        "status": {
+          "type": "string",
+          "enum": ["all", "open", "locked", "settled"],
+          "description": "Filter by market status",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "get_market",
+      "description": "Get detailed info for a market by token symbol or address",
+      "category": "read",
+      "requires_auth": false,
+      "parameters": {
+        "query": {
+          "type": "string",
+          "description": "Token symbol (e.g. AGBETS) or contract address",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "get_odds",
+      "description": "Get current bull/bear percentage split and pool size",
+      "category": "read",
+      "requires_auth": false,
+      "parameters": {
+        "query": {
+          "type": "string",
+          "description": "Token symbol or contract address",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "get_wallet",
+      "description": "Show the agent MPC wallet address and USDC balance on Base",
+      "category": "wallet",
+      "requires_auth": true
+    },
+    {
+      "name": "place_bet",
+      "description": "Place a prediction bet. Automatically handles USDC approval + bet transaction.",
+      "category": "write",
+      "requires_auth": true,
+      "parameters": {
+        "token": {
+          "type": "string",
+          "description": "Token symbol (e.g. AGBETS) or contract address",
+          "required": true
+        },
+        "amount": {
+          "type": "string",
+          "description": "Bet amount in USDC (e.g. '5' for $5)",
+          "required": true
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["up", "down"],
+          "description": "Bet direction: up (bull) or down (bear)",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "claim_winnings",
+      "description": "Claim USDC winnings from settled prediction rounds",
+      "category": "write",
+      "requires_auth": true,
+      "parameters": {
+        "token": {
+          "type": "string",
+          "description": "Token symbol or contract address",
+          "required": true
+        },
+        "epochs": {
+          "type": "array",
+          "items": { "type": "number" },
+          "description": "Epoch numbers to claim",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "check_claimable",
+      "description": "Check if the agent wallet has claimable winnings for a specific round",
+      "category": "read",
+      "requires_auth": true,
+      "parameters": {
+        "token": {
+          "type": "string",
+          "description": "Token symbol or contract address",
+          "required": true
+        },
+        "epoch": {
+          "type": "number",
+          "description": "Epoch number to check",
+          "required": true
+        }
+      }
+    }
+  ],
+  "auth": {
+    "type": "env",
+    "description": "Coinbase Developer Platform credentials for wallet operations",
+    "variables": {
+      "CDP_API_KEY_ID": {
+        "description": "CDP API Key ID from portal.cdp.coinbase.com",
+        "required": false
+      },
+      "CDP_API_KEY_SECRET": {
+        "description": "CDP API Key Secret (PEM format)",
+        "required": false,
+        "sensitive": true
+      },
+      "CDP_WALLET_SECRET": {
+        "description": "Encryption passphrase for the agent MPC wallet",
+        "required": false,
+        "sensitive": true
+      }
+    }
+  }
+}

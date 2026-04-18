@@ -54,7 +54,10 @@
     "keeper:start": "yarn workspace @se-2/keeper start",
     "alerts-agent:dev": "yarn workspace @se-2/alerts-agent dev",
     "alerts-agent:build": "yarn workspace @se-2/alerts-agent build",
-    "alerts-agent:start": "yarn workspace @se-2/alerts-agent start"
+    "alerts-agent:start": "yarn workspace @se-2/alerts-agent start",
+    "mcp:dev": "yarn workspace agenticbets-mcp dev",
+    "mcp:build": "yarn workspace agenticbets-mcp build",
+    "mcp:start": "yarn workspace agenticbets-mcp start"
   },
   "devDependencies": {
     "husky": "~9.1.6",

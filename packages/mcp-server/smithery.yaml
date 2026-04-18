@@ -1,0 +1,30 @@
+# Smithery.ai registry manifest — https://smithery.ai
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      CDP_API_KEY_ID:
+        type: string
+        description: "Coinbase Developer Platform API Key ID (optional — needed for betting)"
+      CDP_API_KEY_SECRET:
+        type: string
+        description: "CDP API Key Secret (PEM format)"
+      CDP_WALLET_SECRET:
+        type: string
+        description: "Encryption secret for the MPC wallet"
+      BANKR_API_URL:
+        type: string
+        description: "Markets API URL (default: https://agenticbets.dev/api/bankr/markets)"
+    required: []
+  commandFunction: |-
+    (config) => ({
+      command: 'npx',
+      args: ['-y', 'agenticbets-mcp'],
+      env: {
+        ...(config.CDP_API_KEY_ID && { CDP_API_KEY_ID: config.CDP_API_KEY_ID }),
+        ...(config.CDP_API_KEY_SECRET && { CDP_API_KEY_SECRET: config.CDP_API_KEY_SECRET }),
+        ...(config.CDP_WALLET_SECRET && { CDP_WALLET_SECRET: config.CDP_WALLET_SECRET }),
+        ...(config.BANKR_API_URL && { BANKR_API_URL: config.BANKR_API_URL }),
+      }
+    })
