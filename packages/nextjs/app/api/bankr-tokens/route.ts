@@ -39,7 +39,7 @@ const GECKO_MAX_RETRIES = 1; // don't hammer on 429
 const GECKO_FALLBACK_MAX_ADDRESSES = 150; // top tokens only — keeps total batches ≤ 5
 
 const CACHE_TTL_MS = 5 * 60_000; // serve stale cache immediately and refresh in background
-const FETCH_TIMEOUT_MS = 12_000;
+const FETCH_TIMEOUT_MS = 25_000;
 const SNAPSHOT_PATH = "/tmp/bankr-tokens-cache-v1.json";
 const SNAPSHOT_MAX_AGE_MS = 24 * 60 * 60_000;
 
