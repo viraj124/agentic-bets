@@ -95,6 +95,12 @@ async function fetchDexScreenerToken(token: string, preferredPool?: string) {
   return bestPair;
 }
 
+async function resolveBestPoolFromDexScreener(token: string): Promise<string | null> {
+  const pair = await fetchDexScreenerToken(token);
+  const addr = (pair?.pairAddress || "").toLowerCase();
+  return isHexAddress(addr) ? addr : null;
+}
+
 function geckoAttrsToPoolData(attrs: any, poolAddress: string) {
   return {
     priceUsd: toNumber(attrs.base_token_price_usd),
@@ -161,7 +167,15 @@ async function resolveBestPoolForToken(token: string): Promise<string | null> {
       }
     }
   }
-  return bestAddr20 || bestAddr32 || null;
+  if (bestAddr20) return bestAddr20;
+
+  // If Gecko only knows about a V4 pool ID, prefer a DexScreener pair address
+  // when available. Regular 20-byte pair addresses are much more reliable for
+  // both pool metadata and OHLCV/chart lookups.
+  const dexResolved = await resolveBestPoolFromDexScreener(token);
+  if (dexResolved && isHexAddress(dexResolved)) return dexResolved;
+
+  return bestAddr32 || null;
 }
 
 function extractAddressFromGeckoId(id: string): string {

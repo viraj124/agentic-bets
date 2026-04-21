@@ -191,7 +191,7 @@ export function PriceChart({ poolAddress, tokenAddress, height, compact }: Price
     dexUrl = `https://dexscreener.com/base/${normalizedToken}`;
   }
   const externalLink = geckoUrl
-    ? { href: geckoUrl, label: "View on CoinGecko" }
+    ? { href: geckoUrl, label: "View on GeckoTerminal" }
     : dexUrl
       ? { href: dexUrl, label: "View on DexScreener" }
       : null;

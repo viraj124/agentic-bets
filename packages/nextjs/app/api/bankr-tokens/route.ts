@@ -16,11 +16,11 @@ export const maxDuration = 60;
 
 const CLANKER_API = "https://www.clanker.world/api/tokens";
 const CLANKER_PAGE_SIZE = 20;
-const CLANKER_MAX_PAGES = 10; // ~200 tokens — top by market cap, keeps fetch time reasonable
-
-const BANKR_INDEXER_API = "https://bankr-walletindexer-production.up.railway.app";
-const BANKR_PAGE_SIZE = 200; // max allowed by indexer
-const BANKR_MAX_TOKENS = 500; // only need tokens that overlap with Clanker/Launches for pool key resolution
+// We only target the Bankr ecosystem. Use Clanker as the primary ranked source,
+// then layer in recent Bankr launches for recency. Pulling hundreds of extra
+// indexer-only tokens makes full refreshes too slow and does not improve the
+// user-facing feed because zero-volume tokens are dropped anyway.
+const CLANKER_MAX_PAGES = 5; // ~100 tokens
 
 const BANKR_LAUNCHES_API = "https://api.bankr.bot/token-launches";
 
@@ -36,19 +36,21 @@ const GECKO_BATCH = 30;
 const GECKO_CONCURRENCY = 1; // strict to avoid rate limit
 const GECKO_DELAY_MS = 1000; // free tier allows ~30 req/min
 const GECKO_MAX_RETRIES = 1; // don't hammer on 429
-const GECKO_FALLBACK_MAX_ADDRESSES = 150; // top tokens only — keeps total batches ≤ 5
+const GECKO_FALLBACK_MAX_ADDRESSES = 90; // keep full refresh comfortably inside serverless timeout
 
 const CACHE_TTL_MS = 5 * 60_000; // serve stale cache immediately and refresh in background
 const FETCH_TIMEOUT_MS = 25_000;
 const SNAPSHOT_PATH = "/tmp/bankr-tokens-cache-v1.json";
 const SNAPSHOT_MAX_AGE_MS = 24 * 60 * 60_000;
 
-const BOOTSTRAP_CLANKER_MAX_PAGES = 5; // ~100 tokens — enough for initial render, full refresh fills rest
-const BOOTSTRAP_INDEXER_MAX_TOKENS = 200; // single page — just need pool key overlap
+const BOOTSTRAP_CLANKER_MAX_PAGES = 3; // ~60 tokens — enough for initial render, full refresh fills rest
 
 const WETH = WETH_BASE;
 const AGBETS_ADDRESS = "0x37d183fcf1da460a64d21e754b3e6144c4e11ba3";
 const AGBETS_POOL_ID = "0x9b2a0a54f851edd8241717a77a5cd5fad1f688770f2435cd77bfd46cc71b6b30";
+const BNKRW_ADDRESS = "0xf48bc234855ab08ab2ec0cfaaeb2a80d065a3b07";
+const WCHAN_ADDRESS = "0xba5ed0000e1ca9136a695f0a848012a16008b032";
+const WCHAN_POOL_ID = "0x81c7a2a2c33ea285f062c5ac0c4e3d4ffb2f6fd2588bbd354d0d3af8a58b6337";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -133,15 +135,6 @@ interface ClankerToken {
 interface ClankerResponse {
   data?: ClankerToken[];
   cursor?: string;
-}
-
-interface BankrCoin {
-  coinAddress: string;
-  poolId: string;
-}
-
-interface BankrStats {
-  totalCoins?: number;
 }
 
 interface BankrLaunch {
@@ -399,46 +392,6 @@ async function fetchFromClanker(maxPages = CLANKER_MAX_PAGES): Promise<TokenPool
     const nextCursor = json?.cursor || null;
     if (!nextCursor || nextCursor === cursor) break;
     cursor = nextCursor;
-  }
-
-  return tokens;
-}
-
-async function fetchFromBankrIndexer(maxTokens = BANKR_MAX_TOKENS): Promise<TokenPoolInfo[]> {
-  const tokens: TokenPoolInfo[] = [];
-  const seen = new Set<string>();
-
-  const stats = await fetchJson<BankrStats>(`${BANKR_INDEXER_API}/stats`, 1);
-  const reportedTotal = Math.max(0, toNumber(stats?.totalCoins));
-  const cappedTotal = Math.min(reportedTotal || maxTokens, maxTokens);
-  const maxPages = Math.max(1, Math.ceil(cappedTotal / BANKR_PAGE_SIZE));
-
-  for (let page = 0; page < maxPages; page++) {
-    const offset = page * BANKR_PAGE_SIZE;
-    const items = await fetchJson<BankrCoin[]>(
-      `${BANKR_INDEXER_API}/coins?limit=${BANKR_PAGE_SIZE}&offset=${offset}`,
-      1,
-    );
-    if (!Array.isArray(items) || items.length === 0) break;
-
-    for (const item of items) {
-      const addr = (item.coinAddress || "").toLowerCase();
-      if (!isHexAddress(addr) || seen.has(addr)) continue;
-      seen.add(addr);
-
-      const poolId = (item.poolId || "").toLowerCase();
-      const poolKey = resolvePoolKey(addr, WETH, poolId);
-
-      tokens.push({
-        address: addr,
-        poolId: poolKey ? computePoolId(poolKey) : poolId,
-        poolKey,
-        fromClanker: false,
-        fromIndexer: true,
-      });
-    }
-
-    if (items.length < BANKR_PAGE_SIZE) break;
   }
 
   return tokens;
@@ -857,98 +810,27 @@ async function persistSnapshot(): Promise<void> {
   }
 }
 
-async function mergeLaunchTokensInBackground(): Promise<void> {
-  try {
-    const launchTokens = await fetchFromBankrLaunches();
-    if (launchTokens.length === 0) return;
-
-    // Get addresses that aren't already in the cache
-    const existingAddresses = new Set(cache.enrichedTokens.map(t => t.address));
-    const newTokens = launchTokens.filter(t => !existingAddresses.has(t.address));
-    if (newTokens.length === 0) {
-      console.log(`[bankr-tokens] Launches: all ${launchTokens.length} tokens already in cache`);
-      return;
-    }
-
-    // Enrich new tokens via DexScreener
-    const addresses = newTokens.map(t => t.address);
-    const dexData = new Map<string, PriceEnrichment>();
-    for (let i = 0; i < addresses.length; i += DEX_BATCH) {
-      try {
-        const batch = await fetchDexBatch(addresses.slice(i, i + DEX_BATCH));
-        for (const [k, v] of batch) dexData.set(k, v);
-      } catch {
-        /* non-critical */
-      }
-    }
-
-    const enriched: EnrichedToken[] = [];
-    for (const token of newTokens) {
-      const dex = dexData.get(token.address);
-      const cp = token.clankerPriceData;
-      const resolvedPoolKey = token.poolKey ?? deriveFallbackPoolKey(token.address);
-      const priceData = dex || cp;
-      if (!priceData || !priceData.priceUsd) continue; // skip if no price data at all
-
-      enriched.push({
-        address: token.address,
-        poolId: token.poolId || computePoolId(resolvedPoolKey),
-        poolKey: resolvedPoolKey,
-        name: dex?.name || cp?.name || "",
-        symbol: dex?.symbol || cp?.symbol || "",
-        imgUrl: dex?.imgUrl || cp?.imgUrl || "",
-        priceUsd: dex?.priceUsd || 0,
-        marketCap: dex?.marketCap || 0,
-        volume24h: dex?.volume24h || 0,
-        change1h: dex?.change1h || 0,
-        change24h: dex?.change24h || 0,
-        topPoolAddress: dex?.topPoolAddress || "",
-        deployedAt: cp?.deployedAt || "",
-        pair: cp?.pair || "WETH",
-        priceSource: "dexscreener",
-        poolKeyVerified: token.poolKey !== null,
-      });
-    }
-
-    if (enriched.length > 0) {
-      cache.enrichedTokens = [...cache.enrichedTokens, ...enriched];
-      cache.enrichedTokens.sort((a, b) => b.marketCap - a.marketCap);
-      cache.updatedAt = Date.now();
-      console.log(
-        `[bankr-tokens] Launches: merged ${enriched.length} new tokens into cache (total: ${cache.enrichedTokens.length})`,
-      );
-    }
-  } catch (err) {
-    console.warn(`[bankr-tokens] Background launches merge failed: ${err instanceof Error ? err.message : "unknown"}`);
-  }
-}
-
 async function rebuildCache(mode: RefreshMode): Promise<void> {
   const startedAt = Date.now();
   const clankerPageLimit = mode === "full" ? CLANKER_MAX_PAGES : BOOTSTRAP_CLANKER_MAX_PAGES;
-  const indexerTokenLimit = mode === "full" ? BANKR_MAX_TOKENS : BOOTSTRAP_INDEXER_MAX_TOKENS;
   const geckoEnabled = true; // always enable Gecko fallback since DexScreener rate-limits aggressively
 
-  const [clankerTokens, bankrTokens] = await Promise.all([
+  const [clankerTokens, launchTokens] = await Promise.all([
     fetchFromClanker(clankerPageLimit).catch(err => {
       console.warn(`[bankr-tokens] Clanker fetch failed: ${err instanceof Error ? err.message : "unknown"}`);
       return [] as TokenPoolInfo[];
     }),
-    fetchFromBankrIndexer(indexerTokenLimit).catch(err => {
-      console.warn(`[bankr-tokens] Bankr indexer fetch failed: ${err instanceof Error ? err.message : "unknown"}`);
+    fetchFromBankrLaunches().catch(err => {
+      console.warn(`[bankr-tokens] Bankr launches fetch failed: ${err instanceof Error ? err.message : "unknown"}`);
       return [] as TokenPoolInfo[];
     }),
   ]);
 
-  // Fire off Bankr Launches in background — it's slow (~2+ min) so we don't block on it.
-  // When it completes, we enrich those tokens via DexScreener and merge them into the cache.
-  void mergeLaunchTokensInBackground();
-
   console.log(
-    `[bankr-tokens] Sources: ${clankerTokens.length} clanker, ${bankrTokens.length} indexer (mode=${mode}), launches loading in background`,
+    `[bankr-tokens] Sources: ${clankerTokens.length} clanker, ${launchTokens.length} launches (mode=${mode})`,
   );
 
-  const allRaw = [...getForcedMarketTokens(), ...clankerTokens, ...bankrTokens];
+  const allRaw = [...getForcedMarketTokens(), ...clankerTokens, ...launchTokens];
   const tokenMap = new Map<string, TokenPoolInfo>();
 
   for (const token of allRaw) {
@@ -977,6 +859,14 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
   }
 
   const uniqueTokens = [...tokenMap.values()];
+  // Hard guardrail: the final feed must stay inside the Bankr-native discovery
+  // universe (Clanker Bankr feed + Bankr launches + forced markets). This keeps
+  // Dex/Gecko enrichment from ever broadening the token set beyond the Bankr
+  // ecosystem. BNKRW is normalized to WCHAN later, so allow that alias too.
+  const allowedAddresses = new Set(uniqueTokens.map(t => t.address));
+  if (allowedAddresses.has(BNKRW_ADDRESS)) {
+    allowedAddresses.add(WCHAN_ADDRESS);
+  }
   const withPoolKey = uniqueTokens.filter(t => !!t.poolKey);
   const withoutPoolKey = uniqueTokens.length - withPoolKey.length;
 
@@ -1100,9 +990,6 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
 
   // Replace BNKRW with WCHAN (WalletChan) — Bankr rebranded to WalletChan
   // WCHAN uses a vanilla V4 pool: native ETH + no hooks + fee=10000
-  const BNKRW_ADDRESS = "0xf48bc234855ab08ab2ec0cfaaeb2a80d065a3b07";
-  const WCHAN_ADDRESS = "0xba5ed0000e1ca9136a695f0a848012a16008b032";
-  const WCHAN_POOL_ID = "0x81c7a2a2c33ea285f062c5ac0c4e3d4ffb2f6fd2588bbd354d0d3af8a58b6337";
   const bnkrwIdx = enriched.findIndex(t => t.address === BNKRW_ADDRESS);
   if (bnkrwIdx !== -1) {
     const wchanPrice = await fetchDexBatch([WCHAN_ADDRESS]).catch(() => new Map());
@@ -1127,6 +1014,8 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
     }
   }
 
+  enriched = enriched.filter(t => allowedAddresses.has(t.address));
+
   cache.poolKeyMap.clear();
   for (const token of withPoolKey) {
     if (token.poolKey) cache.poolKeyMap.set(token.address, token.poolKey);
@@ -1138,8 +1027,8 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
   cache.lastStats = {
     mode,
     clankerRaw: clankerTokens.length,
-    bankrRaw: bankrTokens.length,
-    launchRaw: 0, // launches merge in background
+    bankrRaw: 0,
+    launchRaw: launchTokens.length,
     totalRaw: allRaw.length,
     uniqueRaw: uniqueTokens.length,
     withPoolKey: withPoolKey.length,

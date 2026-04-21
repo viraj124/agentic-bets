@@ -136,6 +136,23 @@ function toCandles(list: number[][]): OhlcvCandle[] {
   return deduped;
 }
 
+async function firstNonEmptyCandles(providers: Array<Promise<OhlcvCandle[] | null>>): Promise<OhlcvCandle[] | null> {
+  if (providers.length === 0) return null;
+
+  try {
+    return await Promise.any(
+      providers.map(async provider => {
+        const candles = await provider;
+        if (candles && candles.length > 0) return candles;
+        throw new Error("empty");
+      }),
+    );
+  } catch {
+    const settled = await Promise.all(providers);
+    return settled.find(candles => candles && candles.length > 0) ?? null;
+  }
+}
+
 // ── GeckoTerminal ─────────────────────────────────────────────────────────────
 
 /**
@@ -334,11 +351,19 @@ async function resolveBestPoolForToken(token: string): Promise<string | null> {
     }
   }
 
-  let bestAddress = bestAddr20 || bestAddr32;
+  let bestAddress = bestAddr20;
 
-  // Fallback to DexScreener if Gecko gave us nothing
+  // If Gecko only yields a bytes32 V4 pool ID, still ask DexScreener for a
+  // normal pair address and prefer that for charting.
   if (!bestAddress) {
-    bestAddress = (await resolveBestPoolFromDexScreener(token)) || "";
+    const dexResolved = await resolveBestPoolFromDexScreener(token);
+    if (dexResolved && isHexAddress(dexResolved)) {
+      bestAddress = dexResolved;
+    }
+  }
+
+  if (!bestAddress) {
+    bestAddress = bestAddr32;
   }
 
   resolvedPoolCache.set(token, { pool: bestAddress, ts: Date.now() });
@@ -356,11 +381,11 @@ async function fetchCandlesForPool(
   limit: string,
   currency: string,
 ): Promise<OhlcvCandle[] | null> {
-  const geckoCandles = await fetchGeckoOhlcv(pool, aggregate, limit, currency);
-  if (geckoCandles && geckoCandles.length > 0) return geckoCandles;
+  const geckoCandlesPromise = fetchGeckoOhlcv(pool, aggregate, limit, currency);
+  const dexCandlesPromise = fetchDexScreenerOhlcv(pool, aggregate, limit);
 
-  const dexCandles = await fetchDexScreenerOhlcv(pool, aggregate, limit);
-  if (dexCandles && dexCandles.length > 0) return dexCandles;
+  const directCandles = await firstNonEmptyCandles([dexCandlesPromise, geckoCandlesPromise]);
+  if (directCandles && directCandles.length > 0) return directCandles;
 
   // Fallback for new/low-liquidity tokens: higher timeframes often have no data
   // yet, so step down through lower resolutions until we find something.
@@ -368,13 +393,14 @@ async function fetchCandlesForPool(
   const fallbackResolutions = [...(aggMinutes > 5 ? [5] : []), ...(aggMinutes > 1 ? [1] : [])];
   for (const res of fallbackResolutions) {
     const fallbackLimit = String(Math.min(1000, parseInt(limit, 10) * Math.ceil(aggMinutes / res)));
-    const fallbackGecko = await fetchGeckoOhlcv(pool, String(res), fallbackLimit, currency);
-    if (fallbackGecko && fallbackGecko.length > 0) return fallbackGecko;
-    const fallbackDex = await fetchDexScreenerOhlcv(pool, String(res), fallbackLimit);
-    if (fallbackDex && fallbackDex.length > 0) return fallbackDex;
+    const fallbackCandles = await firstNonEmptyCandles([
+      fetchDexScreenerOhlcv(pool, String(res), fallbackLimit),
+      fetchGeckoOhlcv(pool, String(res), fallbackLimit, currency),
+    ]);
+    if (fallbackCandles && fallbackCandles.length > 0) return fallbackCandles;
   }
 
-  return geckoCandles; // null or []
+  return null;
 }
 
 export async function GET(req: NextRequest) {

@@ -79,7 +79,10 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
   const isPositive = token.change24h >= 0;
   const changeColor = isPositive ? "text-pg-mint" : "text-pg-pink";
   const changeBg = isPositive ? "bg-pg-mint/10" : "bg-pg-pink/10";
-  const chartPoolAddress = token.poolId || token.topPoolAddress;
+  // Prefer the resolved tradable pair address for charts/links. Raw V4 pool IDs
+  // are still useful metadata, but Gecko/Dex chart endpoints are much more
+  // reliable when given a 20-byte pool/pair address.
+  const chartPoolAddress = token.topPoolAddress || token.poolId;
   const marketLink = `/market#${token.contractAddress},${chartPoolAddress}`;
   const avatarColor = useMemo(() => getAvatarColor(token.symbol), [token.symbol]);
 
