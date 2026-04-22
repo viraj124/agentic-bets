@@ -20,11 +20,11 @@ export function CreateMarketModal({
   onClose,
   onSuccess,
 }: CreateMarketModalProps) {
-  const { createMarket, isCreating, hasVerifiedPoolKey } = useCreateMarket(tokenAddress);
+  const { createMarket, isCreating, hasVerifiedPoolKey, isPoolKeyLoading } = useCreateMarket(tokenAddress);
   const marketCreated = useMarketCreated(tokenAddress);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const isUnsupported = !hasVerifiedPoolKey(tokenAddress);
+  const isUnsupported = !isPoolKeyLoading && !hasVerifiedPoolKey(tokenAddress);
 
   const handleCreate = async () => {
     setError(null);
@@ -189,7 +189,12 @@ export function CreateMarketModal({
                 </div>
               </div>
 
-              {isUnsupported ? (
+              {isPoolKeyLoading ? (
+                <div className="flex items-center justify-center gap-2 rounded-xl px-4 py-3 mb-4 border-2 border-pg-border text-pg-muted text-xs font-bold">
+                  <span className="loading loading-spinner loading-xs" />
+                  Checking pool compatibility...
+                </div>
+              ) : isUnsupported ? (
                 <div className="bg-pg-amber/10 text-pg-amber text-xs font-bold rounded-xl px-4 py-3 mb-4 border-2 border-pg-amber/20">
                   This token{"'"}s pool uses an unsupported hook. Only Bankr/Clanker V4 pools can have prediction
                   markets.

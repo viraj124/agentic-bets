@@ -51,6 +51,20 @@ const AGBETS_POOL_ID = "0x9b2a0a54f851edd8241717a77a5cd5fad1f688770f2435cd77bfd4
 const BNKRW_ADDRESS = "0xf48bc234855ab08ab2ec0cfaaeb2a80d065a3b07";
 const WCHAN_ADDRESS = "0xba5ed0000e1ca9136a695f0a848012a16008b032";
 const WCHAN_POOL_ID = "0x81c7a2a2c33ea285f062c5ac0c4e3d4ffb2f6fd2588bbd354d0d3af8a58b6337";
+// 🟦 (square) — Clanker returns only the V3 pair address, so we seed the V4 pool
+// id here to get the correct Vanilla:10000 poolKey resolved against native ETH.
+const SQUARE_ADDRESS = "0x0f758abf9b242daa6b2b5e976d6e00c5aece9b07";
+const SQUARE_POOL_ID = "0xb40a4f3c6404df20a761aea12a2f5d6cb7179d8821542d1e7ae9db372547913e";
+
+// Tokens that surface in the Bankr/Clanker feed but live on Uniswap V3 pools
+// only. The prediction contracts require a V4 PoolKey, so no market can ever
+// be created for them — hide them from the UI entirely.
+const IGNORED_ADDRESSES = new Set<string>([
+  "0x30d5f0bd8c2a399d3b5021f11a4880176fb9e10f", // REMITTIX
+  "0xb98450146baa2b07613772f75936cc6086bcab07", // kinexys
+  "0x01e75e59eabf83c85360351a100d22e025a75bc2", // heir
+  "0x18e50d6e3fa756a0f7632c867842e62276c1bac0", // USD1
+]);
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -467,13 +481,14 @@ async function fetchFromBankrLaunches(): Promise<TokenPoolInfo[]> {
  * (Clanker / Bankr indexer / launches) have not picked them up yet.
  */
 function getForcedMarketTokens(): TokenPoolInfo[] {
-  const poolKey = resolvePoolKey(AGBETS_ADDRESS, WETH, AGBETS_POOL_ID);
+  const agbetsKey = resolvePoolKey(AGBETS_ADDRESS, WETH, AGBETS_POOL_ID);
+  const squareKey = resolvePoolKey(SQUARE_ADDRESS, NATIVE_ETH, SQUARE_POOL_ID);
 
   return [
     {
       address: AGBETS_ADDRESS,
-      poolId: poolKey ? computePoolId(poolKey) : AGBETS_POOL_ID,
-      poolKey,
+      poolId: agbetsKey ? computePoolId(agbetsKey) : AGBETS_POOL_ID,
+      poolKey: agbetsKey,
       fromClanker: false,
       fromIndexer: false,
       clankerPriceData: {
@@ -489,8 +504,17 @@ function getForcedMarketTokens(): TokenPoolInfo[] {
         deployedAt: "",
         pair: "WETH",
         priceSource: "dexscreener",
-        poolKeyVerified: poolKey !== null,
+        poolKeyVerified: agbetsKey !== null,
       },
+    },
+    {
+      address: SQUARE_ADDRESS,
+      poolId: squareKey ? computePoolId(squareKey) : SQUARE_POOL_ID,
+      poolKey: squareKey,
+      fromClanker: false,
+      fromIndexer: false,
+      // No clankerPriceData — let the normal Clanker/Dex/Gecko enrichment fill
+      // price, symbol, image. The forced entry only exists to lock in the V4 poolKey.
     },
   ];
 }
@@ -858,7 +882,7 @@ async function rebuildCache(mode: RefreshMode): Promise<void> {
     }
   }
 
-  const uniqueTokens = [...tokenMap.values()];
+  const uniqueTokens = [...tokenMap.values()].filter(t => !IGNORED_ADDRESSES.has(t.address));
   // Hard guardrail: the final feed must stay inside the Bankr-native discovery
   // universe (Clanker Bankr feed + Bankr launches + forced markets). This keeps
   // Dex/Gecko enrichment from ever broadening the token set beyond the Bankr

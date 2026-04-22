@@ -9,17 +9,16 @@ import { getPredictionContractName } from "~~/lib/contractResolver";
  * falls back to Clanker V4.1 dynamic fee parameters for new tokens.
  *
  * @param tokenAddress - optional; when provided, routes writes to the correct
- *   contract (V2 for AGBETS, V1 for everything else). Defaults to V1.
+ *   contract (V2 for AGBETS + V2-routed hook tokens, V1 otherwise). Defaults to V1.
  */
 export function useCreateMarket(tokenAddress?: string) {
   const contractName = getPredictionContractName(tokenAddress ?? "");
   const { writeContractAsync, isPending } = useScaffoldWriteContract(contractName);
 
   // Fetch resolved pool keys from the API — only include tokens with verified
-  // pool keys (i.e. the key was resolved against a known Bankr/Clanker hook).
-  // Tokens with unverified keys (e.g. WCHAN) use unsupported hooks and will
-  // revert with PoolNotInitialized on-chain.
-  const { data: tokenPoolMap } = useQuery({
+  // pool keys AND a non-null key. Tokens with unverified keys (e.g. WCHAN) use
+  // unsupported hooks and would revert with PoolNotInitialized on-chain.
+  const { data: tokenPoolMap, isLoading: isPoolMapLoading } = useQuery({
     queryKey: ["bankr-pool-keys"],
     queryFn: async (): Promise<Map<string, PoolKeyData>> => {
       const res = await fetch("/api/bankr-tokens");
@@ -27,9 +26,8 @@ export function useCreateMarket(tokenAddress?: string) {
       const json = (await res.json()) as { tokens?: EnrichedToken[] };
       const map = new Map<string, PoolKeyData>();
       for (const t of json.tokens || []) {
-        if (t.poolKeyVerified !== false) {
-          map.set(t.address.toLowerCase(), t.poolKey);
-        }
+        if (t.poolKeyVerified === false || !t.poolKey) continue;
+        map.set(t.address.toLowerCase(), t.poolKey);
       }
       return map;
     },
@@ -61,5 +59,6 @@ export function useCreateMarket(tokenAddress?: string) {
     createMarket,
     isCreating: isPending,
     hasVerifiedPoolKey,
+    isPoolKeyLoading: isPoolMapLoading || tokenPoolMap === undefined,
   };
 }

@@ -366,7 +366,11 @@ async function resolveBestPoolForToken(token: string): Promise<string | null> {
     bestAddress = bestAddr32;
   }
 
-  resolvedPoolCache.set(token, { pool: bestAddress, ts: Date.now() });
+  // Only cache positive resolutions — caching "" would block retries for 10 min
+  // for brand-new tokens whose pools aren't yet indexed by Gecko/DexScreener.
+  if (bestAddress) {
+    resolvedPoolCache.set(token, { pool: bestAddress, ts: Date.now() });
+  }
   return bestAddress || null;
 }
 
