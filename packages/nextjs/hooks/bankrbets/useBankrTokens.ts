@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { EnrichedToken } from "~~/app/api/bankr-tokens/route";
 
 const PAGE_SIZE = 10; // tokens visible per "page" in the UI
+const MAX_TOKENS = 40; // hard cap on tokens surfaced in the feed
 const LS_KEY = "bankr-tokens-cache";
 
 export interface BankrToken {
@@ -132,7 +133,8 @@ export function useBankrTokens() {
   });
 
   // Hide tokens that display "$0" volume — they'll appear once background refresh populates real data
-  const allData = useMemo(() => (allTokens || []).filter(t => t.volume24h > 0), [allTokens]);
+  // Cap at MAX_TOKENS so the feed only surfaces the top slice of the ranked list.
+  const allData = useMemo(() => (allTokens || []).filter(t => t.volume24h > 0).slice(0, MAX_TOKENS), [allTokens]);
   const tokens = useMemo(() => allData.slice(0, visibleCount), [allData, visibleCount]);
 
   const totalCount = allData.length;
