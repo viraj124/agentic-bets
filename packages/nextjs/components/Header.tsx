@@ -24,6 +24,10 @@ export const menuLinks: HeaderMenuLink[] = [
     href: "/leaderboard",
   },
   {
+    label: "Season 1",
+    href: "/season-1",
+  },
+  {
     label: "Portfolio",
     href: "/profile",
   },
