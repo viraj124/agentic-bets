@@ -2,12 +2,19 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import {
   ArrowTrendingUpIcon,
+  CalendarDaysIcon,
   CheckBadgeIcon,
   ShieldCheckIcon,
   SparklesIcon,
   TrophyIcon,
 } from "@heroicons/react/24/outline";
 import { SeasonWalletCard } from "~~/components/bankrbets/SeasonWalletCard";
+import { SEASON_1_CONFIG } from "~~/utils/bankrbets/seasonPoints";
+
+const fmtSeasonDate = (unix: number) =>
+  new Date(unix * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+const SEASON_WINDOW = `${fmtSeasonDate(SEASON_1_CONFIG.startUnix)} – ${fmtSeasonDate(SEASON_1_CONFIG.endUnix)} UTC`;
 
 export const metadata: Metadata = {
   title: "Season 1 Rules | Agentic Bets",
@@ -76,9 +83,15 @@ export default function SeasonOneRulesPage() {
         <div className="absolute top-12 left-[8%] w-10 h-10 rounded-xl bg-pg-pink/10 border-2 border-pg-pink/20 -rotate-6 motion-safe:animate-float-slow hidden lg:block" />
 
         <div className="max-w-5xl mx-auto relative">
-          <div className="inline-flex items-center gap-2 rounded-full border border-pg-violet/25 bg-pg-violet/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-pg-violet">
-            <CheckBadgeIcon className="h-3.5 w-3.5" />
-            Season 1 Rules
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-2 rounded-full border border-pg-violet/25 bg-pg-violet/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-pg-violet">
+              <CheckBadgeIcon className="h-3.5 w-3.5" />
+              Season 1 Rules
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-pg-mint/25 bg-pg-mint/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-pg-mint">
+              <CalendarDaysIcon className="h-3.5 w-3.5" />
+              {SEASON_WINDOW}
+            </div>
           </div>
 
           <div className="mt-4 max-w-2xl">
