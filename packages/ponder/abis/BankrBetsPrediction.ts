@@ -34,6 +34,17 @@ export const abi = [
   },
   {
     type: "event",
+    name: "RoundEnded",
+    inputs: [
+      { name: "token", type: "address", indexed: true, internalType: "address" },
+      { name: "epoch", type: "uint256", indexed: true, internalType: "uint256" },
+      { name: "closePrice", type: "int256", indexed: false, internalType: "int256" },
+      { name: "settler", type: "address", indexed: true, internalType: "address" },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
     name: "RoundCancelled",
     inputs: [
       { name: "token", type: "address", indexed: true, internalType: "address" },
