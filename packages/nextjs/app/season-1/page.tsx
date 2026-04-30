@@ -7,6 +7,7 @@ import {
   SparklesIcon,
   TrophyIcon,
 } from "@heroicons/react/24/outline";
+import { SeasonWalletCard } from "~~/components/bankrbets/SeasonWalletCard";
 
 export const metadata: Metadata = {
   title: "Season 1 Rules | Agentic Bets",
@@ -105,6 +106,10 @@ export default function SeasonOneRulesPage() {
                 <p className="mt-2 text-sm font-bold text-base-content">{fact.value}</p>
               </div>
             ))}
+          </div>
+
+          <div className="mt-8">
+            <SeasonWalletCard />
           </div>
         </div>
       </section>
