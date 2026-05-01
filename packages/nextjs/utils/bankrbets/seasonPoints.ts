@@ -44,8 +44,8 @@ export type WalletPoints = {
 export const SEASON_1_CONFIG: SeasonConfig = {
   // Defaults match published rules at /season-1.
   // Start/end can be overridden via env at the API boundary; the engine itself stays pure.
-  startUnix: 1776988800, // 2026-04-24 00:00 UTC (Friday)
-  endUnix: 1778198400, // 2026-05-08 00:00 UTC (14 days)
+  startUnix: 1775433600, // 2026-04-06 00:00 UTC
+  endUnix: 1778198400, // 2026-05-08 00:00 UTC
   minBetUSDC: 1_000_000n,
   dailyCapUSDC: 50_000_000n,
   firstBetThresholdUSDC: 10_000_000n,

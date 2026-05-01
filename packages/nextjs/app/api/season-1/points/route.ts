@@ -2,11 +2,10 @@ import { NextResponse } from "next/server";
 import {
   SEASON_1_CONFIG,
   type SeasonConfig,
-  computeSeasonPoints,
   emptyWalletPoints,
   toPublicSeasonConfig,
 } from "~~/utils/bankrbets/seasonPoints";
-import { fetchBetEventsForUser, fetchRoundStatuses } from "~~/utils/bankrbets/server/seasonData";
+import { getSeasonComputed } from "~~/utils/bankrbets/server/seasonComputed";
 
 export const maxDuration = 30;
 
@@ -34,14 +33,11 @@ export async function GET(req: Request) {
   const config = getRuntimeConfig();
 
   try {
-    const events = await fetchBetEventsForUser(address, config.startUnix);
-    const roundIds = Array.from(new Set(events.map(e => e.roundId)));
-    const statuses = await fetchRoundStatuses(roundIds);
-    const computed = computeSeasonPoints(events, statuses, config);
+    const { computed, updatedAt } = await getSeasonComputed(config);
     const wallet = computed.get(address) ?? emptyWalletPoints(address);
 
     return NextResponse.json(
-      { wallet, season: toPublicSeasonConfig(config), updatedAt: Date.now() },
+      { wallet, season: toPublicSeasonConfig(config), updatedAt },
       { headers: { "Cache-Control": "private, max-age=15, stale-while-revalidate=60" } },
     );
   } catch (err) {

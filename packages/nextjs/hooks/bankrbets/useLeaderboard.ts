@@ -1,38 +1,46 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { PublicSeasonConfig, WalletPoints } from "~~/utils/bankrbets/seasonPoints";
+import type { DerivedUserStats } from "~~/utils/bankrbets/server/derivedStats";
 
-const LS_KEY = "bankr-leaderboard-cache";
+const LS_KEY_PREFIX = "bankr-leaderboard-cache:";
 
-export interface LeaderboardEntry {
-  address: string;
-  totalBets: number;
-  totalWagered: number;
-  totalWon: number;
-  netPnL: number;
-  wins: number;
-  winRate: number;
-}
+export type LeaderboardMode = "season" | "all-time";
+export type SeasonLeaderboardEntry = WalletPoints;
+export type AllTimeLeaderboardEntry = DerivedUserStats;
 
-type LeaderboardData = { leaderboard?: LeaderboardEntry[]; updatedAt?: number };
+type SeasonLeaderboardData = {
+  mode: "season";
+  leaderboard?: SeasonLeaderboardEntry[];
+  season?: PublicSeasonConfig;
+  updatedAt?: number;
+};
+
+type AllTimeLeaderboardData = {
+  mode: "all-time";
+  leaderboard?: AllTimeLeaderboardEntry[];
+  updatedAt?: number;
+};
+
+type LeaderboardData = SeasonLeaderboardData | AllTimeLeaderboardData;
 
 type UseLeaderboardOptions = {
-  address?: string;
+  mode?: LeaderboardMode;
   watch?: boolean;
 };
 
-export function useLeaderboard({ watch = false }: UseLeaderboardOptions = {}) {
+export function useLeaderboard({ mode = "season", watch = false }: UseLeaderboardOptions = {}) {
   const queryClient = useQueryClient();
+  const lsKey = `${LS_KEY_PREFIX}${mode}`;
+
   const query = useQuery<LeaderboardData>({
-    queryKey: ["leaderboard"],
+    queryKey: ["leaderboard", mode],
     queryFn: async () => {
-      const res = await fetch("/api/leaderboard", {
-        signal: AbortSignal.timeout(12_000),
-      });
+      const res = await fetch(`/api/leaderboard?mode=${mode}`, { signal: AbortSignal.timeout(15_000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      // Persist for instant load on next visit
+      const data = (await res.json()) as LeaderboardData;
       try {
-        localStorage.setItem(LS_KEY, JSON.stringify(data));
+        localStorage.setItem(lsKey, JSON.stringify(data));
       } catch {
         /* ignore */
       }
@@ -49,19 +57,18 @@ export function useLeaderboard({ watch = false }: UseLeaderboardOptions = {}) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (queryClient.getQueryData(["leaderboard"])) return;
-
+    if (queryClient.getQueryData(["leaderboard", mode])) return;
     try {
-      const cached = localStorage.getItem(LS_KEY);
+      const cached = localStorage.getItem(lsKey);
       if (!cached) return;
-      queryClient.setQueryData(["leaderboard"], JSON.parse(cached) as LeaderboardData);
+      queryClient.setQueryData(["leaderboard", mode], JSON.parse(cached) as LeaderboardData);
     } catch {
       // ignore corrupted local cache
     }
-  }, [queryClient]);
+  }, [queryClient, lsKey, mode]);
 
   return {
-    leaderboard: Array.isArray(query.data?.leaderboard) ? query.data!.leaderboard : [],
+    data: query.data,
     isLoading: query.isLoading,
     updatedAt: typeof query.data?.updatedAt === "number" ? query.data.updatedAt : 0,
   };

@@ -45,17 +45,25 @@ async function ponderQuery<T>(query: string): Promise<T> {
   return json.data as T;
 }
 
-export async function fetchBetEventsForUser(user: string, startUnix?: number): Promise<BetEventInput[]> {
+function rowToBetEventInput(row: BetEventRow): BetEventInput {
+  return {
+    user: row.user.toLowerCase(),
+    roundId: row.roundId,
+    amount: BigInt(row.amount),
+    placedAt: Number(BigInt(row.placedAt)),
+    position: row.position === 1 ? 1 : 0,
+  };
+}
+
+async function paginateBetEvents(whereClause: string): Promise<BetEventInput[]> {
   const out: BetEventInput[] = [];
   let cursor: string | null = null;
-  const userLower = user.toLowerCase();
-  const placedAtFilter = startUnix !== undefined ? `, placedAt_gte: "${startUnix}"` : "";
 
   for (let page = 0; page < MAX_PAGES; page++) {
     const afterClause: string = cursor ? `, after: ${JSON.stringify(cursor)}` : "";
     const query = `{
       betEvents(
-        where: { user: "${userLower}"${placedAtFilter} },
+        where: { ${whereClause} },
         orderBy: "placedAt",
         orderDirection: "asc",
         limit: ${PAGE_SIZE}${afterClause}
@@ -65,22 +73,22 @@ export async function fetchBetEventsForUser(user: string, startUnix?: number): P
       }
     }`;
     const data = await ponderQuery<BetEventsResponse>(query);
-
-    for (const row of data.betEvents.items) {
-      out.push({
-        user: row.user.toLowerCase(),
-        roundId: row.roundId,
-        amount: BigInt(row.amount),
-        placedAt: Number(BigInt(row.placedAt)),
-        position: row.position === 1 ? 1 : 0,
-      });
-    }
-
+    for (const row of data.betEvents.items) out.push(rowToBetEventInput(row));
     if (!data.betEvents.pageInfo.hasNextPage || !data.betEvents.pageInfo.endCursor) break;
     cursor = data.betEvents.pageInfo.endCursor;
   }
 
   return out;
+}
+
+export async function fetchBetEventsForUser(user: string, startUnix?: number): Promise<BetEventInput[]> {
+  const userLower = user.toLowerCase();
+  const placedAtFilter = startUnix !== undefined ? `, placedAt_gte: "${startUnix}"` : "";
+  return paginateBetEvents(`user: "${userLower}"${placedAtFilter}`);
+}
+
+export async function fetchAllBetEvents(startUnix: number): Promise<BetEventInput[]> {
+  return paginateBetEvents(`placedAt_gte: "${startUnix}"`);
 }
 
 export async function fetchRoundStatuses(roundIds: string[]): Promise<Map<string, RoundStatus>> {

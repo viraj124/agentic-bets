@@ -1,8 +1,11 @@
 "use client";
 
+import { useMemo } from "react";
 import { useAccount } from "wagmi";
 import { ArrowTrendingUpIcon, ExclamationTriangleIcon, SparklesIcon, WalletIcon } from "@heroicons/react/24/outline";
+import { useResolvedAddresses } from "~~/hooks/bankrbets/useResolvedAddresses";
 import { useSeasonPoints } from "~~/hooks/bankrbets/useSeasonPoints";
+import { getAddressDisplayName } from "~~/lib/addressDisplay";
 import type { WalletPoints } from "~~/utils/bankrbets/seasonPoints";
 
 const fmtUSD = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -138,16 +141,21 @@ export function SeasonWalletCard() {
   const { address, isConnected } = useAccount();
   const { data, isLoading, error } = useSeasonPoints(isConnected ? address : undefined);
 
+  const resolvedInput = useMemo(() => (isConnected && address ? [address] : []), [isConnected, address]);
+  const { data: resolvedMap } = useResolvedAddresses(resolvedInput);
+  const displayName =
+    isConnected && address ? getAddressDisplayName(address, resolvedMap?.get(address.toLowerCase())) : null;
+
   return (
     <div className="rounded-[28px] border-2 border-pg-border bg-base-100/90 p-6 shadow-pop-soft">
       <div className="flex items-center justify-between gap-3 mb-5">
-        <div className="flex items-center gap-2">
-          <SparklesIcon className="h-5 w-5 text-pg-violet" />
+        <div className="flex items-center gap-2 min-w-0">
+          <SparklesIcon className="h-5 w-5 text-pg-violet shrink-0" />
           <h2
-            className="text-base font-extrabold uppercase tracking-wide text-base-content mb-0"
+            className="text-base font-extrabold uppercase tracking-wide text-base-content mb-0 truncate"
             style={{ fontFamily: "var(--font-heading)" }}
           >
-            Your Season 1
+            {displayName ? `${displayName} · Season 1` : "Your Season 1"}
           </h2>
         </div>
         {data?.wallet?.daysActive ? (

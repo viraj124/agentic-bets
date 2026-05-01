@@ -15,6 +15,7 @@ const fmtSeasonDate = (unix: number) =>
   new Date(unix * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 const SEASON_WINDOW = `${fmtSeasonDate(SEASON_1_CONFIG.startUnix)} – ${fmtSeasonDate(SEASON_1_CONFIG.endUnix)} UTC`;
+const SEASON_DAYS = Math.round((SEASON_1_CONFIG.endUnix - SEASON_1_CONFIG.startUnix) / 86400);
 
 export const metadata: Metadata = {
   title: "Season 1 Rules | Agentic Bets",
@@ -25,7 +26,7 @@ export const metadata: Metadata = {
 const QUICK_FACTS = [
   {
     label: "Format",
-    value: "14-day points season",
+    value: `${SEASON_DAYS}-day points season`,
     tone: "bg-pg-violet/10 text-pg-violet border-pg-violet/20",
   },
   {
