@@ -81,7 +81,14 @@ function PodiumCardShell({
           return avatarUrl ? (
             <Image src={avatarUrl} alt="" width={64} height={64} className="w-full h-full rounded-full object-cover" />
           ) : (
-            <img src={blo(address as `0x${string}`)} alt="" className="w-full h-full rounded-full object-cover" />
+            <Image
+              src={blo(address as `0x${string}`)}
+              alt=""
+              width={64}
+              height={64}
+              unoptimized
+              className="w-full h-full rounded-full object-cover"
+            />
           );
         })()}
       </div>
@@ -206,10 +213,14 @@ const LeaderboardPage: NextPage = () => {
   const [mode, setMode] = useState<LeaderboardMode>("season");
   const { data, isLoading } = useLeaderboard({ mode, watch: false });
 
-  const seasonEntries: SeasonLeaderboardEntry[] =
-    data?.mode === "season" && Array.isArray(data.leaderboard) ? data.leaderboard : [];
-  const allTimeEntries: AllTimeLeaderboardEntry[] =
-    data?.mode === "all-time" && Array.isArray(data.leaderboard) ? data.leaderboard : [];
+  const seasonEntries = useMemo<SeasonLeaderboardEntry[]>(
+    () => (data?.mode === "season" && Array.isArray(data.leaderboard) ? data.leaderboard : []),
+    [data],
+  );
+  const allTimeEntries = useMemo<AllTimeLeaderboardEntry[]>(
+    () => (data?.mode === "all-time" && Array.isArray(data.leaderboard) ? data.leaderboard : []),
+    [data],
+  );
 
   const addresses = useMemo(() => {
     const list = mode === "season" ? seasonEntries.map(e => e.user) : allTimeEntries.map(e => e.address);
