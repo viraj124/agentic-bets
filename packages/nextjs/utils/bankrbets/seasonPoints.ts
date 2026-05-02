@@ -8,6 +8,8 @@ export type RoundStatus = "settled" | "cancelled" | "refunded";
 export type BetEventInput = {
   user: string;
   roundId: string; // matches RoundSettlement id, e.g. `${contract}:${token}:${epoch}`
+  token: string; // 0x-prefixed lowercase
+  epoch: number;
   amount: bigint; // raw USDC, 6 decimals
   placedAt: number; // unix seconds
   position: Position;
@@ -41,6 +43,30 @@ export type WalletPoints = {
   reviewStatus: WalletReviewStatus;
 };
 
+export type BetActivityStatus = "settled" | "refunded" | "cancelled" | "pending";
+
+export type BetActivityRow = {
+  user: string;
+  roundId: string;
+  token: string;
+  epoch: number;
+  position: Position;
+  amountUSD: number; // raw bet amount
+  eligibleAmountUSD: number; // amount counted toward season after daily cap (0 if not eligible)
+  cappedAmountUSD: number; // amount above daily cap (0 if not eligible)
+  pointsEarned: number; // base points + first-bet bonus on the unlocking row, if any
+  roundStatus: BetActivityStatus;
+  eligible: boolean;
+  exclusionReason: string | null;
+  unlocksFirstBet: boolean;
+  placedAt: number;
+};
+
+export type SeasonComputation = {
+  walletPoints: Map<string, WalletPoints>;
+  activityByUser: Map<string, BetActivityRow[]>;
+};
+
 export const SEASON_1_CONFIG: SeasonConfig = {
   // Defaults match published rules at /season-1.
   // Start/end can be overridden via env at the API boundary; the engine itself stays pure.
@@ -63,19 +89,39 @@ const utcDayKey = (unixSec: number) => {
   return `${y}-${m}-${day}`;
 };
 
-const REASON_NOT_SETTLED = "round not settled or refunded";
-const REASON_BELOW_MIN = "below min bet";
+const REASON_PENDING = "round not settled yet";
+const REASON_CANCELLED = "round cancelled";
+const REASON_BELOW_MIN = "below $1 minimum bet";
 const REASON_OPPOSITE_SIDE = "opposite-side same round";
 
-type Classified = { event: BetEventInput; eligible: boolean; reason?: string };
+function classifyEvent(
+  event: BetEventInput,
+  status: RoundStatus | undefined,
+  config: SeasonConfig,
+  positions: Set<Position> | undefined,
+): { activityStatus: BetActivityStatus; eligible: boolean; reason: string | null } {
+  let activityStatus: BetActivityStatus;
+  if (!status) activityStatus = "pending";
+  else activityStatus = status;
 
-export function computeSeasonPoints(
+  if (activityStatus === "pending") return { activityStatus, eligible: false, reason: REASON_PENDING };
+  if (activityStatus === "cancelled") return { activityStatus, eligible: false, reason: REASON_CANCELLED };
+  if (!ELIGIBLE_STATUSES.has(activityStatus as RoundStatus)) {
+    return { activityStatus, eligible: false, reason: REASON_PENDING };
+  }
+  if (event.amount < config.minBetUSDC) return { activityStatus, eligible: false, reason: REASON_BELOW_MIN };
+  if (positions && positions.size > 1) return { activityStatus, eligible: false, reason: REASON_OPPOSITE_SIDE };
+  return { activityStatus, eligible: true, reason: null };
+}
+
+export function computeSeason(
   events: BetEventInput[],
   roundStatuses: Map<string, RoundStatus>,
   config: SeasonConfig,
   flaggedWallets: Set<string> = new Set(),
-): Map<string, WalletPoints> {
-  const result = new Map<string, WalletPoints>();
+): SeasonComputation {
+  const walletPoints = new Map<string, WalletPoints>();
+  const activityByUser = new Map<string, BetActivityRow[]>();
   const flagged = new Set(Array.from(flaggedWallets, w => w.toLowerCase()));
 
   const inWindow = events.filter(e => e.placedAt >= config.startUnix && e.placedAt < config.endUnix);
@@ -89,39 +135,16 @@ export function computeSeasonPoints(
     userRoundPositions.set(key, set);
   }
 
-  const classified: Classified[] = inWindow.map(e => {
-    const status = roundStatuses.get(e.roundId);
-    if (!status || !ELIGIBLE_STATUSES.has(status)) {
-      return { event: e, eligible: false, reason: REASON_NOT_SETTLED };
-    }
-    if (e.amount < config.minBetUSDC) {
-      return { event: e, eligible: false, reason: REASON_BELOW_MIN };
-    }
-    const positions = userRoundPositions.get(`${e.user.toLowerCase()}:${e.roundId}`);
-    if (positions && positions.size > 1) {
-      return { event: e, eligible: false, reason: REASON_OPPOSITE_SIDE };
-    }
-    return { event: e, eligible: true };
-  });
-
-  const eligibleByUser = new Map<string, BetEventInput[]>();
-  const exclusions = new Map<string, { count: number; reasons: Set<string> }>();
-
-  for (const c of classified) {
-    const user = c.event.user.toLowerCase();
-    if (c.eligible) {
-      const list = eligibleByUser.get(user) ?? [];
-      list.push(c.event);
-      eligibleByUser.set(user, list);
-    } else {
-      const entry = exclusions.get(user) ?? { count: 0, reasons: new Set<string>() };
-      entry.count += 1;
-      if (c.reason) entry.reasons.add(c.reason);
-      exclusions.set(user, entry);
-    }
+  // Group events by user, keeping chronological order within each user
+  const eventsByUser = new Map<string, BetEventInput[]>();
+  for (const e of inWindow) {
+    const u = e.user.toLowerCase();
+    const list = eventsByUser.get(u) ?? [];
+    list.push(e);
+    eventsByUser.set(u, list);
   }
 
-  for (const [user, userEvents] of eligibleByUser) {
+  for (const [user, userEvents] of eventsByUser) {
     userEvents.sort((a, b) => a.placedAt - b.placedAt);
 
     const dailyUsed = new Map<string, bigint>();
@@ -130,31 +153,74 @@ export function computeSeasonPoints(
     let cappedUSDC = 0n;
     let runningEligibleUSDC = 0n;
     let firstBetUnlockedAt: number | null = null;
+    let firstBetBonusCreditedToRow = false;
+    let excludedBets = 0;
+    const exclusionReasonSet = new Set<string>();
+
+    const rows: BetActivityRow[] = [];
 
     for (const e of userEvents) {
       totalRawUSDC += e.amount;
-      const day = utcDayKey(e.placedAt);
-      const used = dailyUsed.get(day) ?? 0n;
-      const remaining = config.dailyCapUSDC > used ? config.dailyCapUSDC - used : 0n;
-      const allowed = e.amount < remaining ? e.amount : remaining;
-      const overflow = e.amount - allowed;
-      cappedUSDC += overflow;
-      dailyUsed.set(day, used + allowed);
-      totalEligibleUSDC += allowed;
-      runningEligibleUSDC += allowed;
+      const status = roundStatuses.get(e.roundId);
+      const positions = userRoundPositions.get(`${user}:${e.roundId}`);
+      const { activityStatus, eligible, reason } = classifyEvent(e, status, config, positions);
 
-      if (firstBetUnlockedAt === null && runningEligibleUSDC >= config.firstBetThresholdUSDC) {
-        firstBetUnlockedAt = e.placedAt;
+      let eligibleAmount = 0n;
+      let cappedAmount = 0n;
+      let pointsEarned = 0;
+      let unlocksFirstBet = false;
+
+      if (eligible) {
+        const day = utcDayKey(e.placedAt);
+        const used = dailyUsed.get(day) ?? 0n;
+        const remaining = config.dailyCapUSDC > used ? config.dailyCapUSDC - used : 0n;
+        eligibleAmount = e.amount < remaining ? e.amount : remaining;
+        cappedAmount = e.amount - eligibleAmount;
+        cappedUSDC += cappedAmount;
+        dailyUsed.set(day, used + eligibleAmount);
+        totalEligibleUSDC += eligibleAmount;
+        runningEligibleUSDC += eligibleAmount;
+
+        const eligibleAmountUSD = Number(eligibleAmount) / 1_000_000;
+        pointsEarned = Math.floor(eligibleAmountUSD * config.pointsPerDollar);
+
+        if (firstBetUnlockedAt === null && runningEligibleUSDC >= config.firstBetThresholdUSDC) {
+          firstBetUnlockedAt = e.placedAt;
+          unlocksFirstBet = true;
+          pointsEarned += config.firstBetBonusPoints;
+          firstBetBonusCreditedToRow = true;
+        }
+      } else {
+        excludedBets += 1;
+        if (reason) exclusionReasonSet.add(reason);
       }
+
+      rows.push({
+        user,
+        roundId: e.roundId,
+        token: e.token.toLowerCase(),
+        epoch: e.epoch,
+        position: e.position,
+        amountUSD: Number(e.amount) / 1_000_000,
+        eligibleAmountUSD: Number(eligibleAmount) / 1_000_000,
+        cappedAmountUSD: Number(cappedAmount) / 1_000_000,
+        pointsEarned,
+        roundStatus: activityStatus,
+        eligible,
+        exclusionReason: reason,
+        unlocksFirstBet,
+        placedAt: e.placedAt,
+      });
     }
+
+    activityByUser.set(user, rows);
 
     const eligibleVolumeUSD = Number(totalEligibleUSDC) / 1_000_000;
     const baseVolumePoints = Math.floor(eligibleVolumeUSD * config.pointsPerDollar);
     const firstBetUnlocked = firstBetUnlockedAt !== null;
-    const firstBetBonus = firstBetUnlocked ? config.firstBetBonusPoints : 0;
-    const exclusion = exclusions.get(user);
+    const firstBetBonus = firstBetBonusCreditedToRow ? config.firstBetBonusPoints : 0;
 
-    result.set(user, {
+    walletPoints.set(user, {
       user,
       seasonPoints: baseVolumePoints + firstBetBonus,
       baseVolumePoints,
@@ -162,8 +228,8 @@ export function computeSeasonPoints(
       eligibleVolumeUSD,
       rawVolumeUSD: Number(totalRawUSDC) / 1_000_000,
       cappedVolumeUSD: Number(cappedUSDC) / 1_000_000,
-      excludedBets: exclusion?.count ?? 0,
-      exclusionReasons: Array.from(exclusion?.reasons ?? []),
+      excludedBets,
+      exclusionReasons: Array.from(exclusionReasonSet),
       firstBetUnlocked,
       firstBetUnlockedAt,
       daysActive: dailyUsed.size,
@@ -171,27 +237,17 @@ export function computeSeasonPoints(
     });
   }
 
-  // Wallets that placed only excluded bets still get a row so the UI can show review state.
-  for (const [user, exclusion] of exclusions) {
-    if (result.has(user)) continue;
-    result.set(user, {
-      user,
-      seasonPoints: 0,
-      baseVolumePoints: 0,
-      firstBetBonusPoints: 0,
-      eligibleVolumeUSD: 0,
-      rawVolumeUSD: 0,
-      cappedVolumeUSD: 0,
-      excludedBets: exclusion.count,
-      exclusionReasons: Array.from(exclusion.reasons),
-      firstBetUnlocked: false,
-      firstBetUnlockedAt: null,
-      daysActive: 0,
-      reviewStatus: flagged.has(user) ? "review" : "ok",
-    });
-  }
+  return { walletPoints, activityByUser };
+}
 
-  return result;
+// Back-compat wrapper — same signature as before.
+export function computeSeasonPoints(
+  events: BetEventInput[],
+  roundStatuses: Map<string, RoundStatus>,
+  config: SeasonConfig,
+  flaggedWallets: Set<string> = new Set(),
+): Map<string, WalletPoints> {
+  return computeSeason(events, roundStatuses, config, flaggedWallets).walletPoints;
 }
 
 export function emptyWalletPoints(user: string): WalletPoints {

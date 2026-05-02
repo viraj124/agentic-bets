@@ -1,4 +1,4 @@
-import { type SeasonConfig, type WalletPoints, computeSeasonPoints } from "../seasonPoints";
+import { type BetActivityRow, type SeasonConfig, type WalletPoints, computeSeason } from "../seasonPoints";
 import { fetchAllBetEvents, fetchRoundStatuses } from "./seasonData";
 import "server-only";
 
@@ -6,7 +6,10 @@ const TTL_MS = 30_000;
 
 export type SeasonComputed = {
   config: SeasonConfig;
-  computed: Map<string, WalletPoints>;
+  walletPoints: Map<string, WalletPoints>;
+  activityByUser: Map<string, BetActivityRow[]>;
+  rankByUser: Map<string, number>; // 1-indexed; only set for wallets in the leaderboard
+  sortedLeaderboard: WalletPoints[];
   updatedAt: number;
 };
 
@@ -16,12 +19,29 @@ let inFlight: Promise<SeasonComputed> | null = null;
 const configsMatch = (a: SeasonConfig | undefined, b: SeasonConfig) =>
   !!a && a.startUnix === b.startUnix && a.endUnix === b.endUnix;
 
+function rankWallets(walletPoints: Map<string, WalletPoints>): {
+  sortedLeaderboard: WalletPoints[];
+  rankByUser: Map<string, number>;
+} {
+  const sortedLeaderboard = Array.from(walletPoints.values())
+    .filter(entry => entry.seasonPoints > 0 || entry.eligibleVolumeUSD > 0)
+    .sort((a, b) => {
+      if (b.seasonPoints !== a.seasonPoints) return b.seasonPoints - a.seasonPoints;
+      if (b.eligibleVolumeUSD !== a.eligibleVolumeUSD) return b.eligibleVolumeUSD - a.eligibleVolumeUSD;
+      return a.user.localeCompare(b.user);
+    });
+  const rankByUser = new Map<string, number>();
+  sortedLeaderboard.forEach((entry, idx) => rankByUser.set(entry.user, idx + 1));
+  return { sortedLeaderboard, rankByUser };
+}
+
 async function refresh(config: SeasonConfig): Promise<SeasonComputed> {
   const events = await fetchAllBetEvents(config.startUnix);
   const roundIds = Array.from(new Set(events.map(e => e.roundId)));
   const statuses = await fetchRoundStatuses(roundIds);
-  const computed = computeSeasonPoints(events, statuses, config);
-  cache = { config, computed, updatedAt: Date.now() };
+  const { walletPoints, activityByUser } = computeSeason(events, statuses, config);
+  const { sortedLeaderboard, rankByUser } = rankWallets(walletPoints);
+  cache = { config, walletPoints, activityByUser, rankByUser, sortedLeaderboard, updatedAt: Date.now() };
   return cache;
 }
 

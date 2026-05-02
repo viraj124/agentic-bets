@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import type { PublicSeasonConfig, WalletPoints } from "~~/utils/bankrbets/seasonPoints";
+import type { BetActivityRow, PublicSeasonConfig, WalletPoints } from "~~/utils/bankrbets/seasonPoints";
 
-type SeasonPointsResponse = {
+export type SeasonPointsResponse = {
   wallet: WalletPoints;
+  activity: BetActivityRow[];
+  rank: number | null;
   season: PublicSeasonConfig;
   updatedAt: number;
 };

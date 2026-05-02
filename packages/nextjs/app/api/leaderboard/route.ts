@@ -30,17 +30,10 @@ export async function GET(req: Request) {
     }
 
     const config = getRuntimeConfig();
-    const { computed, updatedAt } = await getSeasonComputed(config);
-    const leaderboard = Array.from(computed.values())
-      .filter(entry => entry.seasonPoints > 0 || entry.eligibleVolumeUSD > 0)
-      .sort((a, b) => {
-        if (b.seasonPoints !== a.seasonPoints) return b.seasonPoints - a.seasonPoints;
-        if (b.eligibleVolumeUSD !== a.eligibleVolumeUSD) return b.eligibleVolumeUSD - a.eligibleVolumeUSD;
-        return a.user.localeCompare(b.user);
-      });
+    const { sortedLeaderboard, updatedAt } = await getSeasonComputed(config);
 
     return NextResponse.json(
-      { mode, leaderboard, season: toPublicSeasonConfig(config), updatedAt },
+      { mode, leaderboard: sortedLeaderboard, season: toPublicSeasonConfig(config), updatedAt },
       { headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=120" } },
     );
   } catch (err) {

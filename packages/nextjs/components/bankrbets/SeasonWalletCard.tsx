@@ -157,6 +157,11 @@ export function SeasonWalletCard() {
           >
             {displayName ? `${displayName} · Season 1` : "Your Season 1"}
           </h2>
+          {data?.rank ? (
+            <span className="shrink-0 rounded-full border border-pg-amber/30 bg-pg-amber/10 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#9a7200]">
+              Rank #{data.rank}
+            </span>
+          ) : null}
         </div>
         {data?.wallet?.daysActive ? (
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-pg-muted">

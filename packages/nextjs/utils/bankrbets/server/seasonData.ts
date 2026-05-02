@@ -49,6 +49,8 @@ function rowToBetEventInput(row: BetEventRow): BetEventInput {
   return {
     user: row.user.toLowerCase(),
     roundId: row.roundId,
+    token: row.token.toLowerCase(),
+    epoch: Number(BigInt(row.epoch)),
     amount: BigInt(row.amount),
     placedAt: Number(BigInt(row.placedAt)),
     position: row.position === 1 ? 1 : 0,

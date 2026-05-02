@@ -6,6 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 import type { NextPage } from "next";
 import { useAccount } from "wagmi";
 import { IdentityBadge } from "~~/components/bankrbets/IdentityBadge";
+import { SeasonActivityLog } from "~~/components/bankrbets/SeasonActivityLog";
+import { SeasonWalletCard } from "~~/components/bankrbets/SeasonWalletCard";
 import { useReferralLink, useReferralStats } from "~~/hooks/bankrbets/useReferral";
 import { useResolvedAddresses } from "~~/hooks/bankrbets/useResolvedAddresses";
 import { useScaffoldReadContract } from "~~/hooks/scaffold-eth";
@@ -295,6 +297,12 @@ const ProfilePage: NextPage = () => {
                 </p>
               </div>
             ))}
+      </div>
+
+      {/* Season 1 — wallet card + activity log */}
+      <div className="space-y-4 mb-6 sm:mb-8">
+        <SeasonWalletCard />
+        <SeasonActivityLog tokenSymbolMap={tokenSymbolMap} />
       </div>
 
       {/* Referral */}

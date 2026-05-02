@@ -33,11 +33,13 @@ export async function GET(req: Request) {
   const config = getRuntimeConfig();
 
   try {
-    const { computed, updatedAt } = await getSeasonComputed(config);
-    const wallet = computed.get(address) ?? emptyWalletPoints(address);
+    const { walletPoints, activityByUser, rankByUser, updatedAt } = await getSeasonComputed(config);
+    const wallet = walletPoints.get(address) ?? emptyWalletPoints(address);
+    const activity = activityByUser.get(address) ?? [];
+    const rank = rankByUser.get(address) ?? null;
 
     return NextResponse.json(
-      { wallet, season: toPublicSeasonConfig(config), updatedAt },
+      { wallet, activity, rank, season: toPublicSeasonConfig(config), updatedAt },
       { headers: { "Cache-Control": "private, max-age=15, stale-while-revalidate=60" } },
     );
   } catch (err) {
