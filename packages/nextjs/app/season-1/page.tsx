@@ -16,6 +16,7 @@ const fmtSeasonDate = (unix: number) =>
 
 const SEASON_WINDOW = `${fmtSeasonDate(SEASON_1_CONFIG.startUnix)} – ${fmtSeasonDate(SEASON_1_CONFIG.endUnix)} UTC`;
 const SEASON_DAYS = Math.round((SEASON_1_CONFIG.endUnix - SEASON_1_CONFIG.startUnix) / 86400);
+const DAILY_CAP_USD = Number(SEASON_1_CONFIG.dailyCapUSDC) / 1_000_000;
 
 export const metadata: Metadata = {
   title: "Season 1 Rules | Agentic Bets",
@@ -36,7 +37,7 @@ const QUICK_FACTS = [
   },
   {
     label: "Daily cap",
-    value: "$50 / wallet",
+    value: `$${DAILY_CAP_USD} / wallet`,
     tone: "bg-pg-amber/10 text-[#9a7200] border-pg-amber/20",
   },
   {
@@ -71,7 +72,7 @@ const ANTI_SYBIL_RULES = [
   "Minimum eligible bet size is $1.",
   "Settled and refunded rounds count toward volume — pending and cancelled rounds do not.",
   "Opposite-side betting in the same round is excluded.",
-  "Eligible volume is capped at $50 per wallet per day.",
+  `Eligible volume is capped at $${DAILY_CAP_USD} per wallet per day.`,
   "Suspicious wallet clusters can be flagged and excluded before payout.",
 ];
 

@@ -73,7 +73,7 @@ export const SEASON_1_CONFIG: SeasonConfig = {
   startUnix: 1775433600, // 2026-04-06 00:00 UTC
   endUnix: 1778198400, // 2026-05-08 00:00 UTC
   minBetUSDC: 1_000_000n,
-  dailyCapUSDC: 50_000_000n,
+  dailyCapUSDC: 100_000_000n,
   firstBetThresholdUSDC: 10_000_000n,
   firstBetBonusPoints: 10,
   pointsPerDollar: 1,

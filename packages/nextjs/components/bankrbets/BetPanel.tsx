@@ -25,6 +25,7 @@ import {
   useSettlementStatus,
   useUserBet,
 } from "~~/hooks/bankrbets/usePredictionContract";
+import { useSeasonPoints } from "~~/hooks/bankrbets/useSeasonPoints";
 import { useUsdcApproval } from "~~/hooks/bankrbets/useUsdcApproval";
 import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
 import { getPredictionContractName } from "~~/lib/contractResolver";
@@ -50,6 +51,17 @@ const AUTHORIZATION_WINDOW_S = 30 * 60;
 const ZERO_BYTES32 = `0x${"0".repeat(64)}` as const;
 const S_MASK_255_BITS = (1n << 255n) - 1n;
 const SMART_WALLET_SIGNATURE_ERROR = "SMART_WALLET_SIGNATURE";
+
+function formatSeasonUsd(value: number): string {
+  if (!Number.isFinite(value)) return "$0";
+  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+function getUtcDayBounds(unixSec: number): { start: number; end: number } {
+  const date = new Date(unixSec * 1000);
+  const start = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) / 1000;
+  return { start, end: start + 86400 };
+}
 
 const predictionBetAbi = [
   {
@@ -176,6 +188,7 @@ export function BetPanel({
   const currentIsActive = isActive ?? (currentEpoch !== undefined && currentEpoch > 0n);
   const userBet = useUserBet(tokenAddress, currentEpoch, address);
   const claimable = useClaimable(tokenAddress, currentEpoch, address);
+  const { data: seasonPoints } = useSeasonPoints(address);
   const { claim, refundRound, isClaiming, isRefunding } = usePredictionActions(tokenAddress);
   const { lockRound, closeRound, isLocking, isClosing } = useSettlementActions(tokenAddress);
   const { isLockable, isClosable } = useSettlementStatus(tokenAddress);
@@ -381,6 +394,41 @@ export function BetPanel({
   const isAmountValid = betAmountRaw > 0n;
   const isBelowMinimum = isAmountValid && betAmountRaw < MIN_BET_AMOUNT_RAW;
   const isBalanceInsufficient = isAmountValid && !isBelowMinimum && !hasBalance;
+  const seasonEstimate = useMemo(() => {
+    if (!seasonPoints?.season || !seasonPoints.wallet || !hasAmountInput || !isAmountValid || isBelowMinimum) {
+      return null;
+    }
+
+    const amountUsd = Number(formatUnits(betAmountRaw, USDC_DECIMALS));
+    if (!Number.isFinite(amountUsd) || amountUsd <= 0) return null;
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    const { start, end } = getUtcDayBounds(nowSec);
+    const usedToday = (seasonPoints.activity ?? []).reduce((sum, row) => {
+      if (!row.eligible || row.placedAt < start || row.placedAt >= end) return sum;
+      return sum + row.eligibleAmountUSD;
+    }, 0);
+
+    const dailyCap = seasonPoints.season.dailyCapUSD;
+    const remainingBefore = Math.max(0, dailyCap - usedToday);
+    const eligibleAmount = Math.min(amountUsd, remainingBefore);
+    const basePoints = Math.floor(eligibleAmount * seasonPoints.season.pointsPerDollar);
+    const dailyRemainingAfter = Math.max(0, remainingBefore - eligibleAmount);
+    const unlocksFirstBet =
+      !seasonPoints.wallet.firstBetUnlocked &&
+      eligibleAmount > 0 &&
+      seasonPoints.wallet.eligibleVolumeUSD + eligibleAmount >= seasonPoints.season.firstBetThresholdUSD;
+
+    return {
+      basePoints,
+      dailyRemainingAfter,
+      eligibleAmount,
+      cappedAmount: Math.max(0, amountUsd - eligibleAmount),
+      firstBetBonusPoints: unlocksFirstBet ? seasonPoints.season.firstBetBonusPoints : 0,
+      firstBetUnlocked: seasonPoints.wallet.firstBetUnlocked || unlocksFirstBet,
+      unlocksFirstBet,
+    };
+  }, [betAmountRaw, hasAmountInput, isAmountValid, isBelowMinimum, seasonPoints]);
   const maxBetAmountInput = useMemo(() => {
     if (balance <= 0n) return "0";
     const formatted = formatUnits(balance, USDC_DECIMALS);
@@ -671,7 +719,7 @@ export function BetPanel({
     } catch (e) {
       console.error("Settlement failed:", e);
     }
-  }, [isLockable, isClosable, tokenAddress, lockRound, closeRound, publicClient, queryClient]);
+  }, [isLockable, tokenAddress, lockRound, closeRound, publicClient, queryClient]);
 
   const handleSetMaxAmount = useCallback(() => {
     setAmount(maxBetAmountInput);
@@ -1233,6 +1281,66 @@ export function BetPanel({
                 </button>
               </div>
             </div>
+
+            {seasonEstimate && (
+              <div className="rounded-xl border-2 border-pg-violet/20 bg-pg-violet/[0.06] px-3 py-3 shadow-pop-soft">
+                <div className="flex items-center justify-between gap-3">
+                  <span
+                    className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-pg-violet"
+                    style={{ fontFamily: "var(--font-heading)" }}
+                  >
+                    Season 1 estimate
+                  </span>
+                  <span className="text-[10px] font-bold text-pg-muted">counts after settlement</span>
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  <div className="rounded-lg border border-pg-violet/20 bg-base-100/70 px-2.5 py-2">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-pg-muted">Base pts</p>
+                    <p
+                      className="mt-0.5 text-sm font-extrabold text-pg-violet"
+                      style={{ fontFamily: "var(--font-heading)" }}
+                    >
+                      +{seasonEstimate.basePoints.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-pg-amber/25 bg-base-100/70 px-2.5 py-2">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-pg-muted">First bet</p>
+                    <p
+                      className={`mt-0.5 text-sm font-extrabold ${
+                        seasonEstimate.firstBetUnlocked ? "text-pg-amber" : "text-pg-muted"
+                      }`}
+                      style={{ fontFamily: "var(--font-heading)" }}
+                    >
+                      {seasonEstimate.unlocksFirstBet
+                        ? "Unlocked"
+                        : seasonEstimate.firstBetUnlocked
+                          ? "Done"
+                          : "Locked"}
+                    </p>
+                    {seasonEstimate.unlocksFirstBet ? (
+                      <p className="mt-0.5 text-[9px] font-bold text-pg-amber">
+                        +{seasonEstimate.firstBetBonusPoints} bonus
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="rounded-lg border border-pg-mint/20 bg-base-100/70 px-2.5 py-2">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-pg-muted">Daily left</p>
+                    <p
+                      className="mt-0.5 text-sm font-extrabold text-pg-mint"
+                      style={{ fontFamily: "var(--font-heading)" }}
+                    >
+                      {formatSeasonUsd(seasonEstimate.dailyRemainingAfter)}
+                    </p>
+                  </div>
+                </div>
+                {seasonEstimate.cappedAmount > 0 ? (
+                  <p className="mt-2 text-[11px] leading-snug text-pg-muted">
+                    {formatSeasonUsd(seasonEstimate.eligibleAmount)} counts for points;{" "}
+                    {formatSeasonUsd(seasonEstimate.cappedAmount)} is above today&apos;s cap.
+                  </p>
+                ) : null}
+              </div>
+            )}
 
             {/* Action */}
             <button
