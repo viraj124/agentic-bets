@@ -5,14 +5,31 @@ import { ChartBarIcon, CurrencyDollarIcon, UserGroupIcon } from "@heroicons/reac
 import { useEligibleTokens } from "~~/hooks/bankrbets/useEligibleTokens";
 
 interface LeaderboardEntry {
-  totalBets: number;
-  totalWagered: number;
+  totalBets?: number;
+  totalWagered?: number;
+}
+
+interface LeaderboardAggregateStats {
+  totalBets?: number;
+  totalVolume?: number;
+  totalPlayers?: number;
+}
+
+interface LeaderboardResponse {
+  leaderboard?: LeaderboardEntry[];
+  stats?: LeaderboardAggregateStats;
 }
 
 function formatCompact(n: number): string {
+  if (!Number.isFinite(n)) return "0";
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return n.toFixed(0);
+}
+
+function finiteNumber(value: unknown): number {
+  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : 0;
+  return Number.isFinite(n) ? n : 0;
 }
 
 export function MarketStats() {
@@ -25,16 +42,25 @@ export function MarketStats() {
   }>({
     queryKey: ["market-stats-aggregate"],
     queryFn: async () => {
-      const res = await fetch("/api/leaderboard", { signal: AbortSignal.timeout(12_000) });
+      const res = await fetch("/api/leaderboard?mode=all-time", { signal: AbortSignal.timeout(12_000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as { leaderboard: LeaderboardEntry[] };
+      const json = (await res.json()) as LeaderboardResponse;
+
+      if (json.stats) {
+        return {
+          totalBets: finiteNumber(json.stats.totalBets),
+          totalVolume: finiteNumber(json.stats.totalVolume),
+          totalPlayers: finiteNumber(json.stats.totalPlayers),
+        };
+      }
+
       const entries = json.leaderboard ?? [];
 
       let totalBets = 0;
       let totalVolume = 0;
       for (const entry of entries) {
-        totalBets += entry.totalBets;
-        totalVolume += entry.totalWagered;
+        totalBets += finiteNumber(entry.totalBets);
+        totalVolume += finiteNumber(entry.totalWagered);
       }
 
       return { totalBets, totalVolume, totalPlayers: entries.length };
