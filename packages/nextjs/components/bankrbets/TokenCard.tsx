@@ -57,6 +57,16 @@ interface TokenCardProps {
   isExpanded: boolean;
   onToggle: () => void;
   hasMarket?: boolean;
+  actionLabels?: TokenActionLabel[];
+}
+
+export type TokenActionLabelTone = "violet" | "mint" | "amber" | "pink" | "slate";
+
+export interface TokenActionLabel {
+  id: string;
+  text: string;
+  tone: TokenActionLabelTone;
+  pulse?: boolean;
 }
 
 /** Rotating accent colors for token avatars without images */
@@ -72,7 +82,21 @@ function getAvatarColor(symbol: string) {
   return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
-export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, hasMarket }: TokenCardProps) {
+const ACTION_LABEL_TONES: Record<TokenActionLabelTone, string> = {
+  violet: "bg-pg-violet/10 text-pg-violet border-pg-violet/25",
+  mint: "bg-pg-mint/10 text-pg-mint border-pg-mint/25",
+  amber: "bg-pg-amber/12 text-[#9a7200] border-pg-amber/25",
+  pink: "bg-pg-pink/10 text-pg-pink border-pg-pink/25",
+  slate: "bg-base-200/70 text-pg-muted border-pg-border",
+};
+
+export const TokenCard = memo(function TokenCard({
+  token,
+  isExpanded,
+  onToggle,
+  hasMarket,
+  actionLabels = [],
+}: TokenCardProps) {
   const { isConnected } = useAccount();
   const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -160,6 +184,24 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
               ) : null}
             </div>
             <p className="text-[11px] text-pg-muted truncate">{token.name}</p>
+            {actionLabels.length > 0 && (
+              <div className="mt-1 flex flex-wrap items-center gap-1">
+                {actionLabels.map(label => (
+                  <span
+                    key={label.id}
+                    className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-extrabold leading-none ${ACTION_LABEL_TONES[label.tone]}`}
+                    style={{ fontFamily: "var(--font-heading)" }}
+                  >
+                    <span
+                      className={`h-1 w-1 rounded-full ${
+                        label.pulse ? "motion-safe:animate-pulse" : ""
+                      } ${label.tone === "slate" ? "bg-pg-muted/50" : "bg-current"}`}
+                    />
+                    {label.text}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Price */}
@@ -241,7 +283,7 @@ export const TokenCard = memo(function TokenCard({ token, isExpanded, onToggle, 
 
               {/* Actions */}
               <div className="flex items-center gap-3 mt-4">
-                {isConnected && !hasMarket && (
+                {isConnected && hasMarket === false && (
                   <button onClick={openModal} className="btn-candy flex-1 text-sm text-center">
                     Create
                   </button>
