@@ -236,14 +236,15 @@ const LeaderboardPage: NextPage = () => {
   const allTimeTotalBets = allTimeEntries.reduce((s, e) => s + e.totalBets, 0);
   const allTimeTotalVolume = allTimeEntries.reduce((s, e) => s + e.totalWagered, 0);
 
+  const seasonFinalized = process.env.NEXT_PUBLIC_SEASON_1_FINALIZED === "true";
   const subtitle =
     mode === "season" ? (
       <>
-        Top wallets ranked by{" "}
+        {seasonFinalized ? "Final " : "Top wallets ranked by "}
         <Link href="/season-1" className="text-pg-violet font-bold hover:underline">
           Season 1
         </Link>{" "}
-        points
+        {seasonFinalized ? "standings · locked" : "points"}
       </>
     ) : (
       <>Top predictors ranked by net profit</>

@@ -1,11 +1,15 @@
 import { type BetActivityRow, type SeasonConfig, type WalletPoints, computeSeason } from "../seasonPoints";
-import { fetchAllBetEvents, fetchRoundStatuses } from "./seasonData";
+import { loadManualExclusions } from "./manualExclusions";
+import { fetchAllBetEvents, fetchRoundSettlements } from "./seasonData";
 import "server-only";
 
 const TTL_MS = 30_000;
 
+export type WindowMode = "placed" | "settled";
+
 export type SeasonComputed = {
   config: SeasonConfig;
+  windowMode: WindowMode;
   walletPoints: Map<string, WalletPoints>;
   activityByUser: Map<string, BetActivityRow[]>;
   rankByUser: Map<string, number>; // 1-indexed; only set for wallets in the leaderboard
@@ -16,8 +20,9 @@ export type SeasonComputed = {
 let cache: SeasonComputed | null = null;
 let inFlight: Promise<SeasonComputed> | null = null;
 
-const configsMatch = (a: SeasonConfig | undefined, b: SeasonConfig) =>
-  !!a && a.startUnix === b.startUnix && a.endUnix === b.endUnix;
+const isFinalized = () => process.env.NEXT_PUBLIC_SEASON_1_FINALIZED === "true";
+const cacheMatch = (a: SeasonComputed | null, config: SeasonConfig, mode: WindowMode) =>
+  !!a && a.config.startUnix === config.startUnix && a.config.endUnix === config.endUnix && a.windowMode === mode;
 
 function rankWallets(walletPoints: Map<string, WalletPoints>): {
   sortedLeaderboard: WalletPoints[];
@@ -35,22 +40,42 @@ function rankWallets(walletPoints: Map<string, WalletPoints>): {
   return { sortedLeaderboard, rankByUser };
 }
 
-async function refresh(config: SeasonConfig): Promise<SeasonComputed> {
-  const events = await fetchAllBetEvents(config.startUnix);
+async function refresh(config: SeasonConfig, windowMode: WindowMode): Promise<SeasonComputed> {
+  const useUnbounded = windowMode === "settled";
+  const [events, manual] = await Promise.all([
+    fetchAllBetEvents(config.startUnix, { unbounded: useUnbounded }),
+    loadManualExclusions(),
+  ]);
   const roundIds = Array.from(new Set(events.map(e => e.roundId)));
-  const statuses = await fetchRoundStatuses(roundIds);
-  const { walletPoints, activityByUser } = computeSeason(events, statuses, config);
+  const roundData = await fetchRoundSettlements(roundIds);
+  const { walletPoints, activityByUser } = computeSeason(events, roundData, config, {
+    flaggedWallets: manual.flagged,
+    excludedWallets: manual.excluded,
+    windowMode,
+  });
   const { sortedLeaderboard, rankByUser } = rankWallets(walletPoints);
-  cache = { config, walletPoints, activityByUser, rankByUser, sortedLeaderboard, updatedAt: Date.now() };
+  cache = {
+    config,
+    windowMode,
+    walletPoints,
+    activityByUser,
+    rankByUser,
+    sortedLeaderboard,
+    updatedAt: Date.now(),
+  };
   return cache;
 }
 
-export async function getSeasonComputed(config: SeasonConfig): Promise<SeasonComputed> {
-  if (cache && configsMatch(cache.config, config) && Date.now() - cache.updatedAt < TTL_MS) {
+export async function getSeasonComputed(
+  config: SeasonConfig,
+  overrideWindowMode?: WindowMode,
+): Promise<SeasonComputed> {
+  const windowMode: WindowMode = overrideWindowMode ?? (isFinalized() ? "settled" : "placed");
+  if (cache && cacheMatch(cache, config, windowMode) && Date.now() - cache.updatedAt < TTL_MS) {
     return cache;
   }
   if (inFlight) return inFlight;
-  inFlight = refresh(config).finally(() => {
+  inFlight = refresh(config, windowMode).finally(() => {
     inFlight = null;
   });
   return inFlight;

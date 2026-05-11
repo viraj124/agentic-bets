@@ -1,4 +1,4 @@
-import type { BetEventInput, RoundStatus } from "../seasonPoints";
+import type { BetEventInput, RoundSettlement, RoundStatus } from "../seasonPoints";
 import "server-only";
 
 const PONDER_URL = process.env.PONDER_URL || "http://localhost:42069";
@@ -14,11 +14,16 @@ type BetEventRow = {
   position: number;
   amount: string;
   placedAt: string;
+  contractAddress?: string;
+  contractVersion?: "v1" | "v2";
 };
 
 type RoundSettlementRow = {
   id: string;
   status: RoundStatus;
+  settledAt?: string;
+  contractAddress?: string;
+  contractVersion?: "v1" | "v2";
 };
 
 type BetEventsResponse = {
@@ -49,6 +54,8 @@ function rowToBetEventInput(row: BetEventRow): BetEventInput {
   return {
     user: row.user.toLowerCase(),
     roundId: row.roundId,
+    contractAddress: row.contractAddress?.toLowerCase(),
+    contractVersion: row.contractVersion,
     token: row.token.toLowerCase(),
     epoch: Number(BigInt(row.epoch)),
     amount: BigInt(row.amount),
@@ -63,14 +70,15 @@ async function paginateBetEvents(whereClause: string): Promise<BetEventInput[]> 
 
   for (let page = 0; page < MAX_PAGES; page++) {
     const afterClause: string = cursor ? `, after: ${JSON.stringify(cursor)}` : "";
+    const whereSegment = whereClause.trim().length > 0 ? `where: { ${whereClause} },` : "";
     const query = `{
       betEvents(
-        where: { ${whereClause} },
+        ${whereSegment}
         orderBy: "placedAt",
         orderDirection: "asc",
         limit: ${PAGE_SIZE}${afterClause}
       ) {
-        items { id roundId user token epoch position amount placedAt }
+        items { id roundId user token epoch position amount placedAt contractAddress contractVersion }
         pageInfo { hasNextPage endCursor }
       }
     }`;
@@ -89,15 +97,18 @@ export async function fetchBetEventsForUser(user: string, startUnix?: number): P
   return paginateBetEvents(`user: "${userLower}"${placedAtFilter}`);
 }
 
-export async function fetchAllBetEvents(startUnix: number): Promise<BetEventInput[]> {
+export async function fetchAllBetEvents(
+  startUnix: number,
+  { unbounded = false }: { unbounded?: boolean } = {},
+): Promise<BetEventInput[]> {
+  if (unbounded) return paginateBetEvents("");
   return paginateBetEvents(`placedAt_gte: "${startUnix}"`);
 }
 
-export async function fetchRoundStatuses(roundIds: string[]): Promise<Map<string, RoundStatus>> {
-  const map = new Map<string, RoundStatus>();
+export async function fetchRoundSettlements(roundIds: string[]): Promise<Map<string, RoundSettlement>> {
+  const map = new Map<string, RoundSettlement>();
   if (!roundIds.length) return map;
 
-  // Ponder GraphQL supports id_in for batch fetch
   const chunked: string[][] = [];
   for (let i = 0; i < roundIds.length; i += 100) chunked.push(roundIds.slice(i, i + 100));
 
@@ -105,14 +116,25 @@ export async function fetchRoundStatuses(roundIds: string[]): Promise<Map<string
     const idsLiteral = chunk.map(id => JSON.stringify(id)).join(",");
     const query = `{
       roundSettlements(where: { id_in: [${idsLiteral}] }, limit: ${chunk.length}) {
-        items { id status }
+        items { id status settledAt contractAddress contractVersion }
       }
     }`;
     const data = await ponderQuery<RoundSettlementsResponse>(query);
     for (const row of data.roundSettlements.items) {
-      map.set(row.id, row.status);
+      map.set(row.id, {
+        status: row.status,
+        settledAt: row.settledAt ? Number(BigInt(row.settledAt)) : 0,
+      });
     }
   }
 
   return map;
+}
+
+// Back-compat alias for older callers that only need the status map.
+export async function fetchRoundStatuses(roundIds: string[]): Promise<Map<string, RoundStatus>> {
+  const settlements = await fetchRoundSettlements(roundIds);
+  const out = new Map<string, RoundStatus>();
+  settlements.forEach((s, id) => out.set(id, s.status));
+  return out;
 }

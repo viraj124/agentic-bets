@@ -5,15 +5,32 @@ export type Position = 0 | 1; // 0 = bull, 1 = bear
 
 export type RoundStatus = "settled" | "cancelled" | "refunded";
 
+export type RoundSettlement = {
+  status: RoundStatus;
+  settledAt: number; // unix seconds; 0 if not yet known (pending)
+};
+
 export type BetEventInput = {
   user: string;
   roundId: string; // matches RoundSettlement id, e.g. `${contract}:${token}:${epoch}`
+  contractAddress?: string; // 0x-prefixed lowercase; populated by data layer when available
+  contractVersion?: "v1" | "v2";
   token: string; // 0x-prefixed lowercase
   epoch: number;
   amount: bigint; // raw USDC, 6 decimals
   placedAt: number; // unix seconds
   position: Position;
 };
+
+// Machine-readable codes for downstream export, dispute review, and Merkle prep.
+export type ExclusionCode =
+  | "outside_season_window"
+  | "round_not_settled"
+  | "cancelled_round"
+  | "below_min_bet"
+  | "opposite_side_same_round"
+  | "wallet_blocklisted"
+  | "manual_review_exclusion";
 
 export type SeasonConfig = {
   startUnix: number;
@@ -48,18 +65,26 @@ export type BetActivityStatus = "settled" | "refunded" | "cancelled" | "pending"
 export type BetActivityRow = {
   user: string;
   roundId: string;
+  contractAddress?: string;
+  contractVersion?: "v1" | "v2";
   token: string;
   epoch: number;
   position: Position;
   amountUSD: number; // raw bet amount
+  amountUSDCe6: string; // 6dp integer string for export/Merkle stability
   eligibleAmountUSD: number; // amount counted toward season after daily cap (0 if not eligible)
+  eligibleAmountUSDCe6: string;
   cappedAmountUSD: number; // amount above daily cap (0 if not eligible)
+  cappedAmountUSDCe6: string;
   pointsEarned: number; // base points + first-bet bonus on the unlocking row, if any
+  pointsEarnedE6: string; // 6dp integer string
   roundStatus: BetActivityStatus;
   eligible: boolean;
+  exclusionCode: ExclusionCode | null;
   exclusionReason: string | null;
   unlocksFirstBet: boolean;
   placedAt: number;
+  settledAt: number; // 0 if not yet known
 };
 
 export type SeasonComputation = {
@@ -89,42 +114,84 @@ const utcDayKey = (unixSec: number) => {
   return `${y}-${m}-${day}`;
 };
 
-const REASON_PENDING = "round not settled yet";
-const REASON_CANCELLED = "round cancelled";
-const REASON_BELOW_MIN = "below $1 minimum bet";
-const REASON_OPPOSITE_SIDE = "opposite-side same round";
+export const EXCLUSION_LABELS: Record<ExclusionCode, string> = {
+  outside_season_window: "outside season window",
+  round_not_settled: "round not settled yet",
+  cancelled_round: "round cancelled",
+  below_min_bet: "below $1 minimum bet",
+  opposite_side_same_round: "opposite-side same round",
+  wallet_blocklisted: "wallet blocklisted",
+  manual_review_exclusion: "manual review exclusion",
+};
 
 function classifyEvent(
   event: BetEventInput,
   status: RoundStatus | undefined,
   config: SeasonConfig,
   positions: Set<Position> | undefined,
-): { activityStatus: BetActivityStatus; eligible: boolean; reason: string | null } {
+): {
+  activityStatus: BetActivityStatus;
+  eligible: boolean;
+  code: ExclusionCode | null;
+} {
   let activityStatus: BetActivityStatus;
   if (!status) activityStatus = "pending";
   else activityStatus = status;
 
-  if (activityStatus === "pending") return { activityStatus, eligible: false, reason: REASON_PENDING };
-  if (activityStatus === "cancelled") return { activityStatus, eligible: false, reason: REASON_CANCELLED };
+  if (activityStatus === "pending") return { activityStatus, eligible: false, code: "round_not_settled" };
+  if (activityStatus === "cancelled") return { activityStatus, eligible: false, code: "cancelled_round" };
   if (!ELIGIBLE_STATUSES.has(activityStatus as RoundStatus)) {
-    return { activityStatus, eligible: false, reason: REASON_PENDING };
+    return { activityStatus, eligible: false, code: "round_not_settled" };
   }
-  if (event.amount < config.minBetUSDC) return { activityStatus, eligible: false, reason: REASON_BELOW_MIN };
-  if (positions && positions.size > 1) return { activityStatus, eligible: false, reason: REASON_OPPOSITE_SIDE };
-  return { activityStatus, eligible: true, reason: null };
+  if (event.amount < config.minBetUSDC) return { activityStatus, eligible: false, code: "below_min_bet" };
+  if (positions && positions.size > 1) return { activityStatus, eligible: false, code: "opposite_side_same_round" };
+  return { activityStatus, eligible: true, code: null };
 }
+
+const toUSDCe6 = (n: bigint) => n.toString();
+const toPointsE6 = (points: number) => Math.round(points * 1_000_000).toString();
+
+export type WalletExclusionEntry = {
+  reason: ExclusionCode;
+  notes?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+};
+
+export type ManualOverrides = {
+  flaggedWallets?: Set<string>; // marks reviewStatus="review", does NOT zero points
+  excludedWallets?: Map<string, WalletExclusionEntry>; // zeros points and marks excluded
+};
+
+export type ComputeSeasonOptions = ManualOverrides & {
+  windowMode?: "placed" | "settled"; // default "placed" (live UI). Use "settled" for final export.
+};
 
 export function computeSeason(
   events: BetEventInput[],
-  roundStatuses: Map<string, RoundStatus>,
+  roundData: Map<string, RoundSettlement>,
   config: SeasonConfig,
-  flaggedWallets: Set<string> = new Set(),
+  options: ComputeSeasonOptions = {},
 ): SeasonComputation {
   const walletPoints = new Map<string, WalletPoints>();
   const activityByUser = new Map<string, BetActivityRow[]>();
-  const flagged = new Set(Array.from(flaggedWallets, w => w.toLowerCase()));
+  const flagged = new Set(Array.from(options.flaggedWallets ?? [], w => w.toLowerCase()));
+  const excludedRaw = options.excludedWallets ?? new Map<string, WalletExclusionEntry>();
+  const excludedWallets = new Map<string, WalletExclusionEntry>();
+  excludedRaw.forEach((entry, wallet) => excludedWallets.set(wallet.toLowerCase(), entry));
+  const windowMode = options.windowMode ?? "placed";
 
-  const inWindow = events.filter(e => e.placedAt >= config.startUnix && e.placedAt < config.endUnix);
+  const eventInWindow = (e: BetEventInput) => {
+    if (windowMode === "settled") {
+      const round = roundData.get(e.roundId);
+      const t = round?.settledAt ?? 0;
+      // If settledAt is unknown, fall back to placedAt for window membership.
+      const reference = t > 0 ? t : e.placedAt;
+      return reference >= config.startUnix && reference < config.endUnix;
+    }
+    return e.placedAt >= config.startUnix && e.placedAt < config.endUnix;
+  };
+  const inWindow = events.filter(eventInWindow);
 
   // Detect opposite-side bets per (user, roundId)
   const userRoundPositions = new Map<string, Set<Position>>();
@@ -147,6 +214,7 @@ export function computeSeason(
   for (const [user, userEvents] of eventsByUser) {
     userEvents.sort((a, b) => a.placedAt - b.placedAt);
 
+    const walletExcluded = excludedWallets.get(user);
     const dailyUsed = new Map<string, bigint>();
     let totalEligibleUSDC = 0n;
     let totalRawUSDC = 0n;
@@ -156,19 +224,28 @@ export function computeSeason(
     let firstBetBonusCreditedToRow = false;
     let excludedBets = 0;
     const exclusionReasonSet = new Set<string>();
+    const exclusionCodeSet = new Set<ExclusionCode>();
 
     const rows: BetActivityRow[] = [];
 
     for (const e of userEvents) {
       totalRawUSDC += e.amount;
-      const status = roundStatuses.get(e.roundId);
+      const round = roundData.get(e.roundId);
       const positions = userRoundPositions.get(`${user}:${e.roundId}`);
-      const { activityStatus, eligible, reason } = classifyEvent(e, status, config, positions);
+      const classified = classifyEvent(e, round?.status, config, positions);
+      const { activityStatus } = classified;
+      let { eligible, code } = classified;
+      let unlocksFirstBet = false;
+
+      // Manual wallet exclusion overrides natural eligibility.
+      if (walletExcluded) {
+        eligible = false;
+        code = walletExcluded.reason;
+      }
 
       let eligibleAmount = 0n;
       let cappedAmount = 0n;
       let pointsEarned = 0;
-      let unlocksFirstBet = false;
 
       if (eligible) {
         const day = utcDayKey(e.placedAt);
@@ -192,24 +269,35 @@ export function computeSeason(
         }
       } else {
         excludedBets += 1;
-        if (reason) exclusionReasonSet.add(reason);
+        if (code) {
+          exclusionCodeSet.add(code);
+          exclusionReasonSet.add(EXCLUSION_LABELS[code]);
+        }
       }
 
       rows.push({
         user,
         roundId: e.roundId,
+        contractAddress: e.contractAddress,
+        contractVersion: e.contractVersion,
         token: e.token.toLowerCase(),
         epoch: e.epoch,
         position: e.position,
         amountUSD: Number(e.amount) / 1_000_000,
+        amountUSDCe6: toUSDCe6(e.amount),
         eligibleAmountUSD: Number(eligibleAmount) / 1_000_000,
+        eligibleAmountUSDCe6: toUSDCe6(eligibleAmount),
         cappedAmountUSD: Number(cappedAmount) / 1_000_000,
+        cappedAmountUSDCe6: toUSDCe6(cappedAmount),
         pointsEarned,
+        pointsEarnedE6: toPointsE6(pointsEarned),
         roundStatus: activityStatus,
         eligible,
-        exclusionReason: reason,
+        exclusionCode: code,
+        exclusionReason: code ? EXCLUSION_LABELS[code] : null,
         unlocksFirstBet,
         placedAt: e.placedAt,
+        settledAt: round?.settledAt ?? 0,
       });
     }
 
@@ -222,18 +310,18 @@ export function computeSeason(
 
     walletPoints.set(user, {
       user,
-      seasonPoints: baseVolumePoints + firstBetBonus,
-      baseVolumePoints,
-      firstBetBonusPoints: firstBetBonus,
-      eligibleVolumeUSD,
+      seasonPoints: walletExcluded ? 0 : baseVolumePoints + firstBetBonus,
+      baseVolumePoints: walletExcluded ? 0 : baseVolumePoints,
+      firstBetBonusPoints: walletExcluded ? 0 : firstBetBonus,
+      eligibleVolumeUSD: walletExcluded ? 0 : eligibleVolumeUSD,
       rawVolumeUSD: Number(totalRawUSDC) / 1_000_000,
-      cappedVolumeUSD: Number(cappedUSDC) / 1_000_000,
+      cappedVolumeUSD: walletExcluded ? 0 : Number(cappedUSDC) / 1_000_000,
       excludedBets,
       exclusionReasons: Array.from(exclusionReasonSet),
-      firstBetUnlocked,
-      firstBetUnlockedAt,
+      firstBetUnlocked: walletExcluded ? false : firstBetUnlocked,
+      firstBetUnlockedAt: walletExcluded ? null : firstBetUnlockedAt,
       daysActive: dailyUsed.size,
-      reviewStatus: flagged.has(user) ? "review" : "ok",
+      reviewStatus: walletExcluded ? "excluded" : flagged.has(user) ? "review" : "ok",
     });
   }
 
@@ -243,11 +331,11 @@ export function computeSeason(
 // Back-compat wrapper — same signature as before.
 export function computeSeasonPoints(
   events: BetEventInput[],
-  roundStatuses: Map<string, RoundStatus>,
+  roundData: Map<string, RoundSettlement>,
   config: SeasonConfig,
   flaggedWallets: Set<string> = new Set(),
 ): Map<string, WalletPoints> {
-  return computeSeason(events, roundStatuses, config, flaggedWallets).walletPoints;
+  return computeSeason(events, roundData, config, { flaggedWallets }).walletPoints;
 }
 
 export function emptyWalletPoints(user: string): WalletPoints {

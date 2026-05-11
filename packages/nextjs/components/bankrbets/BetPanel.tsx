@@ -1282,7 +1282,7 @@ export function BetPanel({
               </div>
             </div>
 
-            {seasonEstimate && (
+            {seasonEstimate && process.env.NEXT_PUBLIC_SEASON_1_FINALIZED !== "true" && (
               <div className="rounded-xl border-2 border-pg-violet/20 bg-pg-violet/[0.06] px-3 py-3 shadow-pop-soft">
                 <div className="flex items-center justify-between gap-3">
                   <span

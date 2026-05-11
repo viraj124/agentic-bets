@@ -17,6 +17,7 @@ const fmtSeasonDate = (unix: number) =>
 const SEASON_WINDOW = `${fmtSeasonDate(SEASON_1_CONFIG.startUnix)} – ${fmtSeasonDate(SEASON_1_CONFIG.endUnix)} UTC`;
 const SEASON_DAYS = Math.round((SEASON_1_CONFIG.endUnix - SEASON_1_CONFIG.startUnix) / 86400);
 const DAILY_CAP_USD = Number(SEASON_1_CONFIG.dailyCapUSDC) / 1_000_000;
+const SEASON_FINALIZED = process.env.NEXT_PUBLIC_SEASON_1_FINALIZED === "true";
 
 export const metadata: Metadata = {
   title: "Season 1 Rules | Agentic Bets",
@@ -88,12 +89,17 @@ export default function SeasonOneRulesPage() {
           <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex items-center gap-2 rounded-full border border-pg-violet/25 bg-pg-violet/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-pg-violet">
               <CheckBadgeIcon className="h-3.5 w-3.5" />
-              Season 1 Rules
+              {SEASON_FINALIZED ? "Season 1 · Final" : "Season 1 Rules"}
             </div>
             <div className="inline-flex items-center gap-2 rounded-full border border-pg-mint/25 bg-pg-mint/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-pg-mint">
               <CalendarDaysIcon className="h-3.5 w-3.5" />
               {SEASON_WINDOW}
             </div>
+            {SEASON_FINALIZED ? (
+              <div className="inline-flex items-center gap-2 rounded-full border border-pg-amber/30 bg-pg-amber/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#9a7200]">
+                Standings locked
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-4 max-w-2xl">
@@ -104,8 +110,9 @@ export default function SeasonOneRulesPage() {
               Points first. Abuse gets filtered out.
             </h1>
             <p className="mt-4 text-sm md:text-base text-pg-muted leading-relaxed max-w-xl">
-              Season 1 rewards real betting activity. It&apos;s a points-based competition — these rules govern how
-              points are earned, how leaderboard standings work, and how eligible wallets are reviewed at season end.
+              {SEASON_FINALIZED
+                ? "Season 1 has ended. Points are locked using settled-round volume. Final $AGBETS reward distribution is subject to treasury review and will be announced separately."
+                : "Season 1 rewards real betting activity. It’s a points-based competition — these rules govern how points are earned, how leaderboard standings work, and how eligible wallets are reviewed at season end."}
             </p>
           </div>
 
