@@ -1,0 +1,85 @@
+{
+  "seasonId": 1,
+  "snapshotGeneratedAt": "2026-05-16T10:15:18.150Z",
+  "snapshotGitCommit": "94f415985369025026fb1ed812c2eec0f8a77b40",
+  "distributionGeneratedAt": "2026-05-16T12:33:29.425Z",
+  "token": {
+    "address": "0x37d183fcf1da460a64d21e754b3e6144c4e11ba3",
+    "decimals": 18,
+    "symbol": "AGBETS"
+  },
+  "treasury": "0x2876540f274b39786d1ff034dbed8dc41fea5024",
+  "chainId": 8453,
+  "policy": {
+    "curve": "linear-prorata",
+    "poolBps": 3000,
+    "minDustHuman": 1
+  },
+  "balances": {
+    "treasuryWei": "5443590169875459929936556113",
+    "treasuryHuman": "5443590169.875459929936556113",
+    "poolWei": "1633077050962637978980966833",
+    "poolHuman": "1633077050.962637978980966833"
+  },
+  "totals": {
+    "totalPointsE6": "145000000",
+    "walletsEligible": 6,
+    "walletsDistributed": 6,
+    "walletsDroppedDust": 0,
+    "distributedWei": "1633077050962637978980966829",
+    "distributedHuman": "1633077050.962637978980966829",
+    "unallocatedWei": "4",
+    "unallocatedHuman": "0.000000000000000004"
+  },
+  "rows": [
+    {
+      "wallet": "0xd9d35da7f3fd8989346d03dc8ca5cf2e2d65957a",
+      "rank": 1,
+      "pointsE6": "60000000",
+      "sharePct": 41.3793,
+      "amountWei": "675756021087988129233503517",
+      "amountHuman": "675756021.087988129233503517"
+    },
+    {
+      "wallet": "0x77bb520bc548391f8eea967c9f39e201b3bbeb89",
+      "rank": 2,
+      "pointsE6": "42000000",
+      "sharePct": 28.9655,
+      "amountWei": "473029214761591690463452461",
+      "amountHuman": "473029214.761591690463452461"
+    },
+    {
+      "wallet": "0x2dc649b61355bf1b28f7daf4a992f6b6c4a24c28",
+      "rank": 3,
+      "pointsE6": "30000000",
+      "sharePct": 20.6896,
+      "amountWei": "337878010543994064616751758",
+      "amountHuman": "337878010.543994064616751758"
+    },
+    {
+      "wallet": "0xee42dfbbad186da696188994e28963a348514ff7",
+      "rank": 4,
+      "pointsE6": "7000000",
+      "sharePct": 4.8275,
+      "amountWei": "78838202460265281743908743",
+      "amountHuman": "78838202.460265281743908743"
+    },
+    {
+      "wallet": "0x131fd842fee3199e9ac9307a4ddb6dff72c67765",
+      "rank": 5,
+      "pointsE6": "4000000",
+      "sharePct": 2.7586,
+      "amountWei": "45050401405865875282233567",
+      "amountHuman": "45050401.405865875282233567"
+    },
+    {
+      "wallet": "0x538c4f2afa012911851dadf0655cb61377e7a8eb",
+      "rank": 6,
+      "pointsE6": "2000000",
+      "sharePct": 1.3793,
+      "amountWei": "22525200702932937641116783",
+      "amountHuman": "22525200.702932937641116783"
+    }
+  ],
+  "dropped": []
+}
