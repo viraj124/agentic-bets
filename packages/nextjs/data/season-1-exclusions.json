@@ -1,1 +1,18 @@
-[]
+[
+  {
+    "wallet": "0x2876540f274b39786d1ff034dbed8dc41fea5024",
+    "excluded": true,
+    "reason": "manual_review_exclusion",
+    "notes": "protocol treasury / funding wallet — not reward-eligible",
+    "reviewedBy": "viraz",
+    "reviewedAt": "2026-05-16T00:00:00Z"
+  },
+  {
+    "wallet": "0x120748e0ed080f94dfc90e8aca4e107c250b8c67",
+    "excluded": true,
+    "reason": "manual_review_exclusion",
+    "notes": "internal test wallet",
+    "reviewedBy": "viraz",
+    "reviewedAt": "2026-05-16T00:00:00Z"
+  }
+]
