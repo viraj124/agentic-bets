@@ -238,24 +238,52 @@ export default function SeasonOneRulesPage() {
                 >
                   Rewards
                 </h2>
-                <p className="mt-3 text-sm leading-relaxed text-pg-muted">
-                  Season 1 is scored through points and leaderboard standings. Any final $AGBETS reward distribution is
-                  subject to treasury capacity, anti-sybil review, and final season validation. Distribution details, if
-                  approved, will be announced after the season ends.
-                </p>
-                <p className="mt-3 text-sm leading-relaxed text-pg-muted">
-                  Wallets flagged for abusive, coordinated, or sybil-like activity can be excluded from final standings
-                  and any reward distribution.
-                </p>
+                {SEASON_FINALIZED ? (
+                  <>
+                    <p className="mt-3 text-sm leading-relaxed text-pg-muted">
+                      Season 1 $AGBETS rewards have been distributed — 30% of the treasury, split linear pro-rata over
+                      locked points and sent on Base. The protocol treasury and an internal test wallet were excluded.
+                    </p>
+                    <p className="mt-3 text-sm leading-relaxed text-pg-muted">
+                      See the full per-wallet breakdown, methodology, and verification on the rewards page. Connected
+                      wallets can also see their own reward on the portfolio page.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="mt-3 text-sm leading-relaxed text-pg-muted">
+                      Season 1 is scored through points and leaderboard standings. Any final $AGBETS reward distribution
+                      is subject to treasury capacity, anti-sybil review, and final season validation. Distribution
+                      details, if approved, will be announced after the season ends.
+                    </p>
+                    <p className="mt-3 text-sm leading-relaxed text-pg-muted">
+                      Wallets flagged for abusive, coordinated, or sybil-like activity can be excluded from final
+                      standings and any reward distribution.
+                    </p>
+                  </>
+                )}
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3">
-                <Link href="/leaderboard" className="btn-candy text-sm text-center">
-                  View leaderboard
-                </Link>
-                <Link href="/" className="btn-outline-geo text-sm text-center">
-                  Browse markets
-                </Link>
+                {SEASON_FINALIZED ? (
+                  <>
+                    <Link href="/season-1/rewards" className="btn-candy text-sm text-center">
+                      View Season 1 rewards
+                    </Link>
+                    <Link href="/leaderboard" className="btn-outline-geo text-sm text-center">
+                      View leaderboard
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link href="/leaderboard" className="btn-candy text-sm text-center">
+                      View leaderboard
+                    </Link>
+                    <Link href="/" className="btn-outline-geo text-sm text-center">
+                      Browse markets
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           </div>
