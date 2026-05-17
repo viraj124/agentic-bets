@@ -7,6 +7,7 @@ import type { NextPage } from "next";
 import { useAccount } from "wagmi";
 import { IdentityBadge } from "~~/components/bankrbets/IdentityBadge";
 import { SeasonActivityLog } from "~~/components/bankrbets/SeasonActivityLog";
+import { SeasonRewardCard } from "~~/components/bankrbets/SeasonRewardCard";
 import { SeasonWalletCard } from "~~/components/bankrbets/SeasonWalletCard";
 import { useReferralLink, useReferralStats } from "~~/hooks/bankrbets/useReferral";
 import { useResolvedAddresses } from "~~/hooks/bankrbets/useResolvedAddresses";
@@ -299,8 +300,9 @@ const ProfilePage: NextPage = () => {
             ))}
       </div>
 
-      {/* Season 1 — wallet card + activity log */}
+      {/* Season 1 — reward + wallet card + activity log */}
       <div className="space-y-4 mb-6 sm:mb-8">
+        <SeasonRewardCard />
         <SeasonWalletCard />
         <SeasonActivityLog tokenSymbolMap={tokenSymbolMap} />
       </div>
